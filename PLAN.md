@@ -40,11 +40,11 @@ are not a fidelity target.
 
 ## Phase 0 — Verification infrastructure
 
-- [ ] 0.1 Pin the upstream checkout: shallow-clone `CoolProp/CoolProp` at tag `v8.0.0` to a
+- [x] 0.1 Pin the upstream checkout: shallow-clone `CoolProp/CoolProp` at tag `v8.0.0` to a
       sibling directory outside this repo (not vendored — repo bloat). Record the commit SHA in
       the Decisions log. Any tool that reads the checkout must assert the tag first.
       → verify: `git describe --tags` in the checkout prints `v8.0.0`.
-- [ ] 0.2 Survey and document the upstream data layout in this file (replace the TODO note at the
+- [x] 0.2 Survey and document the upstream data layout in this file (replace the TODO note at the
       bottom): `dev/fluids/` (138 entries incl. `*.json_disabled` — record the active count),
       `dev/mixtures/`, `dev/incompressible_liquids/`, `dev/pcsaft/`, `dev/cubics/`,
       `dev/pseudo-pure/`; also how upstream itself embeds JSON (`dev/generate_headers.py`,
@@ -314,4 +314,28 @@ Append-only; newest last. Seeded entries:
   the tag before reading. Upstream `dev/fluids/` has 138 entries including disabled ones; exact
   active count to be recorded in step 0.2.
 - 2026-08-06 — REFPROP backend confirmed out of scope (proprietary shim; see CLAUDE.md).
-- 2026-08-06 — TODO (step 0.2): full upstream data-layout survey note goes here.
+- 2026-08-06 — 0.1: upstream pinned at `~/homecloud/dev/CoolProp` (shallow), tag `v8.0.0`,
+  commit `ae81610e7d23efc57f9d051c8e70a4d66e87537f`. Gotcha: `git describe --tags` prints
+  `gui-v8.0.0` — two release tags share this commit — so tools must assert the pin with
+  `git tag --points-at HEAD | grep -qx v8.0.0`, not `git describe`.
+- 2026-08-06 — 0.2 upstream data-layout survey:
+  - `dev/fluids/`: 136 active `*.json` + 2 `*.json_disabled`, 17 MB raw. Pseudo-pure fluids
+    (Air, R404A, …) live here too; `dev/pseudo-pure/` is fitting machinery only, no runtime data.
+  - `dev/mixtures/`: runtime data = `mixture_binary_pairs.json` (203 KB),
+    `mixture_departure_functions.json`, `predefined_mixtures.json`. The `.tsv`/`.txt` tables
+    (ASHRAE_predefined_2026, Bell2016, KunzWagner) are *sources* that `inject_*.py` scripts fold
+    into those JSONs.
+  - `dev/incompressible_liquids/json/`: 126 per-fluid JSONs.
+  - `dev/pcsaft/`: `all_pcsaft_fluids.json` + `mixture_binary_pairs_pcsaft.json`.
+  - `dev/cubics/`: `all_cubic_fluids.json`.
+  - `dev/validate_fluid_schemas.py` validates these documents against the committed
+    `*_schema.json` files (upstream's build-time gate, mirroring the C++
+    `cpjson::validate_schema` calls) — rerunnable as an extra check on data we consume.
+  - **Critical for datagen**: upstream's build *injects* data into the fluid JSONs before
+    embedding them — `dev/package_json.py` adds Mulero-2012/2014 surface tension, environmental
+    data, and ancillaries, then combines; `dev/generate_headers.py` embeds the combined result
+    CBOR-encoded (vendored `cbor_min.py`). Raw `dev/fluids/*.json` ≠ final library data.
+    Datagen must consume post-injection data. Candidate sources, decision due at Phase 3 start:
+    (a) run upstream's own packaging pipeline in the pinned checkout; (b) dump each fluid's
+    final JSON from the oracle wheel via `get_fluid_param_string(fluid, "JSON")` — simpler and
+    literally what the reference implementation computes with, but verify completeness first.
