@@ -498,3 +498,13 @@ Append-only; newest last. Seeded entries:
   needed: the no-bracket derivative path, the 2-D Newton fallback, (p,X) below the
   triple-point pressure. All 221 flash goldens pass ((T,Q)/(P,Q)/(D,T) at 1e-9,
   (H,P)/(P,Smolar) at 1e-8, Q=-1 sentinels exact). Remaining for 4.6: (H,S) and (D,P).
+- 2026-08-06 — 4.6 progress (6 of 7): (Dmolar,P) ported from `DP_flash` — superancillary
+  (p,D) determination (mixture density RECOMPUTED from the mixing rule even though density
+  was the input, as upstream does), per-phase T seeds (saturation T for liquid, 1.1*Tc for
+  supercritical liquid, the Peng-Robinson sqrt(Tr) quadratic for gas-like), Halley at
+  ftol 1e-10 with upstream's acceptance checks (finite, 0<T<=1.5*Tmax, |resid|<1e-7),
+  and the 30-bit bracketed fallback. 40 new goldens; the suite is now 261 records, all
+  green. Remaining for 4.6: (H,S) only — upstream's `HS_flash` is a superancillary cascade
+  (fast dome screen `hs_two_phase_likely`, multi-leg single-phase `hs_cascade` with
+  stability-based acceptance, and an EOS-exact Qh==Qs two-phase solve `HS_flash_twophase`,
+  with a legacy sad path behind it) — a full sub-project scoped for its own session.

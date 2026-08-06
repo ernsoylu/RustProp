@@ -319,6 +319,13 @@ def gen_heos_water_flash():
         for out in ["T", "Dmolar", "Hmolar", "Q"]:
             r = try_record(out, "P", p_, "Smolar", s_, "HEOS", "Water")
             rows.append(r) if r else (skipped := skipped + 1)
+    # DmolarP: liquid, two-phase, gas, and both supercritical classifications
+    for (rho, p_) in [(55000.0, 1e6), (54000.0, 1e7), (5000.0, 1e6), (500.0, 1e5),
+                      (17873.0, 2.1e7), (30.0, 1e5), (300.0, 1e6),
+                      (20000.0, 3e7), (50000.0, 3e7), (5000.0, 2.5e7)]:
+        for out in ["T", "Hmolar", "Smolar", "Q"]:
+            r = try_record(out, "Dmolar", rho, "P", p_, "HEOS", "Water")
+            rows.append(r) if r else (skipped := skipped + 1)
     print(f"heos flash: {len(rows)} records, {skipped} rejected by the oracle")
     return rows
 

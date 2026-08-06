@@ -343,6 +343,166 @@ impl PtFlash {
             }
         }
     }
+
+    /// (Dmolar, P) flash — upstream `DP_flash`: superancillary (p, Dmolar)
+    /// phase determination, then a Halley solve for T at fixed density
+    /// (Peng-Robinson seed for gas-like phases, saturation/1.1*Tc seeds
+    /// otherwise), with the 30-bit bracketed fallback.
+    pub fn dmolar_p_state(&self, rhomolar: f64, p: f64) -> Result<HeosState> {
+        let pc = self.fluid().states.critical.p;
+        let tc = self.fluid().states.critical.t;
+        let rhoc = self.fluid().states.critical.rhomolar;
+        let p_triple = self.fluid().eos.sat_min_liquid.p;
+
+        let (phase, t0) = if p > pc {
+            if rhomolar < rhoc {
+                (
+                    Phase::SupercriticalGas,
+                    self.t_dp_peng_robinson(rhomolar, p),
+                )
+            } else {
+                (Phase::SupercriticalLiquid, 1.1 * tc)
+            }
+        } else if p >= p_triple * 0.9999 {
+            if p > self.sat().pmax() {
+                return Err(Error::Value(format!(
+                    "Pressure to PQ_flash [{p:.8e} Pa] may not be above the numerical critical point of {:.15} Pa",
+                    self.sat().pmax()
+                )));
+            }
+            let sat = self.sat().pq_flash(p, 0.0)?;
+            let q = (1.0 / rhomolar - 1.0 / sat.rho_l) / (1.0 / sat.rho_v - 1.0 / sat.rho_l);
+            if q < -1e-9 {
+                (Phase::Liquid, sat.t)
+            } else if q > 1.0 + 1e-9 {
+                (Phase::Gas, self.t_dp_peng_robinson(rhomolar, p))
+            } else {
+                // Upstream recomputes the mixture density from the mixing rule
+                // even though density was the input.
+                let rhomix = 1.0 / (q / sat.rho_v + (1.0 - q) / sat.rho_l);
+                return Ok(HeosState::TwoPhase {
+                    t: sat.t,
+                    p,
+                    rhomolar: rhomix,
+                    q,
+                    rho_l: sat.rho_l,
+                    rho_v: sat.rho_v,
+                });
+            }
+        } else {
+            return Err(Error::NotImplemented(
+                "(Dmolar,P) flash below the triple-point pressure is not ported yet".into(),
+            ));
+        };
+
+        if !t0.is_finite() {
+            return Err(Error::Value(
+                "Starting value of T0 is not valid in DP_flash".into(),
+            ));
+        }
+        let t = self.solve_t_dp(rhomolar, p, t0)?;
+        Ok(HeosState::SinglePhase {
+            t,
+            p,
+            rhomolar,
+            phase,
+        })
+    }
+
+    /// Upstream `T_DP_PengRobinson`: PR-based T seed at fixed (rho, p).
+    fn t_dp_peng_robinson(&self, rhomolar: f64, p: f64) -> f64 {
+        let omega = self.fluid().eos.acentric;
+        let tc = self.fluid().states.critical.t;
+        let pc = self.fluid().states.critical.p;
+        let r = self.eos.gas_constant;
+        let v = 1.0 / rhomolar;
+        let kappa = 0.37464 + 1.54226 * omega - 0.26992 * omega * omega;
+        let a = 0.457235 * r * r * tc * tc / pc;
+        let b = 0.077796 * r * tc / pc;
+        let den = v * v + 2.0 * b * v - b * b;
+        let big_a = r * tc / (v - b) - a * kappa * kappa / den;
+        let big_b = 2.0 * a * kappa * (1.0 + kappa) / den;
+        let big_c = -a * (1.0 + 2.0 * kappa + kappa * kappa) / den - p;
+        let sqrt_tr1 = (-big_b + (big_b * big_b - 4.0 * big_a * big_c).sqrt()) / (2.0 * big_a);
+        sqrt_tr1 * sqrt_tr1 * tc
+    }
+
+    /// dp/dT at constant rho and its T-derivative (for the Halley solve).
+    fn dpdt_rho(&self, t: f64, rhomolar: f64) -> (f64, f64) {
+        let delta = rhomolar / self.eos.rhomolar_reducing;
+        let tau = self.eos.t_reducing / t;
+        let d = self.eos.alphar_all(tau, delta);
+        let r = self.eos.gas_constant;
+        let dpdt = rhomolar * r * (1.0 + delta * d.d10 - delta * tau * d.d11);
+        let d2pdt2 = rhomolar * r * delta * tau * tau * d.d12 / t;
+        (dpdt, d2pdt2)
+    }
+
+    /// Upstream `DP_flash` solver: Halley on (p(T,rho)-p)/p with acceptance
+    /// checks, then the 30-bit bracketed fallback on [Tmin, 1.5*Tmax].
+    fn solve_t_dp(&self, rhomolar: f64, p: f64, t0: f64) -> Result<f64> {
+        struct DpResid<'a> {
+            flash: &'a PtFlash,
+            rhomolar: f64,
+            p: f64,
+        }
+        impl crate::solvers::Resid1D for DpResid<'_> {
+            fn call(&mut self, t: f64) -> f64 {
+                (self.flash.eos.pressure(t, self.rhomolar) - self.p) / self.p
+            }
+            fn deriv(&mut self, t: f64) -> f64 {
+                self.flash.dpdt_rho(t, self.rhomolar).0 / self.p
+            }
+            fn second_deriv(&mut self, t: f64) -> f64 {
+                self.flash.dpdt_rho(t, self.rhomolar).1 / self.p
+            }
+            fn third_deriv(&mut self, _t: f64) -> f64 {
+                unreachable!("Halley does not use the third derivative")
+            }
+        }
+        let mut resid = DpResid {
+            flash: self,
+            rhomolar,
+            p,
+        };
+        let t_hi = 1.5 * self.fluid().eos.t_max;
+        use crate::solvers::Resid1D as _;
+        if let Ok(t) = crate::solvers::halley(&mut resid, t0, 1e-10, 100) {
+            if t.is_finite() && t > 0.0 && t <= t_hi && resid.call(t).abs() < 1e-7 {
+                return Ok(t);
+            }
+        }
+        // Bracketed fallback: p(T, rho) is monotone in T at fixed rho.
+        let t_lo = self.fluid().eos.t_triple;
+        let (f_lo, f_hi) = (resid.call(t_lo), resid.call(t_hi));
+        if !(f_lo.is_finite() && f_hi.is_finite() && f_lo * f_hi < 0.0) {
+            return Err(Error::Solution(format!(
+                "DP_flash could not bracket T for rho={rhomolar}, p={p}"
+            )));
+        }
+        let tol = (2.0f64).powi(1 - 30);
+        let (mut a, mut b) = (t_lo, t_hi);
+        let mut fa = f_lo;
+        for _ in 0..200 {
+            if (b - a) <= tol * a.abs().max(b.abs()) {
+                break;
+            }
+            let m = 0.5 * (a + b);
+            let fm = resid.call(m);
+            if fm == 0.0 {
+                a = m;
+                b = m;
+                break;
+            }
+            if (fa < 0.0) == (fm < 0.0) {
+                a = m;
+                fa = fm;
+            } else {
+                b = m;
+            }
+        }
+        Ok(0.5 * (a + b))
+    }
 }
 
 #[derive(Clone, Copy)]

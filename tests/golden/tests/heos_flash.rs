@@ -26,7 +26,7 @@ fn output(flash: &PtFlash, state: &HeosState, out: &str) -> f64 {
 fn water_flash_pairs_match_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/heos_water_flash.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 221);
+    assert_eq!(records.len(), 261);
 
     let flash = PtFlash::new(&WATER);
     let mut failures = Vec::new();
@@ -37,6 +37,7 @@ fn water_flash_pairs_match_upstream() {
             ("P", "Q") => (flash.pq_state(rec.val1, rec.val2), 1e-9),
             ("Dmolar", "T") => (flash.dmolar_t_state(rec.val1, rec.val2), 1e-9),
             ("Hmolar", "P") => (flash.hmolar_p_state(rec.val1, rec.val2), 1e-8),
+            ("Dmolar", "P") => (flash.dmolar_p_state(rec.val1, rec.val2), 1e-8),
             ("P", "Smolar") => (flash.p_smolar_state(rec.val1, rec.val2), 1e-8),
             other => panic!("unexpected pair {other:?}"),
         };
