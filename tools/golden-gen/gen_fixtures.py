@@ -284,6 +284,45 @@ def gen_heos_water_pt():
     return rows
 
 
+def gen_heos_water_flash():
+    """Flash-pair goldens (PLAN 4.6): general-quality (T,Q)/(P,Q), (D,T)
+    incl. two-phase, and (H,P)/(P,S) incl. two-phase and T outputs."""
+    rows, skipped = [], 0
+    # general-quality QT
+    for t in [300.0, 400.0, 500.0, 600.0, 640.0]:
+        for q in [0.25, 0.5, 0.75]:
+            for out in ["P", "Dmolar", "Hmolar", "Smolar", "Umolar"]:
+                r = try_record(out, "T", t, "Q", q, "HEOS", "Water")
+                rows.append(r) if r else (skipped := skipped + 1)
+    # general-quality PQ
+    for p_ in [1e5, 1e6, 5e6, 1e7, 2e7]:
+        for q in [0.3, 0.7]:
+            for out in ["T", "Dmolar", "Hmolar", "Smolar", "Umolar"]:
+                r = try_record(out, "P", p_, "Q", q, "HEOS", "Water")
+                rows.append(r) if r else (skipped := skipped + 1)
+    # DmolarT: liquid, vapor, supercritical, and two-phase states
+    for (rho, t) in [(55000.0, 320.0), (50.0, 400.0), (20000.0, 700.0),
+                     (1000.0, 400.0), (30000.0, 550.0), (17873.0, 640.0),
+                     (40000.0, 660.0), (5000.0, 680.0)]:
+        for out in ["P", "Hmolar", "Smolar", "Q"]:
+            r = try_record(out, "Dmolar", rho, "T", t, "HEOS", "Water")
+            rows.append(r) if r else (skipped := skipped + 1)
+    # HmolarP: liquid, two-phase, gas, supercritical
+    for (h, p_) in [(5e3, 1e6), (30e3, 1e6), (55e3, 1e6), (60e3, 1e5),
+                    (10e3, 5e7), (40e3, 3e7), (25e3, 2.5e7), (48e3, 5e6)]:
+        for out in ["T", "Dmolar", "Smolar", "Q"]:
+            r = try_record(out, "Hmolar", h, "P", p_, "HEOS", "Water")
+            rows.append(r) if r else (skipped := skipped + 1)
+    # PSmolar
+    for (p_, s_) in [(1e6, 20.0), (1e6, 70.0), (1e6, 130.0), (5e7, 10.0),
+                     (3e7, 90.0), (1e5, 140.0), (2.5e7, 60.0), (5e6, 110.0)]:
+        for out in ["T", "Dmolar", "Hmolar", "Q"]:
+            r = try_record(out, "P", p_, "Smolar", s_, "HEOS", "Water")
+            rows.append(r) if r else (skipped := skipped + 1)
+    print(f"heos flash: {len(rows)} records, {skipped} rejected by the oracle")
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     print(f"wrote {len(rows):4d} records -> {name}")
@@ -329,6 +368,7 @@ def main():
     write_jsonl("heos_water_ancillary.jsonl", gen_heos_water_ancillary())
     write_jsonl("heos_water_sat.jsonl", gen_heos_water_sat())
     write_jsonl("heos_water_pt.jsonl", gen_heos_water_pt())
+    write_jsonl("heos_water_flash.jsonl", gen_heos_water_flash())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -341,6 +381,7 @@ def main():
         "platform": f"{platform.system()}-{platform.machine()}",
         "files": [
             "heos_water_ancillary.jsonl",
+            "heos_water_flash.jsonl",
             "heos_water_props.jsonl",
             "heos_water_pt.jsonl",
             "heos_water_sat.jsonl",

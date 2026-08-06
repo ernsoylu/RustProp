@@ -5,6 +5,7 @@
   "platform": "Linux-x86_64",
   "files": [
     "heos_water_ancillary.jsonl",
+    "heos_water_flash.jsonl",
     "heos_water_props.jsonl",
     "heos_water_pt.jsonl",
     "heos_water_sat.jsonl",

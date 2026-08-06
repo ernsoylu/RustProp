@@ -487,3 +487,14 @@ Append-only; newest last. Seeded entries:
   contain such points); caller-provided-guess and pseudo-pure/mixture branches unported.
   100 PT goldens (5 phases, both determination paths) pass at the 1e-9 policy; condition
   tests confirm the near-saturation error and the critical short-circuit.
+- 2026-08-06 — 4.6 progress (5 of 7 pairs): general-quality (T,Q) and (P,Q) with upstream's
+  exact two-phase mixing (`Q*V + (1-Q)*L`, DBL_EPSILON endpoint shortcuts); (D,T) via the
+  superancillary `T_phase_determination` (inverse-volume quality; Q<=0/>=1 single-phase);
+  (H,P) and (P,Smolar) via `HSU_P_flash`: superancillary (p,X) determination (Q bands at
+  -1e-9/1+1e-9, supercritical split at the critical h/s), upstream's per-phase T brackets,
+  and the single-phase solve — upstream deliberately resolves T with TOMS748 at 30-bit
+  (~1e-9 relative) tolerance and re-evaluates the bracket midpoint, so the (P,X) goldens run
+  at the 1e-8 policy (we bisect to the same relative tolerance). Unported, loud-error until
+  needed: the no-bracket derivative path, the 2-D Newton fallback, (p,X) below the
+  triple-point pressure. All 221 flash goldens pass ((T,Q)/(P,Q)/(D,T) at 1e-9,
+  (H,P)/(P,Smolar) at 1e-8, Q=-1 sentinels exact). Remaining for 4.6: (H,S) and (D,P).

@@ -85,6 +85,10 @@ impl PtFlash {
         &self.sat
     }
 
+    pub fn fluid(&self) -> &'static FluidData {
+        self.fluid
+    }
+
     fn t_critical(&self) -> f64 {
         self.fluid.states.critical.t
     }
