@@ -97,9 +97,16 @@ Melting lines fully ported (3 segment families, 29 fluids, PT below-Tmelt check,
 Tmelt bracket floor, HS cascade leg 4 via MeltingCaloric). Sub-triple (P,X) gas states
 and multi-output-'&' parity done. ~15,800 committed oracle records.
 
-Remaining: pseudo-pure fluids (pL/pV ancillaries + Maxwell saturation fallback +
-pseudo-pure phase determination: Air, R404A/407C/410A/507A, SES36 — no superancillaries
-upstream; needs `saturation_T_pure`-style classic solvers).
+**Pseudo-pure fluids are ported** (Air, R404A/407C/410A/507A, SES36 — 136 registry
+fluids total): datagen pL/pV split (`p_s` + `p_v_split`, pure fluids alias one curve),
+max_sat_T/max_sat_p state points, bitwise walker. Flashes per upstream: QT strictly
+Q∈{0,1} (ancillary p + guessed PT solve), PQ with per-branch temperatures across the
+glide (`HeosState::TwoPhase` carries `t_l`/`t_v`), PT via the 1.02·pL/0.98·pV ancillary
+arbiter (in-band throws, as upstream). Discovery: upstream's pseudo-pure QT/PQ never
+call `saturation_T_pure` — the ancillaries are used explicitly. Remaining pairs are loud
+NotImplemented for pseudo-pure (upstream serves them through legacy solvers that are
+dead code for the 130 superancillary fluids). 330 goldens + verbatim error parity.
+~16,500 committed oracle records overall. Tier-2 deferral list: EMPTY.
 
 ## Toolchain
 
