@@ -8,5 +8,11 @@
 //!
 //! Ports shared machinery from CoolProp 8 `include/` + `src/`.
 
+pub mod error;
+pub mod params;
+
+pub use error::{Error, Result};
+pub use params::{InputPair, Param, Phase, generate_update_pair};
+
 /// The upstream CoolProp release this port tracks.
 pub const UPSTREAM_VERSION: &str = "8.0.0";

@@ -80,6 +80,7 @@ version = "0.1.0"
 name = "rustprop-golden-tests"
 version = "0.1.0"
 dependencies = [
+ "rustprop-core",
  "serde",
  "serde_json",
 ]

@@ -4,6 +4,9 @@
   "upstream_tag": "v8.0.0",
   "platform": "Linux-x86_64",
   "files": [
+    "param_aliases.jsonl",
+    "parameters.jsonl",
+    "phases.jsonl",
     "water_propssi_smoke.jsonl"
   ]
 }

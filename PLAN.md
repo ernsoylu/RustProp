@@ -70,16 +70,16 @@ are not a fidelity target.
 
 ## Phase 1 — Core types (only what Phase 2–4 need)
 
-- [ ] 1.1 Port the parameter system from upstream `include/DataStructures.h`: parameter enum,
+- [x] 1.1 Port the parameter system from upstream `include/DataStructures.h`: parameter enum,
       input-pair enum, string names and aliases, parse/format. Nothing else.
       → verify: golden dump of upstream's parameter table (via Python
       `CoolProp.get_parameter_information`) matches the Rust table exactly — every index, name,
       and alias.
-- [ ] 1.2 Define the core error enum mirroring upstream error *conditions* (unknown fluid,
+- [x] 1.2 Define the core error enum mirroring upstream error *conditions* (unknown fluid,
       unknown parameter, invalid input pair, out-of-range, non-convergence).
       → verify: unit tests exercise each variant's construction; condition-level golden tests
       accumulate as engines land.
-- [ ] 1.3 Deliberately do **not** define a shared engine trait yet — wait until IF97 and HEOS
+- [x] 1.3 Deliberately do **not** define a shared engine trait yet — wait until IF97 and HEOS
       both exist and real usage forces the shape (karpathy rule 2).
       → verify: no `trait` in `rustprop-core` at this phase's gate.
 
@@ -352,3 +352,16 @@ Append-only; newest last. Seeded entries:
   exception to the workspace `deny(unsafe_code)`. Baseline: 70 bytes for minimal/if97/
   all-backends alike (empty engines const-fold away); numbers only diverge once `probe()`
   exercises real engine entry points (first: step 2.6).
+- 2026-08-06 — 1.1: parameter system ported to `rustprop-core::params` (85 parameters, 43 input
+  pairs, 9 phases). Naming rule: upstream `iX_y` → CamelCase minus the `i` prefix; discriminants
+  equal upstream integers. Sentinels (`INVALID_PARAMETER`, `iundefined_parameter`,
+  `INPUT_PAIR_INVALID`) not ported — `Option`/`Result` instead. Golden-verified against the
+  wheel: full parameter table + 199 name resolutions (shorts, aliases, uppercase forms,
+  negatives) + phase indices. The wheel does NOT expose `get_input_pair_index`, so the
+  input-pair table is covered by source-truth unit tests (first-match duplicate semantics,
+  split/name consistency, Qmass list, upstream's trailing-space typo in the PSmolar long
+  description) until Phase 4 flash goldens exercise the pairs end to end.
+- 2026-08-06 — 1.2: `Error` mirrors upstream `ErrCode` minus the three host-integration codes
+  (`eHandle`, `eUnableToLoad`, `eDirectorySize` — C handle API / DLL loading / REFPROP paths,
+  meaningless in this port); `Display` shows message-only like upstream `what()`.
+- 2026-08-06 — 1.3: no engine trait defined; grep confirms no `trait` items in `rustprop-core`.

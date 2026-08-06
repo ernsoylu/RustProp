@@ -27,14 +27,14 @@ The defining constraint is **modularity for WASM binary size**: all CoolProp dat
 
 ## Status (as of 2026-08)
 
-Workspace scaffolded; PLAN.md **Phase 0 (verification infrastructure) is complete** — no algorithms ported yet. Live now: the pinned upstream checkout (sibling `~/homecloud/dev/CoolProp`, tag `v8.0.0`), the golden-fixture oracle (CoolProp 8.0.0 wheel in `tools/golden-gen/.venv`), the comparison harness (`tests/golden`), and a CI wasm-size report (70-byte baseline). Shipped crates have zero external dependencies — serde/serde_json are confined to the unpublished test harness. The crate map is in README.md. Architecture rules the scaffold encodes:
+Workspace scaffolded; PLAN.md **Phases 0–1 are complete** (verification infrastructure; core parameter system + error types, golden-verified against the wheel) — no property algorithms ported yet. Live now: the pinned upstream checkout (sibling `~/homecloud/dev/CoolProp`, tag `v8.0.0`), the golden-fixture oracle (CoolProp 8.0.0 wheel in `tools/golden-gen/.venv`), the comparison harness (`tests/golden`), and a CI wasm-size report (70-byte baseline). Shipped crates have zero external dependencies — serde/serde_json are confined to the unpublished test harness. The crate map is in README.md. Architecture rules the scaffold encodes:
 
 - **Types/contents split**: fluid-data *types* live in `rustprop-core`, generated data *contents* in `rustprop-data` (one Cargo feature per fluid, `default = []`). Engines depend only on core — apps link data solely for the fluids they opt into.
 - The facade crate `rustprop` puts every engine behind a Cargo feature with `default = []`; `all-backends` turns everything on (used by the CLI and CI).
 - `rustprop-data` contents come only from `tools/rustprop-datagen` codegen, never hand edits; JSON parsing must stay out of shipped binaries.
 - Workspace lints deny `unsafe_code`; release profile uses fat LTO, `panic = "abort"`, symbol stripping.
 
-Next work: `PLAN.md` Phase 1 (core types — parameter system, error enum; no engine trait yet).
+Next work: `PLAN.md` Phase 2 (IF97 engine — the first end-to-end vertical slice: engine crate → facade feature → CLI → wasm).
 
 ## Toolchain
 

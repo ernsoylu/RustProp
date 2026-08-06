@@ -1,0 +1,85 @@
+{"index": 1, "short": "gas_constant", "io": "O", "units": "J/mol/K", "long": "Molar gas constant", "trivial": true}
+{"index": 2, "short": "molar_mass", "io": "O", "units": "kg/mol", "long": "Molar mass", "trivial": true}
+{"index": 3, "short": "acentric", "io": "O", "units": "-", "long": "Acentric factor", "trivial": true}
+{"index": 4, "short": "rhomolar_reducing", "io": "O", "units": "mol/m^3", "long": "Molar density at reducing point", "trivial": true}
+{"index": 5, "short": "rhomolar_critical", "io": "O", "units": "mol/m^3", "long": "Molar density at critical point", "trivial": true}
+{"index": 6, "short": "T_reducing", "io": "O", "units": "K", "long": "Temperature at the reducing point", "trivial": true}
+{"index": 7, "short": "T_critical", "io": "O", "units": "K", "long": "Temperature at the critical point", "trivial": true}
+{"index": 8, "short": "rhomass_reducing", "io": "O", "units": "kg/m^3", "long": "Mass density at reducing point", "trivial": true}
+{"index": 9, "short": "rhomass_critical", "io": "O", "units": "kg/m^3", "long": "Mass density at critical point", "trivial": true}
+{"index": 10, "short": "p_critical", "io": "O", "units": "Pa", "long": "Pressure at the critical point", "trivial": true}
+{"index": 11, "short": "p_reducing", "io": "O", "units": "Pa", "long": "Pressure at the reducing point", "trivial": true}
+{"index": 12, "short": "T_triple", "io": "O", "units": "K", "long": "Temperature at the triple point", "trivial": true}
+{"index": 13, "short": "p_triple", "io": "O", "units": "Pa", "long": "Pressure at the triple point (pure only)", "trivial": true}
+{"index": 14, "short": "T_min", "io": "O", "units": "K", "long": "Minimum temperature limit", "trivial": true}
+{"index": 15, "short": "T_max", "io": "O", "units": "K", "long": "Maximum temperature limit", "trivial": true}
+{"index": 16, "short": "P_max", "io": "O", "units": "Pa", "long": "Maximum pressure limit", "trivial": true}
+{"index": 17, "short": "P_min", "io": "O", "units": "Pa", "long": "Minimum pressure limit", "trivial": true}
+{"index": 18, "short": "dipole_moment", "io": "O", "units": "C-m", "long": "Dipole moment", "trivial": true}
+{"index": 19, "short": "T", "io": "IO", "units": "K", "long": "Temperature", "trivial": false}
+{"index": 20, "short": "P", "io": "IO", "units": "Pa", "long": "Pressure", "trivial": false}
+{"index": 21, "short": "Q", "io": "IO", "units": "mol/mol", "long": "Molar vapor quality", "trivial": false}
+{"index": 22, "short": "Qmass", "io": "IO", "units": "kg/kg", "long": "Mass-basis vapor quality", "trivial": false}
+{"index": 23, "short": "Tau", "io": "IO", "units": "-", "long": "Reciprocal reduced temperature (Tc/T)", "trivial": false}
+{"index": 24, "short": "Delta", "io": "IO", "units": "-", "long": "Reduced density (rho/rhoc)", "trivial": false}
+{"index": 25, "short": "Dmolar", "io": "IO", "units": "mol/m^3", "long": "Molar density", "trivial": false}
+{"index": 26, "short": "Hmolar", "io": "IO", "units": "J/mol", "long": "Molar specific enthalpy", "trivial": false}
+{"index": 27, "short": "Smolar", "io": "IO", "units": "J/mol/K", "long": "Molar specific entropy", "trivial": false}
+{"index": 28, "short": "Cpmolar", "io": "O", "units": "J/mol/K", "long": "Molar specific constant pressure specific heat", "trivial": false}
+{"index": 29, "short": "Cp0molar", "io": "O", "units": "J/mol/K", "long": "Ideal gas molar specific constant pressure specific heat", "trivial": false}
+{"index": 30, "short": "Cvmolar", "io": "O", "units": "J/mol/K", "long": "Molar specific constant volume specific heat", "trivial": false}
+{"index": 31, "short": "Umolar", "io": "IO", "units": "J/mol", "long": "Molar specific internal energy", "trivial": false}
+{"index": 32, "short": "Gmolar", "io": "O", "units": "J/mol", "long": "Molar specific Gibbs energy", "trivial": false}
+{"index": 33, "short": "Helmholtzmolar", "io": "O", "units": "J/mol", "long": "Molar specific Helmholtz energy", "trivial": false}
+{"index": 34, "short": "Hmolar_residual", "io": "O", "units": "J/mol", "long": "Residual molar enthalpy", "trivial": false}
+{"index": 35, "short": "Smolar_residual", "io": "O", "units": "J/mol/K", "long": "Residual molar entropy (sr/R = s(T,rho) - s^0(T,rho))", "trivial": false}
+{"index": 36, "short": "Gmolar_residual", "io": "O", "units": "J/mol", "long": "Residual molar Gibbs energy", "trivial": false}
+{"index": 37, "short": "Hmolar_idealgas", "io": "O", "units": "J/mol", "long": "Ideal gas molar enthalpy", "trivial": false}
+{"index": 38, "short": "Smolar_idealgas", "io": "O", "units": "J/mol/K", "long": "Ideal gas molar entropy", "trivial": false}
+{"index": 39, "short": "Umolar_idealgas", "io": "O", "units": "J/mol", "long": "Ideal gas molar internal energy", "trivial": false}
+{"index": 40, "short": "Dmass", "io": "IO", "units": "kg/m^3", "long": "Mass density", "trivial": false}
+{"index": 41, "short": "Hmass", "io": "IO", "units": "J/kg", "long": "Mass specific enthalpy", "trivial": false}
+{"index": 42, "short": "Smass", "io": "IO", "units": "J/kg/K", "long": "Mass specific entropy", "trivial": false}
+{"index": 43, "short": "Cpmass", "io": "O", "units": "J/kg/K", "long": "Mass specific constant pressure specific heat", "trivial": false}
+{"index": 44, "short": "Cp0mass", "io": "O", "units": "J/kg/K", "long": "Ideal gas mass specific constant pressure specific heat", "trivial": false}
+{"index": 45, "short": "Cvmass", "io": "O", "units": "J/kg/K", "long": "Mass specific constant volume specific heat", "trivial": false}
+{"index": 46, "short": "Umass", "io": "IO", "units": "J/kg", "long": "Mass specific internal energy", "trivial": false}
+{"index": 47, "short": "Gmass", "io": "O", "units": "J/kg", "long": "Mass specific Gibbs energy", "trivial": false}
+{"index": 48, "short": "Helmholtzmass", "io": "O", "units": "J/kg", "long": "Mass specific Helmholtz energy", "trivial": false}
+{"index": 49, "short": "Hmass_idealgas", "io": "O", "units": "J/kg", "long": "Ideal gas specific enthalpy", "trivial": false}
+{"index": 50, "short": "Smass_idealgas", "io": "O", "units": "J/kg/K", "long": "Ideal gas specific entropy", "trivial": false}
+{"index": 51, "short": "Umass_idealgas", "io": "O", "units": "J/kg", "long": "Ideal gas specific internal energy", "trivial": false}
+{"index": 52, "short": "viscosity", "io": "O", "units": "Pa-s", "long": "Viscosity", "trivial": false}
+{"index": 53, "short": "conductivity", "io": "O", "units": "W/m/K", "long": "Thermal conductivity", "trivial": false}
+{"index": 54, "short": "surface_tension", "io": "O", "units": "N/m", "long": "Surface tension", "trivial": false}
+{"index": 55, "short": "Prandtl", "io": "O", "units": "-", "long": "Prandtl number", "trivial": false}
+{"index": 56, "short": "speed_of_sound", "io": "O", "units": "m/s", "long": "Speed of sound", "trivial": false}
+{"index": 57, "short": "isothermal_compressibility", "io": "O", "units": "1/Pa", "long": "Isothermal compressibility", "trivial": false}
+{"index": 58, "short": "isobaric_expansion_coefficient", "io": "O", "units": "1/K", "long": "Isobaric expansion coefficient", "trivial": false}
+{"index": 59, "short": "isentropic_expansion_coefficient", "io": "O", "units": "-", "long": "Isentropic expansion coefficient", "trivial": false}
+{"index": 60, "short": "fundamental_derivative_of_gas_dynamics", "io": "O", "units": "-", "long": "Fundamental derivative of gas dynamics", "trivial": false}
+{"index": 61, "short": "alphar", "io": "O", "units": "-", "long": "Residual Helmholtz energy", "trivial": false}
+{"index": 62, "short": "dalphar_dtau_constdelta", "io": "O", "units": "-", "long": "Derivative of residual Helmholtz energy with tau", "trivial": false}
+{"index": 63, "short": "dalphar_ddelta_consttau", "io": "O", "units": "-", "long": "Derivative of residual Helmholtz energy with delta", "trivial": false}
+{"index": 64, "short": "alpha0", "io": "O", "units": "-", "long": "Ideal Helmholtz energy", "trivial": false}
+{"index": 65, "short": "dalpha0_dtau_constdelta", "io": "O", "units": "-", "long": "Derivative of ideal Helmholtz energy with tau", "trivial": false}
+{"index": 66, "short": "dalpha0_ddelta_consttau", "io": "O", "units": "-", "long": "Derivative of ideal Helmholtz energy with delta", "trivial": false}
+{"index": 67, "short": "d2alpha0_ddelta2_consttau", "io": "O", "units": "-", "long": "Second derivative of ideal Helmholtz energy with delta", "trivial": false}
+{"index": 68, "short": "d3alpha0_ddelta3_consttau", "io": "O", "units": "-", "long": "Third derivative of ideal Helmholtz energy with delta", "trivial": false}
+{"index": 69, "short": "Bvirial", "io": "O", "units": "-", "long": "Second virial coefficient", "trivial": false}
+{"index": 70, "short": "Cvirial", "io": "O", "units": "-", "long": "Third virial coefficient", "trivial": false}
+{"index": 71, "short": "dBvirial_dT", "io": "O", "units": "-", "long": "Derivative of second virial coefficient with respect to T", "trivial": false}
+{"index": 72, "short": "dCvirial_dT", "io": "O", "units": "-", "long": "Derivative of third virial coefficient with respect to T", "trivial": false}
+{"index": 73, "short": "Z", "io": "O", "units": "-", "long": "Compressibility factor", "trivial": false}
+{"index": 74, "short": "PIP", "io": "O", "units": "-", "long": "Phase identification parameter", "trivial": false}
+{"index": 75, "short": "fraction_min", "io": "O", "units": "-", "long": "Fraction (mole, mass, volume) minimum value for incompressible solutions", "trivial": true}
+{"index": 76, "short": "fraction_max", "io": "O", "units": "-", "long": "Fraction (mole, mass, volume) maximum value for incompressible solutions", "trivial": true}
+{"index": 77, "short": "T_freeze", "io": "O", "units": "K", "long": "Freezing temperature for incompressible solutions", "trivial": true}
+{"index": 78, "short": "GWP20", "io": "O", "units": "-", "long": "20-year global warming potential", "trivial": true}
+{"index": 79, "short": "GWP100", "io": "O", "units": "-", "long": "100-year global warming potential", "trivial": true}
+{"index": 80, "short": "GWP500", "io": "O", "units": "-", "long": "500-year global warming potential", "trivial": true}
+{"index": 81, "short": "FH", "io": "O", "units": "-", "long": "Flammability hazard", "trivial": true}
+{"index": 82, "short": "HH", "io": "O", "units": "-", "long": "Health hazard", "trivial": true}
+{"index": 83, "short": "PH", "io": "O", "units": "-", "long": "Physical hazard", "trivial": true}
+{"index": 84, "short": "ODP", "io": "O", "units": "-", "long": "Ozone depletion potential", "trivial": true}
+{"index": 85, "short": "Phase", "io": "O", "units": "-", "long": "Phase index as a float", "trivial": false}
