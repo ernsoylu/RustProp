@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static XENON: FluidData = FluidData {
     name: "Xenon",
@@ -262,6 +262,7 @@ pub static XENON: FluidData = FluidData {
             t_min: 161.4,
             t_max: 289.7329999999995,
         },
+        surface_tension: Some(SurfaceTension { a: &[-0.11538, 0.16598], n: &[1.0512, 1.098], tc: 289.733 }),
     },
     states: States {
         critical: StatePoint {

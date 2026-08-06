@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static AMMONIA: FluidData = FluidData {
     name: "Ammonia",
@@ -292,6 +292,7 @@ pub static AMMONIA: FluidData = FluidData {
             t_min: 195.495,
             t_max: 405.56,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.1028, -0.09453], n: &[1.211, 5.585], tc: 405.4 }),
     },
     states: States {
         critical: StatePoint {

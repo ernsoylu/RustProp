@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static HELIUM: FluidData = FluidData {
     name: "Helium",
@@ -267,6 +267,7 @@ pub static HELIUM: FluidData = FluidData {
             t_min: 2.1768000000000103,
             t_max: 5.195299999999987,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.0004656, 0.001889, -0.002006], n: &[1.04, 2.468, 2.661], tc: 5.1953 }),
     },
     states: States {
         critical: StatePoint {

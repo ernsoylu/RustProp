@@ -273,6 +273,7 @@ pub static R1132_E_: FluidData = FluidData {
             t_min: 240.0,
             t_max: 348.82,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

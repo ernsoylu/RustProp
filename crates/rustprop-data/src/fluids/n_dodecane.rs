@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static N_DODECANE: FluidData = FluidData {
     name: "n-Dodecane",
@@ -303,6 +303,7 @@ pub static N_DODECANE: FluidData = FluidData {
             t_min: 263.6,
             t_max: 658.0999999999985,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.0154, 0.048], n: &[4.18, 1.17], tc: 658.1 }),
     },
     states: States {
         critical: StatePoint {

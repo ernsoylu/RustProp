@@ -195,7 +195,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
       per-fluid special cases upstream has).
       → verify: goldens for `V` and `L` outputs across single-phase grids for every fluid with
       transport data; fluids without models must yield the same error condition as upstream.
-- [ ] 6.2 Surface tension.
+- [x] 6.2 Surface tension.
       → verify: goldens for `I` along the saturation curve.
 
 **Phase gate 6.**
@@ -671,3 +671,24 @@ Append-only; newest last. Seeded entries:
   caches one `PtFlash` per fluid. CLI `props` now routes everything through `props_si`
   (`rustprop-cli props Dmolar T 300 P 101325 Water`); README quickstart shows the real CLI
   and library forms, both exercised by tests (e2e + doc-test).
+- 2026-08-06 — 6.2 surface tension complete (done before 6.1; it is independent and small).
+  `SurfaceTensionCorrelation` ported: sigma = sum a_i*(1-T/Tc)^n_i, T > Tc errors; 104 of the
+  130 fluids carry a curve (single JSON shape), the fidelity walker now checks a/n/Tc bitwise
+  for all of them, and `props_si("I", ...)` gates on upstream's condition — two-phase (or
+  critical-point) states only, ValueError otherwise, NotImplemented for the 26 curveless
+  fluids (upstream's empty-curve throw). 518 goldens (5 reduced temperatures x every fluid
+  with a curve, via the string API at Q=0.5) pass at 1e-12; the wheel's own rejections (the
+  curveless fluids) were dropped by try_record and their error condition is asserted
+  Rust-side (Chlorine).
+- 2026-08-06 — 6.1 survey (port order for coming sessions): 61 fluids carry transport blocks
+  (69 none — error-condition parity required). Viscosity: structured
+  dilute(collision_integral 19 / powers_of_T(r) 5 / kinetic_theory 1 / CI-powers-of-Tstar 1)
+  + initial_density(Rainwater-Friend 19, empirical 1) + higher_order
+  (modified_Batschinski_Hildebrand 17, friction_theory 4); ECS 15; Chung 2; rhosr-CS lists 7;
+  hardcoded 8 (Water IAPWS, HeavyWater, Helium, R23, Methanol, three xylenes). Conductivity:
+  dilute(ratio_of_polynomials 30, eta0_and_poly 3) + residual(polynomial 32,
+  polynomial_and_exponential 3) + critical(simplified_Olchowy_Sengers 33 — needs the fluid's
+  own VISCOSITY at the state and dp/drho at T and Tref=1.5*Tc); ECS 18; hardcoded 5. A few
+  untyped blocks (CO2/Ethane/CycloHexane dilute, Ammonia critical, R123) need per-fluid
+  reading. Slicing: structured conductivity trio -> structured viscosity -> hardcoded Water
+  -> remaining variants -> ECS/Chung/rhosr.

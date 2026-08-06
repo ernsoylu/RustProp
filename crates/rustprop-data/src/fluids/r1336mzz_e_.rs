@@ -286,6 +286,7 @@ pub static R1336MZZ_E_: FluidData = FluidData {
             t_min: 100.0,
             t_max: 403.53,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

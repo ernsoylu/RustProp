@@ -375,6 +375,7 @@ pub static PROPYLENEGLYCOL: FluidData = FluidData {
             t_min: 273.0,
             t_max: 674.0,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

@@ -315,6 +315,24 @@ fn keyed_output(
                 .gibbsmolar(state.t(), single_phase_rho("gibbsmass")?)
                 / mm
         }
+        Param::SurfaceTension => {
+            // Upstream `calc_surface_tension`: two-phase (or critical-point)
+            // states only; NotImplemented when the fluid has no curve.
+            match state {
+                HeosState::TwoPhase { t, .. } => {
+                    let st = data.ancillaries.surface_tension.as_ref().ok_or_else(|| {
+                        Error::NotImplemented("surface tension curve not provided".into())
+                    })?;
+                    rustprop_heos::ancillary::surface_tension(st, *t)?
+                }
+                HeosState::SinglePhase { .. } => {
+                    return Err(Error::Value(
+                        "surface tension is only defined within the two-phase region;                          Try PQ or QT inputs"
+                            .into(),
+                    ));
+                }
+            }
+        }
         other => {
             return Err(Error::NotImplemented(format!(
                 "output parameter {} is not ported yet",

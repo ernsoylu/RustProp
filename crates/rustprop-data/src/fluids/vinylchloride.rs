@@ -306,6 +306,7 @@ pub static VINYLCHLORIDE: FluidData = FluidData {
             t_min: 119.31,
             t_max: 425.0,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

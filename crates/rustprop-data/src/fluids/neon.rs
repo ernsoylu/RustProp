@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static NEON: FluidData = FluidData {
     name: "Neon",
@@ -263,6 +263,7 @@ pub static NEON: FluidData = FluidData {
             t_min: 24.56000000000001,
             t_max: 44.49179999999988,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.012254, 0.02728, -0.025715], n: &[1.4136, 1.4517, 1.6567], tc: 44.4918 }),
     },
     states: States {
         critical: StatePoint {

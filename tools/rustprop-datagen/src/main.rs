@@ -272,6 +272,15 @@ struct AncJson {
     rho_l: SatAncJson,
     #[serde(rename = "rhoV")]
     rho_v: SatAncJson,
+    surface_tension: Option<SurfTensJson>,
+}
+
+#[derive(Deserialize)]
+struct SurfTensJson {
+    a: Vec<f64>,
+    n: Vec<f64>,
+    #[serde(rename = "Tc")]
+    tc: f64,
 }
 
 #[derive(Deserialize)]
@@ -416,9 +425,14 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     // (e.g. a fitted exponent of 3.14); the data is bit-faithful by mandate.
     writeln!(w, "#![allow(clippy::approx_constant)]").unwrap();
     writeln!(w).unwrap();
+    let surf = if doc.ancillaries.surface_tension.is_some() {
+        ", SurfaceTension"
+    } else {
+        ""
+    };
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData{surf}}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -688,6 +702,17 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
         sat_anc(&doc.ancillaries.rho_v, "        ")
     )
     .unwrap();
+    match &doc.ancillaries.surface_tension {
+        Some(st) => writeln!(
+            w,
+            "        surface_tension: Some(SurfaceTension {{ a: {}, n: {}, tc: {} }}),",
+            slice(&st.a),
+            slice(&st.n),
+            f(st.tc)
+        )
+        .unwrap(),
+        None => writeln!(w, "        surface_tension: None,").unwrap(),
+    }
     writeln!(w, "    }},").unwrap();
     writeln!(w, "    states: States {{").unwrap();
     writeln!(

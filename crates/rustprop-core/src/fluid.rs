@@ -345,6 +345,19 @@ pub struct Ancillaries {
     pub rho_l: SaturationAncillary,
     /// `ANCILLARIES.rhoV`
     pub rho_v: SaturationAncillary,
+    /// `ANCILLARIES.surface_tension` — absent for fluids without a curve
+    pub surface_tension: Option<SurfaceTension>,
+}
+
+/// `ANCILLARIES.surface_tension` (upstream `SurfaceTensionCorrelation`):
+/// `sigma = sum a_i * (1 - T/Tc)^n_i` [N/m].
+pub struct SurfaceTension {
+    /// `.a`
+    pub a: &'static [f64],
+    /// `.n`
+    pub n: &'static [f64],
+    /// `.Tc` [K]
+    pub tc: f64,
 }
 
 /// One saturation ancillary fit (`pS`/`rhoL`/`rhoV` objects).

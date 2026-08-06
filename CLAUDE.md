@@ -75,8 +75,12 @@ NUMERICAL critical point (Tcrit_num/pmax/rhocrit_num) through every consumer, no
 STATES.critical. CLI: `rustprop-cli props Dmolar T 300 P 101325 Water`; README quickstart is
 real (e2e + doc-tests).
 
-Next work: `PLAN.md` Phase 6 (transport properties + surface tension) — or the pseudo-pure/
-Maxwell step.
+Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
+1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
+
+Next work: `PLAN.md` 6.1 transport (viscosity/conductivity) — the survey and port order are in
+the Decisions log (structured conductivity trio first, then structured viscosity, hardcoded
+Water, ECS/Chung/rhosr) — or the pseudo-pure/Maxwell step.
 
 ## Toolchain
 

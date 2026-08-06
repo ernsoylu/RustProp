@@ -276,6 +276,7 @@ pub static HYDROGENCHLORIDE: FluidData = FluidData {
             t_min: 159.07,
             t_max: 324.68,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

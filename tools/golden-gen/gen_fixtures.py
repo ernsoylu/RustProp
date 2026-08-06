@@ -727,6 +727,31 @@ def gen_props_si():
     return rows
 
 
+def gen_surface_tension():
+    """6.2 goldens: surface tension `I` along the saturation curve for every
+    pure fluid with a curve (the wheel errors for fluids without one —
+    try_record filters them, and the Rust side asserts the error condition
+    separately)."""
+    import CoolProp.CoolProp as CPP
+    all_fluids = CPP.get_global_param_string("fluids_list").split(",")
+    pure = []
+    for fl in all_fluids:
+        d = json.loads(CPP.get_fluid_param_string(fl, "JSON"))[0]
+        if not d["EOS"][0].get("pseudo_pure"):
+            pure.append(fl)
+    rows, skipped = [], 0
+    for fluid in pure:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        for x in (0.05, 0.3, 0.6, 0.9, 0.99):
+            t = Tt + x * (Tc - Tt)
+            r = try_record("I", "T", t, "Q", 0.5, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    print(f"surface tension: {len(rows)} records, {skipped} rejected (incl. curveless fluids)")
+    return rows
+
+
 WRITTEN = []
 
 
@@ -786,6 +811,7 @@ def main():
     write_jsonl("heos_all_smoke.jsonl", gen_heos_all_smoke())
     write_jsonl("fluid_resolution.jsonl", gen_fluid_resolution())
     write_jsonl("props_si.jsonl", gen_props_si())
+    write_jsonl("surface_tension.jsonl", gen_surface_tension())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

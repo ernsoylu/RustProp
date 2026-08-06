@@ -261,6 +261,7 @@ pub static ORTHODEUTERIUM: FluidData = FluidData {
             t_min: 18.72400000000001,
             t_max: 38.33999999999991,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

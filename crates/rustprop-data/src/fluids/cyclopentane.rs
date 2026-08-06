@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static CYCLOPENTANE: FluidData = FluidData {
     name: "Cyclopentane",
@@ -288,6 +288,7 @@ pub static CYCLOPENTANE: FluidData = FluidData {
             t_min: 179.7,
             t_max: 511.719999999999,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.07348], n: &[1.388], tc: 511.72 }),
     },
     states: States {
         critical: StatePoint {

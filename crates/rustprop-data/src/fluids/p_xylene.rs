@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static P_XYLENE: FluidData = FluidData {
     name: "p-Xylene",
@@ -288,6 +288,7 @@ pub static P_XYLENE: FluidData = FluidData {
             t_min: 286.4,
             t_max: 616.1679999999988,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.0619], n: &[1.21], tc: 616.168 }),
     },
     states: States {
         critical: StatePoint {

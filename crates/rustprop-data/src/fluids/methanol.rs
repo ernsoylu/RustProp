@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static METHANOL: FluidData = FluidData {
     name: "Methanol",
@@ -362,6 +362,7 @@ pub static METHANOL: FluidData = FluidData {
             t_min: 175.61,
             t_max: 512.49,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.22421, -0.21408, 0.083233], n: &[1.3355, 1.677, 4.4402], tc: 513.38 }),
     },
     states: States {
         critical: StatePoint {

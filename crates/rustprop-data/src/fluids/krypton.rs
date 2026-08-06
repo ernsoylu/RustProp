@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static KRYPTON: FluidData = FluidData {
     name: "Krypton",
@@ -262,6 +262,7 @@ pub static KRYPTON: FluidData = FluidData {
             t_min: 115.77,
             t_max: 209.4799999999995,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.0447], n: &[1.245], tc: 209.48 }),
     },
     states: States {
         critical: StatePoint {

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static ARGON: FluidData = FluidData {
     name: "Argon",
@@ -270,6 +270,7 @@ pub static ARGON: FluidData = FluidData {
             t_min: 83.80600000000001,
             t_max: 150.68699999999976,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.037], n: &[1.25], tc: 150.687 }),
     },
     states: States {
         critical: StatePoint {

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static MD2M: FluidData = FluidData {
     name: "MD2M",
@@ -312,6 +312,7 @@ pub static MD2M: FluidData = FluidData {
             t_min: 205.2,
             t_max: 599.4,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.0456], n: &[1.41], tc: 599.4 }),
     },
     states: States {
         critical: StatePoint {

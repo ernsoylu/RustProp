@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static DIMETHYLETHER: FluidData = FluidData {
     name: "DimethylEther",
@@ -291,6 +291,7 @@ pub static DIMETHYLETHER: FluidData = FluidData {
             t_min: 131.66,
             t_max: 400.3779999999991,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.063157], n: &[1.2595], tc: 400.378 }),
     },
     states: States {
         critical: StatePoint {

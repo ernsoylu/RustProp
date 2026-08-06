@@ -653,6 +653,25 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
     w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
     w.sat_ancillary(&fluid.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
     w.sat_ancillary(&fluid.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
+    // surface_tension (Phase 6.2): ported when present.
+    match (
+        &fluid.ancillaries.surface_tension,
+        anc.get("surface_tension"),
+    ) {
+        (Some(st), Some(json)) => {
+            let path = "ANCILLARIES.surface_tension";
+            w.keys(json, path, &["a", "n", "Tc"], &["BibTeX", "description"]);
+            w.nums(st.a, &json["a"], &format!("{path}.a"));
+            w.nums(st.n, &json["n"], &format!("{path}.n"));
+            w.num(st.tc, &json["Tc"], &format!("{path}.Tc"));
+        }
+        (None, None) => {}
+        (rust, json) => w.mismatches.push(format!(
+            "ANCILLARIES.surface_tension: rust present={} json present={}",
+            rust.is_some(),
+            json.is_some()
+        )),
+    }
 
     // STATES
     let states = &doc["STATES"];

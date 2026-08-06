@@ -30,3 +30,18 @@ pub fn evaluate(anc: &SaturationAncillary, t: f64) -> f64 {
         anc.reducing_value * (tau_r_value * summer).exp()
     }
 }
+
+/// Upstream `SurfaceTensionCorrelation::evaluate`:
+/// `sigma = sum a_i * (1 - T/Tc)^n_i` [N/m]; `T > Tc` errors.
+pub fn surface_tension(
+    st: &rustprop_core::fluid::SurfaceTension,
+    t: f64,
+) -> rustprop_core::Result<f64> {
+    if t > st.tc {
+        return Err(rustprop_core::Error::Value(
+            "Must be saturated state : T <= Tc".into(),
+        ));
+    }
+    let theta = 1.0 - t / st.tc;
+    Ok(st.a.iter().zip(st.n).map(|(a, n)| a * theta.powf(*n)).sum())
+}

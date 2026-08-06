@@ -294,6 +294,7 @@ pub static ETHYLENEOXIDE: FluidData = FluidData {
             t_min: 160.65,
             t_max: 468.92,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

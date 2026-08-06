@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static N_HEXANE: FluidData = FluidData {
     name: "n-Hexane",
@@ -294,6 +294,7 @@ pub static N_HEXANE: FluidData = FluidData {
             t_min: 177.83,
             t_max: 507.82,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.210952, -0.158485], n: &[1.0962, 1.05893], tc: 507.82 }),
     },
     states: States {
         critical: StatePoint {

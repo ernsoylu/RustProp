@@ -297,6 +297,7 @@ pub static R1233ZD_E_: FluidData = FluidData {
             t_min: 165.75,
             t_max: 438.86,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

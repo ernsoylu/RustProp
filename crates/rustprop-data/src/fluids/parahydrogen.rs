@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static PARAHYDROGEN: FluidData = FluidData {
     name: "ParaHydrogen",
@@ -267,6 +267,7 @@ pub static PARAHYDROGEN: FluidData = FluidData {
             t_min: 13.80330000000001,
             t_max: 32.93799999999992,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.005314], n: &[1.06], tc: 32.938 }),
     },
     states: States {
         critical: StatePoint {

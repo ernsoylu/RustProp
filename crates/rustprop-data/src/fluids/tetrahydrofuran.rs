@@ -297,6 +297,7 @@ pub static TETRAHYDROFURAN: FluidData = FluidData {
             t_min: 164.76,
             t_max: 540.2,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

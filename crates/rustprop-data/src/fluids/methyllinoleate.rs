@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static METHYLLINOLEATE: FluidData = FluidData {
     name: "MethylLinoleate",
@@ -323,6 +323,7 @@ pub static METHYLLINOLEATE: FluidData = FluidData {
             t_min: 260.0,
             t_max: 798.999999999998,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.072487], n: &[1.9014], tc: 799.0 }),
     },
     states: States {
         critical: StatePoint {

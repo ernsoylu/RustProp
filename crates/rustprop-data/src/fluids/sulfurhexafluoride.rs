@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
     name: "SulfurHexafluoride",
@@ -268,6 +268,7 @@ pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
             t_min: 223.555,
             t_max: 318.7231999999994,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.0538, -4.064e-5], n: &[1.271, 0.2116], tc: 318.723 }),
     },
     states: States {
         critical: StatePoint {

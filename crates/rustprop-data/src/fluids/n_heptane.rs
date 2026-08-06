@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static N_HEPTANE: FluidData = FluidData {
     name: "n-Heptane",
@@ -289,6 +289,7 @@ pub static N_HEPTANE: FluidData = FluidData {
             t_min: 182.55,
             t_max: 540.1299999999987,
         },
+        surface_tension: Some(SurfaceTension { a: &[0.07765, -0.02599], n: &[1.319, 1.6], tc: 540.13 }),
     },
     states: States {
         critical: StatePoint {

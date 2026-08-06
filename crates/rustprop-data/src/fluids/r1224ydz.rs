@@ -300,6 +300,7 @@ pub static R1224YDZ: FluidData = FluidData {
             t_min: 0.0,
             t_max: 428.69,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {

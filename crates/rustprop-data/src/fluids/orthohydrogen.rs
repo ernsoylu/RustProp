@@ -268,6 +268,7 @@ pub static ORTHOHYDROGEN: FluidData = FluidData {
             t_min: 14.00800000000001,
             t_max: 33.219999999999914,
         },
+        surface_tension: None,
     },
     states: States {
         critical: StatePoint {
