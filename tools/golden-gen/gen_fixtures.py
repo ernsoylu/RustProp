@@ -752,6 +752,61 @@ def gen_surface_tension():
     return rows
 
 
+def gen_flash_pairs_extra():
+    """Tier-2 input pairs (PLAN 4.6 deferrals): (Hmolar,T), (T,Umolar) —
+    upstream DHSU_T_flash — and (P,Umolar) — upstream HSU_P_flash — across
+    liquid/gas/supercritical/two-phase states, plus mass-basis variants."""
+    rows, skipped = [], 0
+    for fluid in HEOS_FLUIDS:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        pc = PropsSI("pcrit", "", 0, "", 0, hf)
+
+        def TL(x):
+            return Tt + x * (Tc - Tt)
+
+        def rec(out, n1, v1, n2, v2):
+            nonlocal skipped
+            r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+
+        # State inventory: (T, p) tuples for the single-phase probes.
+        T_liq = TL(0.4)
+        p_liq = 2.0 * PropsSI("P", "T", T_liq, "Q", 0, hf)
+        T_gas = TL(0.7)
+        p_gas = 0.5 * PropsSI("P", "T", T_gas, "Q", 1, hf)
+        T_sc = 1.2 * Tc
+        p_sc = 1.5 * pc
+        for (T, p_) in [(T_liq, p_liq), (T_gas, p_gas), (T_sc, p_sc)]:
+            h = PropsSI("Hmolar", "T", T, "P", p_, hf)
+            u = PropsSI("Umolar", "T", T, "P", p_, hf)
+            for out in ["Dmolar", "P"]:
+                rec(out, "Hmolar", h, "T", T)
+                rec(out, "T", T, "Umolar", u)
+            for out in ["T", "Dmolar"]:
+                rec(out, "P", p_, "Umolar", u)
+        # Two-phase state at Q=0.3 (DHSU_T two-phase branch; upstream's
+        # HSU_P two-phase branch covered via (P,U) at the same state).
+        T2 = TL(0.5)
+        h2 = PropsSI("Hmolar", "T", T2, "Q", 0.3, hf)
+        u2 = PropsSI("Umolar", "T", T2, "Q", 0.3, hf)
+        p2 = PropsSI("P", "T", T2, "Q", 0.3, hf)
+        for out in ["Dmolar", "Q", "P"]:
+            rec(out, "Hmolar", h2, "T", T2)
+            rec(out, "T", T2, "Umolar", u2)
+        for out in ["T", "Dmolar", "Q"]:
+            rec(out, "P", p2, "Umolar", u2)
+        # Mass-basis variants exercise mass_to_molar_inputs.
+        hm = PropsSI("Hmass", "T", T_liq, "P", p_liq, hf)
+        um = PropsSI("Umass", "T", T_gas, "P", p_gas, hf)
+        rec("D", "Hmass", hm, "T", T_liq)
+        rec("D", "T", T_gas, "Umass", um)
+        rec("T", "P", p_gas, "Umass", um)
+    print(f"flash pairs extra: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 # The 20 fluids whose viscosity is fully structured (dilute/initial_density/
 # higher_order with typed families only) — the 6.1 structured slice.
 VISCOSITY_STRUCTURED = [
@@ -932,6 +987,7 @@ def main():
     write_jsonl("props_si.jsonl", gen_props_si())
     write_jsonl("surface_tension.jsonl", gen_surface_tension())
     write_jsonl("viscosity.jsonl", gen_viscosity())
+    write_jsonl("flash_pairs_extra.jsonl", gen_flash_pairs_extra())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

@@ -29,30 +29,56 @@ const LDBL_EPSILON: f64 = 1.084_202_172_485_504_4e-19;
 /// (upstream `solver_resid` in `solver_for_rho_given_T_oneof_HSU`, whose
 /// `first_partial_deriv(iSmolar, iDmolar, iT)` values these closed forms
 /// reproduce).
-struct SmolarTResid<'a> {
+struct CaloricTResid<'a> {
     eos: &'a HelmholtzEos,
     t: f64,
     target: f64,
+    key: CaloricKey,
 }
 
-impl Resid1D for SmolarTResid<'_> {
+impl Resid1D for CaloricTResid<'_> {
     fn call(&mut self, rhomolar: f64) -> f64 {
-        self.eos.smolar(self.t, rhomolar) - self.target
+        let v = match self.key {
+            CaloricKey::Smolar => self.eos.smolar(self.t, rhomolar),
+            CaloricKey::Hmolar => self.eos.hmolar(self.t, rhomolar),
+            CaloricKey::Umolar => self.eos.umolar(self.t, rhomolar),
+        };
+        v - self.target
     }
-    /// ds/drho|T = R*(tau*d11 - 1/delta - d10)/rho_r
+    /// d(other)/drho|T (upstream `first_partial_deriv(other, iDmolar, iT)`):
+    /// S: R*(tau*d11 - 1/delta - d10)/rho_r
+    /// H: R*T*(tau*d11 + d10 + delta*d20)/rho_r
+    /// U: R*T*tau*d11/rho_r
     fn deriv(&mut self, rhomolar: f64) -> f64 {
         let tau = self.eos.t_reducing / self.t;
         let delta = rhomolar / self.eos.rhomolar_reducing;
         let d = self.eos.alphar_all(tau, delta);
-        self.eos.gas_constant * (tau * d.d11 - 1.0 / delta - d.d10) / self.eos.rhomolar_reducing
+        let r = self.eos.gas_constant;
+        match self.key {
+            CaloricKey::Smolar => {
+                r * (tau * d.d11 - 1.0 / delta - d.d10) / self.eos.rhomolar_reducing
+            }
+            CaloricKey::Hmolar => {
+                r * self.t * (tau * d.d11 + d.d10 + delta * d.d20) / self.eos.rhomolar_reducing
+            }
+            CaloricKey::Umolar => r * self.t * tau * d.d11 / self.eos.rhomolar_reducing,
+        }
     }
-    /// d2s/drho2|T = R*(tau*d21 + 1/delta^2 - d20)/rho_r^2
+    /// d2(other)/drho2|T:
+    /// S: R*(tau*d21 + 1/delta^2 - d20)/rho_r^2
+    /// H: R*T*(tau*d21 + 2*d20 + delta*d30)/rho_r^2
+    /// U: R*T*tau*d21/rho_r^2
     fn second_deriv(&mut self, rhomolar: f64) -> f64 {
         let tau = self.eos.t_reducing / self.t;
         let delta = rhomolar / self.eos.rhomolar_reducing;
         let d = self.eos.alphar_all(tau, delta);
-        self.eos.gas_constant * (tau * d.d21 + 1.0 / (delta * delta) - d.d20)
-            / (self.eos.rhomolar_reducing * self.eos.rhomolar_reducing)
+        let r = self.eos.gas_constant;
+        let rho_r2 = self.eos.rhomolar_reducing * self.eos.rhomolar_reducing;
+        match self.key {
+            CaloricKey::Smolar => r * (tau * d.d21 + 1.0 / (delta * delta) - d.d20) / rho_r2,
+            CaloricKey::Hmolar => r * self.t * (tau * d.d21 + 2.0 * d.d20 + delta * d.d30) / rho_r2,
+            CaloricKey::Umolar => r * self.t * tau * d.d21 / rho_r2,
+        }
     }
     fn third_deriv(&mut self, _rhomolar: f64) -> f64 {
         unreachable!("Halley does not use the third derivative")
@@ -248,12 +274,26 @@ impl PtFlash {
         }
     }
 
-    /// (Smolar, T) flash — upstream `DHSU_T_flash(iSmolar)`: superancillary
-    /// phase determination (`T_phase_determination_pure_or_pseudopure`),
-    /// then `solver_for_rho_given_T_oneof_HSU` for the single-phase
-    /// branches. Ported for the legacy HS path; it is also the (S,T) input
-    /// pair itself.
+    /// (Smolar, T) flash — upstream `DHSU_T_flash(iSmolar)`.
     pub fn smolar_t_state(&self, smolar: f64, t: f64) -> Result<HeosState> {
+        self.caloric_t_state(smolar, t, CaloricKey::Smolar)
+    }
+
+    /// (Hmolar, T) flash — upstream `DHSU_T_flash(iHmolar)`.
+    pub fn hmolar_t_state(&self, hmolar: f64, t: f64) -> Result<HeosState> {
+        self.caloric_t_state(hmolar, t, CaloricKey::Hmolar)
+    }
+
+    /// (T, Umolar) flash — upstream `DHSU_T_flash(iUmolar)`.
+    pub fn umolar_t_state(&self, umolar: f64, t: f64) -> Result<HeosState> {
+        self.caloric_t_state(umolar, t, CaloricKey::Umolar)
+    }
+
+    /// Upstream `DHSU_T_flash(other one of iSmolar/iHmolar/iUmolar)`:
+    /// superancillary phase determination
+    /// (`T_phase_determination_pure_or_pseudopure`), then
+    /// `solver_for_rho_given_T_oneof_HSU` for the single-phase branches.
+    fn caloric_t_state(&self, value: f64, t: f64, key: CaloricKey) -> Result<HeosState> {
         let tc = self.t_critical();
         if (t - tc).abs() < 10.0 * f64::EPSILON {
             // Upstream supports only iDmolar/iP at exactly Tcrit.
@@ -265,13 +305,13 @@ impl PtFlash {
         if t < tc {
             // Superancillary phase determination
             let sat = self.sat().qt_flash(t, 0.0)?;
-            let s_l = self.eos.smolar(t, sat.rho_l);
-            let s_v = self.eos.smolar(t, sat.rho_v);
-            let q = (smolar - s_l) / (s_v - s_l);
+            let y_l = self.px_value(key, t, sat.rho_l);
+            let y_v = self.px_value(key, t, sat.rho_v);
+            let q = (value - y_l) / (y_v - y_l);
             if q < 0.0 {
-                self.rho_from_smolar_t(t, smolar, Phase::Liquid, sat.rho_l)
+                self.rho_from_caloric_t(t, value, key, Phase::Liquid, sat.rho_l)
             } else if q > 1.0 {
-                self.rho_from_smolar_t(t, smolar, Phase::Gas, sat.rho_v)
+                self.rho_from_caloric_t(t, value, key, Phase::Gas, sat.rho_v)
             } else {
                 Ok(HeosState::TwoPhase {
                     t,
@@ -283,40 +323,42 @@ impl PtFlash {
                 })
             }
         } else if t > tc && t > self.t_triple() {
-            self.rho_from_smolar_t_supercritical(t, smolar)
+            self.rho_from_caloric_t_supercritical(t, value, key)
         } else {
             Err(Error::Value(
-                "temperature is out of range in smolar_t_state".into(),
+                "temperature is out of range in caloric_t_state".into(),
             ))
         }
     }
 
     /// Subcritical single-phase branches of
-    /// `solver_for_rho_given_T_oneof_HSU(iSmolar)`. `rho_anc` is the
-    /// superancillary saturation density of the branch (upstream's
-    /// `_rhoLanc`/`_rhoVanc` set by the phase determination).
-    fn rho_from_smolar_t(
+    /// `solver_for_rho_given_T_oneof_HSU`. `rho_anc` is the superancillary
+    /// saturation density of the branch (upstream's `_rhoLanc`/`_rhoVanc`
+    /// set by the phase determination).
+    fn rho_from_caloric_t(
         &self,
         t: f64,
-        smolar: f64,
+        value: f64,
+        key: CaloricKey,
         phase: Phase,
         rho_anc: f64,
     ) -> Result<HeosState> {
-        let mut resid = SmolarTResid {
+        let mut resid = CaloricTResid {
             eos: &self.eos,
             t,
-            target: smolar,
+            target: value,
+            key,
         };
         let rho = match phase {
             Phase::Liquid => {
                 let rhomelt = self.fluid().states.triple_liquid.rhomolar;
-                let ymelt = self.eos.smolar(t, rhomelt);
-                let y_l = self.eos.smolar(t, rho_anc);
-                let guess = (rhomelt - rho_anc) / (ymelt - y_l) * (smolar - y_l) + rho_anc;
+                let ymelt = self.px_value(key, t, rhomelt);
+                let y_l = self.px_value(key, t, rho_anc);
+                let guess = (rhomelt - rho_anc) / (ymelt - y_l) * (value - y_l) + rho_anc;
                 match crate::solvers::halley(&mut resid, guess, 1e-8, 100) {
                     Ok(rho) => rho,
                     Err(_) => crate::solvers::secant(
-                        |rho| self.eos.smolar(t, rho) - smolar,
+                        |rho| self.px_value(key, t, rho) - value,
                         guess,
                         0.0001 * guess,
                         1e-12,
@@ -329,7 +371,7 @@ impl PtFlash {
                 match crate::solvers::halley(&mut resid, 0.5 * (rhomin + rho_anc), 1e-8, 100) {
                     Ok(rho) => rho,
                     Err(_) => crate::solvers::brent(
-                        |rho| self.eos.smolar(t, rho) - smolar,
+                        |rho| self.px_value(key, t, rho) - value,
                         rhomin,
                         rho_anc,
                         LDBL_EPSILON,
@@ -356,15 +398,20 @@ impl PtFlash {
         })
     }
 
-    /// Supercritical branch of `solver_for_rho_given_T_oneof_HSU(iSmolar)`.
-    fn rho_from_smolar_t_supercritical(&self, t: f64, smolar: f64) -> Result<HeosState> {
+    /// Supercritical branch of `solver_for_rho_given_T_oneof_HSU`.
+    fn rho_from_caloric_t_supercritical(
+        &self,
+        t: f64,
+        value: f64,
+        key: CaloricKey,
+    ) -> Result<HeosState> {
         let mut rhoc = self.rhomolar_critical();
         let rhomin = 1e-10;
-        let yc = self.eos.smolar(t, rhoc);
-        let ymin = self.eos.smolar(t, rhomin);
-        let y = smolar;
+        let yc = self.px_value(key, t, rhoc);
+        let ymin = self.px_value(key, t, rhomin);
+        let y = value;
         let in_closed = |x1: f64, x2: f64, x: f64| x >= x1.min(x2) && x <= x1.max(x2);
-        let f = |rho: f64| self.eos.smolar(t, rho) - smolar;
+        let f = |rho: f64| self.px_value(key, t, rho) - value;
         let rho = if in_closed(yc, ymin, y) {
             crate::solvers::brent(f, rhoc, rhomin, LDBL_EPSILON, 1e-9, 100)?
         } else if y < yc {
@@ -373,7 +420,7 @@ impl PtFlash {
             let mut step_count = 0;
             while !in_closed(ymin, yc2, y) {
                 rhoc *= 1.1;
-                yc2 = self.eos.smolar(t, rhoc);
+                yc2 = self.px_value(key, t, rhoc);
                 if step_count > 30 {
                     return Err(Error::Value(format!(
                         "Even by increasing rhoc, not able to bound input; input {y} is not in range {yc2},{ymin}"
@@ -421,15 +468,20 @@ impl PtFlash {
 
     /// (Hmolar, P) flash — upstream `HSU_P_flash(iHmolar)`.
     pub fn hmolar_p_state(&self, hmolar: f64, p: f64) -> Result<HeosState> {
-        self.px_state(p, hmolar, PxKey::Hmolar)
+        self.px_state(p, hmolar, CaloricKey::Hmolar)
     }
 
     /// (P, Smolar) flash — upstream `HSU_P_flash(iSmolar)`.
     pub fn p_smolar_state(&self, p: f64, smolar: f64) -> Result<HeosState> {
-        self.px_state(p, smolar, PxKey::Smolar)
+        self.px_state(p, smolar, CaloricKey::Smolar)
     }
 
-    fn px_state(&self, p: f64, value: f64, key: PxKey) -> Result<HeosState> {
+    /// (P, Umolar) flash — upstream `HSU_P_flash(iUmolar)`.
+    pub fn p_umolar_state(&self, p: f64, umolar: f64) -> Result<HeosState> {
+        self.px_state(p, umolar, CaloricKey::Umolar)
+    }
+
+    fn px_state(&self, p: f64, value: f64, key: CaloricKey) -> Result<HeosState> {
         let pc = self.p_critical();
         let tc = self.t_critical();
         let rhoc = self.rhomolar_critical();
@@ -545,10 +597,11 @@ impl PtFlash {
         })
     }
 
-    fn px_value(&self, key: PxKey, t: f64, rhomolar: f64) -> f64 {
+    fn px_value(&self, key: CaloricKey, t: f64, rhomolar: f64) -> f64 {
         match key {
-            PxKey::Hmolar => self.eos.hmolar(t, rhomolar),
-            PxKey::Smolar => self.eos.smolar(t, rhomolar),
+            CaloricKey::Hmolar => self.eos.hmolar(t, rhomolar),
+            CaloricKey::Smolar => self.eos.smolar(t, rhomolar),
+            CaloricKey::Umolar => self.eos.umolar(t, rhomolar),
         }
     }
 
@@ -728,7 +781,8 @@ impl PtFlash {
 }
 
 #[derive(Clone, Copy)]
-enum PxKey {
+enum CaloricKey {
     Hmolar,
     Smolar,
+    Umolar,
 }

@@ -782,3 +782,14 @@ Append-only; newest last. Seeded entries:
   Viscosity: 61 fluids/482 goldens; conductivity: 58 fluids/571 goldens (EthylBenzene's
   structured trio unlocked by its ECS viscosity), both 1e-8 first-run green after the
   two-phase fix.
+- 2026-08-06 — input pairs (H,T)/(T,U)/(P,U) (tier-2 deferral): `DHSU_T_flash` generalized —
+  the SmolarT machinery became `CaloricTResid`/`caloric_t_state` keyed on S/H/U with the
+  analytic d(other)/drho|T and second derivatives (H: R*T*(tau*d11 + d10 + delta*d20)/rho_r;
+  U: R*T*tau*d11/rho_r), sharing the superancillary phase determination (q from the caloric
+  value at SA saturation densities, strict <0/>1 boundaries) and the liquid/gas/supercritical
+  solver branches verbatim. `HSU_P_flash(iUmolar)` is the existing px_state with a third
+  CaloricKey. Mass variants HmassT/TUmass/PUmass wired through mass_to_molar_inputs. 308
+  goldens over the 11 HEOS fluids (liquid/gas/supercritical/two-phase + mass-basis); T-based
+  pairs at 1e-9, (P,U) at the 30-bit 1e-8 policy, and P OUTPUTS of solver-resolved caloric
+  states also 1e-8 (rho solved to a 1e-8 residual; the liquid's stiff dp/drho amplifies it
+  in P while the absolute error stays ~1e-4 Pa).
