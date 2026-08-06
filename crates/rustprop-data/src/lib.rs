@@ -8,3 +8,5 @@
 //! Data *types* live in `rustprop-core`; only *contents* live here.
 
 pub use rustprop_core::UPSTREAM_VERSION;
+
+pub mod fluids;

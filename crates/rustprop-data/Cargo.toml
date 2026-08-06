@@ -12,6 +12,7 @@ rustprop-core.workspace = true
 
 [features]
 default = []
+water = []
 
 [lints]
 workspace = true

@@ -9,6 +9,7 @@
 //! Ports shared machinery from CoolProp 8 `include/` + `src/`.
 
 pub mod error;
+pub mod fluid;
 pub mod params;
 
 pub use error::{Error, Result};

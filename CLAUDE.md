@@ -27,14 +27,16 @@ The defining constraint is **modularity for WASM binary size**: all CoolProp dat
 
 ## Status (as of 2026-08)
 
-PLAN.md **Phases 0–2 are complete**: verification infrastructure; core parameter system + error types; and the **IF97 steam engine, fully ported and golden-verified** — 356 oracle records match at rtol 1e-11 (most at 1e-12), all IAPWS published check tables pass, steam properties work end-to-end from the CLI (`cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water`) and compile to ~113 KB of wasm (`if97` feature). Live now: the pinned upstream checkout (sibling `~/homecloud/dev/CoolProp`, tag `v8.0.0`), the golden-fixture oracle (CoolProp 8.0.0 wheel in `tools/golden-gen/.venv`), the comparison harness (`tests/golden`), and a CI wasm-size report (70-byte baseline). Shipped crates have zero external dependencies — serde/serde_json are confined to the unpublished test harness. The crate map is in README.md. Architecture rules the scaffold encodes:
+PLAN.md **Phases 0–3 are complete**: verification infrastructure; core parameter system + error types; and the **IF97 steam engine, fully ported and golden-verified** — 356 oracle records match at rtol 1e-11 (most at 1e-12), all IAPWS published check tables pass, steam properties work end-to-end from the CLI (`cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water`) and compile to ~113 KB of wasm (`if97` feature). Live now: the pinned upstream checkout (sibling `~/homecloud/dev/CoolProp`, tag `v8.0.0`), the golden-fixture oracle (CoolProp 8.0.0 wheel in `tools/golden-gen/.venv`), the comparison harness (`tests/golden`), and a CI wasm-size report (70-byte baseline). Shipped crates have zero external dependencies — serde/serde_json are confined to the unpublished test harness. The crate map is in README.md. Architecture rules the scaffold encodes:
 
 - **Types/contents split**: fluid-data *types* live in `rustprop-core`, generated data *contents* in `rustprop-data` (one Cargo feature per fluid, `default = []`). Engines depend only on core — apps link data solely for the fluids they opt into.
 - The facade crate `rustprop` puts every engine behind a Cargo feature with `default = []`; `all-backends` turns everything on (used by the CLI and CI).
 - `rustprop-data` contents come only from `tools/rustprop-datagen` codegen, never hand edits; JSON parsing must stay out of shipped binaries.
 - Workspace lints deny `unsafe_code`; release profile uses fat LTO, `panic = "abort"`, symbol stripping.
 
-Next work: `PLAN.md` Phase 3 (datagen + first fluid data: Water). The flagged 0.2 decision — post-injection data source, likely `get_fluid_param_string(fluid, "JSON")` from the oracle wheel — is due at Phase 3 start.
+Phase 3 added the data pipeline: fluid JSON dumped verbatim from the oracle wheel into `data/coolprop-json/` (pinned, attributed), `rustprop-datagen` emitting feature-gated modules into `rustprop-data` (Water first, bitwise fidelity-tested, CI regeneration guard).
+
+Next work: `PLAN.md` Phase 4 (HEOS engine, pure fluids — Helmholtz terms first, term-level goldens vs the wheel's `AbstractState` derivatives).
 
 ## Toolchain
 

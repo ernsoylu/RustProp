@@ -116,17 +116,17 @@ that needs no fluid data files.
 
 ## Phase 3 — Datagen + first fluid data (Water)
 
-- [ ] 3.1 Define fluid-data types in `rustprop-core` for exactly what Water's JSON contains
+- [x] 3.1 Define fluid-data types in `rustprop-core` for exactly what Water's JSON contains
       (EOS blocks: ideal-gas and residual Helmholtz term groups; ancillaries; states; limits —
       confirmed against the real file in 0.2). No fields for structures Water doesn't have yet.
       → verify: types compile; every field documents the upstream JSON key it mirrors.
-- [ ] 3.2 Implement `rustprop-datagen parse` for Water's JSON (serde stays inside datagen only)
+- [x] 3.2 Implement `rustprop-datagen parse` for Water's JSON (serde stays inside datagen only)
       and `emit` producing `crates/rustprop-data/src/fluids/water.rs` behind feature `water`.
       → verify: datagen runs cleanly on Water; `cargo build -p rustprop-data --features water`.
-- [ ] 3.3 Data fidelity test: automated comparison of every numeric and string field between the
+- [x] 3.3 Data fidelity test: automated comparison of every numeric and string field between the
       generated Rust constants and the upstream JSON (test parses the JSON independently).
       → verify: zero mismatches across the entire file.
-- [ ] 3.4 CI determinism guard: regenerate in CI and fail on `git diff` — committed generated
+- [x] 3.4 CI determinism guard: regenerate in CI and fail on `git diff` — committed generated
       code can never drift from the generator or the pinned upstream data.
       → verify: CI step passes; a deliberate local edit of `water.rs` makes it fail.
 
@@ -403,3 +403,24 @@ Append-only; newest last. Seeded entries:
   minimal 70 B; `if97` 112,862 B; `all-backends` identical to `if97` while the other engines
   are empty. ~113 KB for the complete IF97 engine + dispatch is the first real data point for
   the size budget.
+- 2026-08-06 — Phase 3 data-source decision (was flagged at 0.2): option (b) — fluid documents
+  dumped verbatim from the oracle wheel via `get_fluid_param_string(fluid, "JSON")` and
+  committed under `data/coolprop-json/` (with upstream attribution). This is the
+  post-injection runtime data itself; values are exact (embedded CBOR carries binary IEEE
+  doubles; nlohmann prints shortest round-trip). Committed dumps make datagen and the CI
+  guard fully reproducible without Python. Water.json: 76,556 bytes, byte-identical reruns.
+- 2026-08-06 — 3.1: `rustprop_core::fluid` types scoped to what Phase 4 consumes. Water's
+  families: alpha0 = Lead/LogTau/PlanckEinstein; alphar = Power(51)/Gaussian(3)/NonAnalytic(2);
+  plus fluid-specific `gas_constant` (8.314371357587, not CODATA). Known present-but-deferred
+  document parts are skip-listed in the fidelity walker: SUPERANCILLARY (4.3),
+  critical_region_splines (4.5), hL/hLV/sL/sLV rational fits (Phase 12), melting line +
+  surface tension + TRANSPORT + ENVIRONMENTAL (Phase 6+), INFO extras (Phase 5).
+- 2026-08-06 — 3.2: datagen emits shortest-round-trip literals (`{:?}`), verifies the
+  fluid's feature exists in the data crate manifest, regenerates `fluids/mod.rs`, and marks
+  generated files `#![cfg_attr(rustfmt, rustfmt::skip)]` so regeneration stays byte-stable
+  under the CI diff. Unknown term types fail loudly (serde tag enum).
+- 2026-08-06 — 3.3: fidelity walker parses the JSON independently (raw `serde_json::Value`,
+  own path mapping), compares bitwise (`==`, no tolerance), and is a completeness gate —
+  any key neither ported nor skip-listed fails. Zero mismatches on first run.
+- 2026-08-06 — 3.4: CI regenerates and `git diff --exit-code`s. Drill verified locally:
+  a hand edit is detected; regeneration restores byte-identical content.
