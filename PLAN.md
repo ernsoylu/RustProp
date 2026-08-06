@@ -94,7 +94,7 @@ that needs no fluid data files.
       find the pinned version in the build files, record it in the Decisions log, clone it
       alongside the CoolProp checkout).
       → verify: pinned IF97 ref recorded; source present locally.
-- [ ] 2.2 Port constants and region equations (regions 1–5 + boundary equations), exactly as
+- [x] 2.2 Port constants and region equations (regions 1–5 + boundary equations), exactly as
       implemented there.
       → verify: unit tests reproduce the IAPWS-R7-97 published check tables (the numeric tables
       in the standard) to their printed precision.
@@ -369,3 +369,19 @@ Append-only; newest last. Seeded entries:
   `github.com/CoolProp/IF97` @ `7aaced024a702f0985474bf293cdaae9c8d06521`. Cloned to
   `~/homecloud/dev/IF97` and checked out at that commit. The implementation is the header-only
   `IF97.h` (4909 lines) — the 2.2 porting source.
+- 2026-08-06 — 2.2: IF97 ported to `rustprop-if97` in CoolProp's configuration (SI units,
+  direct non-iterated region-3 density; the upstream `REGION3_ITERATE` Newton refinement is
+  ported as `region3::rhomass_iterated` for the check-table tests). Coefficient tables
+  (81 tables, ~2.2k lines) are generated verbatim by `tools/if97-extract/extract.py` with
+  per-table entry counts asserted — the assert caught one wrong expected count during
+  development. All IAPWS check tables pass: R7-97 forward tables 5/15/33/42, SR5-05 v(T,p)
+  52 points at 1e-12 abs + dividing lines at 1e-7 abs + subregion determination, tables 35/36
+  saturation, T(p,h)/T(p,s) 36 points, p(h,s) 18 + Tsat(h,s) 3, R12-08 viscosity, R15-11
+  conductivity, R1-76 surface tension. Tolerance calibration recorded in the test file:
+  printed 9-digit table values quantize at ~2e-9 (=> 5e-9 rel); region-3 iterated rows carry
+  ~1.6e-8 from the Newton residual (=> 5e-8, cp 2e-7); the sigma table's last two rows differ
+  from the normative correlation by up to 0.07 mN/m abs (upstream's driver prints but never
+  asserts them). Style lints allowed where fidelity wins (documented in code): verbatim
+  literals (incl. upstream's own `16.529164252604481` vs `...605` P23MIN inconsistency and
+  the truncated `PI = 3.141592654` in the Gibbs-region lambda2), literal comparison chains
+  with deliberately identical arms.
