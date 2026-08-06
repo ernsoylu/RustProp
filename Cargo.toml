@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*", "tools/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/ernsoylu/RustProp"
+
+[workspace.dependencies]
+rustprop-core = { path = "crates/rustprop-core", version = "0.1.0" }
+rustprop-data = { path = "crates/rustprop-data", version = "0.1.0" }
+rustprop-heos = { path = "crates/rustprop-heos", version = "0.1.0" }
+rustprop-cubics = { path = "crates/rustprop-cubics", version = "0.1.0" }
+rustprop-if97 = { path = "crates/rustprop-if97", version = "0.1.0" }
+rustprop-incompressible = { path = "crates/rustprop-incompressible", version = "0.1.0" }
+rustprop-pcsaft = { path = "crates/rustprop-pcsaft", version = "0.1.0" }
+rustprop-tabular = { path = "crates/rustprop-tabular", version = "0.1.0" }
+rustprop-svdsbtl = { path = "crates/rustprop-svdsbtl", version = "0.1.0" }
+rustprop-humid-air = { path = "crates/rustprop-humid-air", version = "0.1.0" }
+rustprop = { path = "crates/rustprop", version = "0.1.0" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+# Size/perf profile for release artifacts (native CLI and wasm alike).
+# opt-level stays 3: property calculations are compute-heavy; use wasm-opt -Oz
+# on emitted .wasm files when size matters more than speed.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

@@ -1,0 +1,11 @@
+[package]
+name = "rustprop-core"
+description = "Shared types and traits for the rustprop CoolProp 8 port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true

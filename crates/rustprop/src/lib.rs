@@ -1,0 +1,34 @@
+//! rustprop — pure-Rust port of CoolProp 8 for WebAssembly-first use.
+//!
+//! Facade crate: exposes the `PropsSI`-style API and re-exports each
+//! calculation engine behind a Cargo feature. Default features are empty by
+//! design — applications opt into exactly the engines (and, via
+//! `rustprop-data`, the fluids) a calculation needs, keeping compiled WASM
+//! minimal.
+
+pub use rustprop_core::UPSTREAM_VERSION;
+
+#[cfg(feature = "cubics")]
+pub use rustprop_cubics as cubics;
+#[cfg(feature = "heos")]
+pub use rustprop_heos as heos;
+#[cfg(feature = "humid-air")]
+pub use rustprop_humid_air as humid_air;
+#[cfg(feature = "if97")]
+pub use rustprop_if97 as if97;
+#[cfg(feature = "incompressible")]
+pub use rustprop_incompressible as incompressible;
+#[cfg(feature = "pcsaft")]
+pub use rustprop_pcsaft as pcsaft;
+#[cfg(feature = "svdsbtl")]
+pub use rustprop_svdsbtl as svdsbtl;
+#[cfg(feature = "tabular")]
+pub use rustprop_tabular as tabular;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn tracks_coolprop_8() {
+        assert_eq!(super::UPSTREAM_VERSION, "8.0.0");
+    }
+}

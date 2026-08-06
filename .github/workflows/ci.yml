@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # rustup auto-installs the toolchain pinned in rust-toolchain.toml,
+      # including the wasm32-unknown-unknown target and clippy/rustfmt.
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace --all-features
+      - run: cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown --release
+      - run: cargo run -p rustprop-cli
