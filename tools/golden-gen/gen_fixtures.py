@@ -810,13 +810,22 @@ def gen_flash_pairs_extra():
             x = PropsSI(k, "T", T2, "Q", 0.3, hf)
             for out in ["T", "Q", "P"]:
                 rec(out, "Dmolar", d2, k, x)
-        # Mass-basis variants exercise mass_to_molar_inputs.
-        hm = PropsSI("Hmass", "T", T_liq, "P", p_liq, hf)
+        # (D, Q) — upstream DQ_flash: superancillary root resolution at the
+        # Q boundaries and the Brent fallback for fractional quality.
+        dl = PropsSI("Dmolar", "T", T2, "Q", 0.0, hf)
+        dv = PropsSI("Dmolar", "T", T2, "Q", 1.0, hf)
+        dmix = PropsSI("Dmolar", "T", T2, "Q", 0.4, hf)
+        for out in ["T", "P"]:
+            rec(out, "Dmolar", dl, "Q", 0.0)
+            rec(out, "Dmolar", dv, "Q", 1.0)
+            rec(out, "Dmolar", dmix, "Q", 0.4)
+        rec("T", "Dmass", dl * PropsSI("molemass", "", 0, "", 0, hf), "Q", 0.0)
+        # Mass-basis variants exercise mass_to_molar_inputs. (Hmass,T) and
+        # (T,Umass) are upstream dead ends — "not yet supported" — asserted
+        # Rust-side instead of recorded.
         um = PropsSI("Umass", "T", T_gas, "P", p_gas, hf)
         dm = PropsSI("Dmass", "T", T_liq, "P", p_liq, hf)
         sm = PropsSI("Smass", "T", T_liq, "P", p_liq, hf)
-        rec("D", "Hmass", hm, "T", T_liq)
-        rec("D", "T", T_gas, "Umass", um)
         rec("T", "P", p_gas, "Umass", um)
         rec("T", "Dmass", dm, "Smass", sm)
     print(f"flash pairs extra: {len(rows)} records, {skipped} rejected")

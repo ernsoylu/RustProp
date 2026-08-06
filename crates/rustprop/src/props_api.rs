@@ -152,15 +152,14 @@ fn heos_route(
     // Upstream: the pair stays INVALID when either NAME fails to parse (the
     // trivial route stays reachable); a pair of VALID params that is not a
     // valid combination throws immediately.
+    // Upstream `generate_update_pair` RETURNS INPUT_PAIR_INVALID for an
+    // unknown combination (it never throws) — PropsSImulti then errors only
+    // if the outputs need a state update. Unknown parameter names land in
+    // the same place.
     let keys = (Param::parse(name1), Param::parse(name2));
-    let pair = if let (Some(k1), Some(k2)) = keys {
-        Some(generate_update_pair(k1, prop1, k2, prop2).ok_or_else(|| {
-            Error::Value(format!(
-                "Input pair parsing failed for Name1: \"{name1}\", Name2: \"{name2}\""
-            ))
-        })?)
-    } else {
-        None
+    let pair = match keys {
+        (Some(k1), Some(k2)) => generate_update_pair(k1, prop1, k2, prop2),
+        _ => None,
     };
 
     let flash = fluid_flash(data);
@@ -222,9 +221,11 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
         InputPair::HmassP => (InputPair::HmolarP, v1 * mm, v2),
         InputPair::PSmass => (InputPair::PSmolar, v1, v2 * mm),
         InputPair::HmassSmass => (InputPair::HmolarSmolar, v1 * mm, v2 * mm),
-        InputPair::HmassT => (InputPair::HmolarT, v1 * mm, v2),
-        InputPair::TUmass => (InputPair::TUmolar, v1, v2 * mm),
         InputPair::PUmass => (InputPair::PUmolar, v1, v2 * mm),
+        InputPair::SmassUmass => (InputPair::SmolarUmolar, v1 * mm, v2 * mm),
+        // Pure fluids: Qmass == Qmolar exactly; rewrite to the molar sibling.
+        InputPair::DmolarQmass => (InputPair::DmolarQ, v1, v2),
+        InputPair::DmassQmass | InputPair::DmassQ => (InputPair::DmolarQ, v1 / mm, v2),
         InputPair::DmassHmass => (InputPair::DmolarHmolar, v1 / mm, v2 * mm),
         InputPair::DmassSmass => (InputPair::DmolarSmolar, v1 / mm, v2 * mm),
         InputPair::DmassUmass => (InputPair::DmolarUmolar, v1 / mm, v2 * mm),
@@ -269,6 +270,15 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
         InputPair::DmolarHmolar => flash.dmolar_hmolar_state(v1, v2),
         InputPair::DmolarSmolar => flash.dmolar_smolar_state(v1, v2),
         InputPair::DmolarUmolar => flash.dmolar_umolar_state(v1, v2),
+        InputPair::DmolarQ => flash.dmolar_q_state(v1, v2),
+        // Upstream's own dead ends: mass_to_molar_inputs never converts
+        // these, and the backend update switch throws for them.
+        InputPair::HmassT | InputPair::TUmass | InputPair::SmolarUmolar => {
+            Err(Error::Value(format!(
+                "This pair of inputs [{}] is not yet supported",
+                pair.short_desc()
+            )))
+        }
         other => Err(Error::NotImplemented(format!(
             "input pair {} is not ported yet",
             other.short_desc()

@@ -2,9 +2,11 @@
 //! `(T, Umolar)` — upstream `DHSU_T_flash` —, `(P, Umolar)` — upstream
 //! `HSU_P_flash` —, and `(Dmolar, Hmolar/Smolar/Umolar)` — upstream
 //! `HSU_D_flash`'s superancillary happy path — through `props_si`,
-//! including the mass-basis variants. The T-based pairs solve density
-//! directly (1e-9); the (P, X) pair runs at the established 1e-8 policy
-//! (upstream resolves T at ~30 bits).
+//! including the mass-basis variants, and `(Dmolar, Q)` — upstream
+//! `DQ_flash` (superancillary root resolution at the Q boundaries, Brent on
+//! the density-implied quality for fractional Q). The T-based pairs solve
+//! density directly (1e-9); the (P, X) pair runs at the established 1e-8
+//! policy (upstream resolves T at ~30 bits).
 
 use rustprop::props_si;
 use rustprop_golden_tests::load_jsonl;
@@ -14,7 +16,7 @@ use std::path::Path;
 fn extra_flash_pairs_match_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/flash_pairs_extra.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 616);
+    assert_eq!(records.len(), 693);
 
     let mut failures = Vec::new();
     for rec in &records {
@@ -69,4 +71,46 @@ fn extra_flash_pairs_match_upstream() {
         records.len(),
         failures.join("\n")
     );
+}
+
+/// Error-condition parity for the pair-level dead ends and the DQ guards.
+#[test]
+fn input_pair_error_conditions() {
+    use rustprop::Error;
+    // Upstream's own dead ends: mass_to_molar_inputs never converts these
+    // ("This pair of inputs [X] is not yet supported").
+    for (n1, v1, n2, v2) in [
+        ("Hmass", 2e5, "T", 300.0),
+        ("T", 300.0, "Umass", 1.1e5),
+        ("Smolar", 80.0, "Umolar", 2e4),
+    ] {
+        match props_si("D", n1, v1, n2, v2, "HEOS::Water").unwrap_err() {
+            Error::Value(msg) => assert!(
+                msg.contains("is not yet supported"),
+                "unexpected message: {msg}"
+            ),
+            other => panic!("expected Value error, got {other:?}"),
+        }
+    }
+    // Combinations upstream's generate_update_pair does not know (H+Q, Q+S):
+    // INPUT_PAIR_INVALID with non-trivial outputs.
+    for (n1, v1, n2, v2) in [("Hmolar", 3e4, "Q", 1.0), ("Q", 0.0, "Smolar", 80.0)] {
+        match props_si("D", n1, v1, n2, v2, "HEOS::Water").unwrap_err() {
+            Error::Value(msg) => assert!(
+                msg.contains("Input pair variable is invalid"),
+                "unexpected message: {msg}"
+            ),
+            other => panic!("expected Value error, got {other:?}"),
+        }
+    }
+    // DQ strict mode: water's liquid-density anomaly gives two T-roots.
+    match props_si("T", "Dmolar", 55500.0, "Q", 0.0, "HEOS::Water").unwrap_err() {
+        Error::Value(msg) => assert!(msg.contains("2 T-roots"), "unexpected message: {msg}"),
+        other => panic!("expected Value error, got {other:?}"),
+    }
+    // DQ out of range: density between the branches has no root on either.
+    match props_si("T", "Dmolar", 10000.0, "Q", 0.0, "HEOS::Water").unwrap_err() {
+        Error::OutOfRange(msg) => assert!(msg.contains("no T-root"), "unexpected message: {msg}"),
+        other => panic!("expected OutOfRange error, got {other:?}"),
+    }
 }

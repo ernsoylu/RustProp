@@ -417,6 +417,16 @@ impl ChebApprox1d {
         eval_piecewise(&self.expansions, x)
     }
 
+    /// Domain lower edge (upstream `xmin()`).
+    pub fn xmin(&self) -> f64 {
+        self.expansions[0].xmin
+    }
+
+    /// Domain upper edge (upstream `xmax()`).
+    pub fn xmax(&self) -> f64 {
+        self.expansions[self.expansions.len() - 1].xmax
+    }
+
     /// Upstream `get_x_for_y`: all solutions of `y(x) = y` across the
     /// monotonic intervals (each interval piece is monotonic, so endpoint
     /// bracketing is exhaustive).

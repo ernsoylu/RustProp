@@ -496,6 +496,102 @@ impl PtFlash {
         self.hsu_d_state(rhomolar, umolar, CaloricKey::Umolar)
     }
 
+    /// (Dmolar, Q) flash — upstream `DQ_flash`: for Q at a saturation
+    /// boundary (|Q| or |Q-1| < 1e-10) the strict-mode superancillary path
+    /// enumerates every T-root of the density on that branch and refuses to
+    /// silently pick among several (GitHub #2773/#2834); fractional Q falls
+    /// back to a Brent solve of the density-implied quality over T.
+    pub fn dmolar_q_state(&self, rhomolar: f64, q: f64) -> Result<HeosState> {
+        let q_boundary_tol = 1e-10;
+        if q.abs() < q_boundary_tol || (q - 1.0).abs() < q_boundary_tol {
+            let q_key = usize::from(q.abs() >= q_boundary_tol);
+            let t = self.resolve_t_via_superancillary_d(rhomolar, q_key, "DQ_flash")?;
+            let sat = self.sat().qt_flash(t, q)?;
+            // Upstream restores the INPUT density and quality after QT_flash.
+            return Ok(HeosState::TwoPhase {
+                t,
+                p: sat.p,
+                rhomolar,
+                q,
+                rho_l: sat.rho_l,
+                rho_v: sat.rho_v,
+            });
+        }
+        // Fallback: Brent over [Tmin + 0.1, Tc - 0.1] on the density-implied
+        // quality (the original DQ_flash).
+        let eps = 1e-12;
+        if rhomolar >= self.rhomolar_critical() + eps && q > eps {
+            return Err(Error::OutOfRange(format!(
+                "DQ inputs are not defined for density ({rhomolar}) above critical density ({}) and Q>0",
+                self.rhomolar_critical()
+            )));
+        }
+        let t_max = self.t_critical() - 0.1;
+        let t_min = self.t_triple() + 0.1;
+        let f = |t: f64| -> f64 {
+            match self.sat().qt_flash(t, 0.0) {
+                Ok(sat) => {
+                    (1.0 / rhomolar - 1.0 / sat.rho_l) / (1.0 / sat.rho_v - 1.0 / sat.rho_l) - q
+                }
+                Err(_) => f64::NAN,
+            }
+        };
+        let t = crate::solvers::brent(f, t_min, t_max, f64::EPSILON, 1e-10, 100)?;
+        let sat = self.sat().qt_flash(t, q)?;
+        Ok(HeosState::TwoPhase {
+            t,
+            p: sat.p,
+            rhomolar,
+            q,
+            rho_l: sat.rho_l,
+            rho_v: sat.rho_v,
+        })
+    }
+
+    /// Upstream `resolve_T_via_superancillary` (no-guess mode) for the `'D'`
+    /// key: enumerate every T-root on the requested saturation branch, dedup
+    /// near-identical roots from adjacent intervals at an extremum, and
+    /// return the single root — or throw for zero (out of range) or several
+    /// (upstream `MultipleSolutionsError`).
+    fn resolve_t_via_superancillary_d(
+        &self,
+        target: f64,
+        q_key: usize,
+        fn_name: &str,
+    ) -> Result<f64> {
+        let (d_l, d_v) = self.d_approxes();
+        let approx = if q_key == 0 { d_l } else { d_v };
+        let phase_name = if q_key == 0 { "liquid" } else { "vapor" };
+        let mut solns = approx.get_x_for_y(target, 64, 100, 1e-10);
+        if solns.is_empty() {
+            return Err(Error::OutOfRange(format!(
+                "{fn_name}: no T-root on saturated {phase_name} for D={target}; superancillary range [{}, {}] K",
+                approx.xmin(),
+                approx.xmax()
+            )));
+        }
+        solns.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let dedup_tol = 1e-6;
+        let mut ts: Vec<f64> = Vec::with_capacity(solns.len());
+        for t in solns {
+            if ts.last().is_none_or(|last| (t - last).abs() > dedup_tol) {
+                ts.push(t);
+            }
+        }
+        if ts.len() > 1 {
+            let ts_str = ts
+                .iter()
+                .map(|t| format!("{t} K"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(Error::Value(format!(
+                "{fn_name}: D={target} on saturated {phase_name} has {} T-roots ({ts_str}); use update_with_guesses with guess.T to pick a branch (see GitHub #2773)",
+                ts.len()
+            )));
+        }
+        Ok(ts[0])
+    }
+
     /// Upstream `HSU_D_flash`'s superancillary "happy path" (every bundled
     /// fluid is pure with a superancillary, so the legacy ancillary "sad
     /// path" is only its error fallback — unported, loud error instead).

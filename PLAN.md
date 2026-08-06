@@ -809,3 +809,21 @@ Append-only; newest last. Seeded entries:
   DmassSmass/DmassUmass. flash_pairs_extra grew to 616 goldens (T/P/Q outputs across
   liquid/gas/supercritical/two-phase, 11 fluids), first-run green at 1e-9 (T-based),
   1e-8 (P-involved).
+- 2026-08-06 — (D,Q) + input-pair error parity (tier-2 deferral, closes the input-pair
+  sweep): `DQ_flash` ported — strict-mode superancillary path for Q at a saturation
+  boundary (|Q| or |Q-1| < 1e-10): enumerate every T-root of the density on that branch
+  (get_x_for_y 64 bits/1e-10, dedup 1e-6), one root commits via QT with the INPUT
+  rho/Q restored, zero roots -> upstream's OutOfRange message, several -> upstream's
+  MultipleSolutionsError message (water's liquid-density anomaly, D=55500: identical
+  2-root list to the oracle); fractional Q -> Brent on the density-implied quality over
+  [Tmin+0.1, Tc-0.1] plus the rho>=rhoc,Q>0 OutOfRange guard. PropsSI-surface DISCOVERY
+  banked: upstream's string API cannot reach HQ_flash/QS_flash at all —
+  `generate_update_pair` has no (H,Q)/(Q,S) rows, so PropsSI throws "Input pair variable
+  is invalid and output(s) are non-trivial" (our heos_route now reproduces exactly this
+  instead of a bespoke parse error; HQ/QS flashes therefore NOT ported — dead code through
+  this API). (Hmass,T)/(T,Umass)/(Smolar,Umolar) are upstream's own dead ends
+  ("This pair of inputs [X] is not yet supported" — mass_to_molar_inputs never converts
+  the first two; our earlier HmassT/TUmass conversions were an infidelity, removed).
+  Qmass rewrites (DmolarQmass/DmassQmass -> DmolarQ) and DmassQ/SmassUmass conversions
+  match upstream's switch. flash_pairs_extra: 693 records + message-anchored error
+  assertions, first-run green. Every PropsSI-reachable HEOS input pair is now ported.
