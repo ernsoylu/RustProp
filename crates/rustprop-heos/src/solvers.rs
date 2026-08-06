@@ -97,6 +97,69 @@ pub(crate) fn householder4<R: Resid1D>(f: &mut R, x0: f64, ftol: f64, maxiter: i
     Ok(x)
 }
 
+/// Upstream `Secant` (omega = 1; the `input_not_in_range` hook is unused by
+/// the ported callers).
+pub(crate) fn secant<F: FnMut(f64) -> f64>(
+    mut call: F,
+    x0: f64,
+    dx: f64,
+    tol: f64,
+    maxiter: i32,
+) -> Result<f64> {
+    let mut x1 = 0.0;
+    let mut x2 = 0.0;
+    let mut x3 = 0.0;
+    let mut y1 = 0.0;
+    let mut x;
+    let mut fval: f64 = 999.0;
+    let mut iter = 1;
+    if dx.abs() == 0.0 {
+        return Err(Error::Value("dx cannot be zero".into()));
+    }
+    while iter <= 2 || fval.abs() > tol {
+        if iter == 1 {
+            x1 = x0;
+            x = x1;
+        } else if iter == 2 {
+            x2 = x0 + dx;
+            x = x2;
+        } else {
+            x = x2;
+        }
+        fval = call(x);
+        if !fval.is_finite() {
+            return Err(Error::Value(
+                "Residual function in secant returned invalid number".into(),
+            ));
+        }
+        if iter == 1 {
+            y1 = fval;
+        }
+        if iter > 1 {
+            let deltax = x2 - x1;
+            if deltax.abs() < 1e-14 {
+                return Ok(x);
+            }
+            let y2 = fval;
+            let deltay = y2 - y1;
+            if iter > 2 && deltay.abs() < 1e-14 {
+                return Ok(x);
+            }
+            x3 = x2 - y2 / (y2 - y1) * (x2 - x1);
+            y1 = y2;
+            x1 = x2;
+            x2 = x3;
+        }
+        if iter > maxiter {
+            return Err(Error::Solution(
+                "Secant reached maximum number of iterations".into(),
+            ));
+        }
+        iter += 1;
+    }
+    Ok(x3)
+}
+
 /// Upstream `Brent` (the ALGOL-derived variant with all its guards).
 pub(crate) fn brent<F: FnMut(f64) -> f64>(
     mut call: F,

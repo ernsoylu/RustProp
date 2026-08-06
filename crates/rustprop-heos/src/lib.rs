@@ -6,6 +6,8 @@
 
 pub mod alpha;
 pub mod ancillary;
+mod chebappr;
+pub mod flash_hs;
 pub mod flash_pt;
 pub mod flash_px;
 pub mod props;

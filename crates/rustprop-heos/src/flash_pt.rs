@@ -23,6 +23,9 @@ pub struct PtFlash {
     pub eos: HelmholtzEos,
     sat: SaturationSuperAncillary,
     fluid: &'static FluidData,
+    /// Lazily-built caloric superancillaries for the (H,S) flash (upstream
+    /// `ensure_caloric_superancillaries` — built on first HS use, cached).
+    pub(crate) hs_calorics_cell: std::cell::OnceCell<crate::flash_hs::CaloricSa>,
 }
 
 /// Upstream `SolverTPResid`: relative pressure residual with derivatives in
@@ -78,7 +81,12 @@ impl PtFlash {
                 .as_ref()
                 .expect("PT flash currently requires a superancillary fluid"),
         );
-        PtFlash { eos, sat, fluid }
+        PtFlash {
+            eos,
+            sat,
+            fluid,
+            hs_calorics_cell: std::cell::OnceCell::new(),
+        }
     }
 
     pub fn sat(&self) -> &SaturationSuperAncillary {

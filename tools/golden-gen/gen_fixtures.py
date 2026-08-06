@@ -510,6 +510,46 @@ def gen_heos_fluid_suites(fluid):
     return suites
 
 
+def gen_heos_fluid_hs(fluid):
+    """(Hmolar, Smolar) flash suite (PLAN 4.6 final pair): h/s computed by the
+    wheel at reduced-coordinate source states spanning subcooled/cold liquid,
+    two-phase (low, mid, high T), gas, and the supercritical classes."""
+    hf = f"HEOS::{fluid}"
+    Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+    Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+    pc = PropsSI("pcrit", "", 0, "", 0, hf)
+
+    def TL(x):
+        return Tt + x * (Tc - Tt)
+
+    def psat(T):
+        return PropsSI("P", "T", T, "Q", 1, hf)
+
+    sources = [
+        ("T", TL(0.2), "P", 2.5 * psat(TL(0.2))),      # subcooled liquid
+        ("T", TL(0.05), "P", 10.0 * psat(TL(0.05))),   # cold compressed liquid
+        ("P", psat(TL(0.25)), "Q", 0.15),              # two-phase, low T
+        ("P", psat(TL(0.5)), "Q", 0.4),                # two-phase, mid T
+        ("P", psat(TL(0.9)), "Q", 0.7),                # two-phase, high T
+        ("P", psat(TL(0.97)), "Q", 0.5),               # two-phase, near-critical
+        ("T", TL(0.9), "P", 0.5 * psat(TL(0.9))),      # gas near saturation
+        ("T", TL(0.7), "P", 0.1 * psat(TL(0.7))),      # superheated gas
+        ("T", 1.2 * Tc, "P", 1.5 * pc),                # supercritical
+        ("T", TL(0.5), "P", 2.0 * pc),                 # supercritical liquid
+        ("T", 1.3 * Tc, "P", 0.5 * pc),                # supercritical gas
+        ("T", 1.02 * Tc, "P", 1.02 * pc),              # near-critical single phase
+    ]
+    rows, skipped = [], 0
+    for (n1, v1, n2, v2) in sources:
+        h = PropsSI("Hmolar", n1, v1, n2, v2, hf)
+        s = PropsSI("Smolar", n1, v1, n2, v2, hf)
+        for out in ["T", "Dmolar", "P", "Q"]:
+            r = try_record(out, "Hmolar", h, "Smolar", s, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    print(f"{fluid} hs: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 WRITTEN = []
 
 
@@ -564,6 +604,8 @@ def main():
         module = module_name(fluid)
         for suite, rows in gen_heos_fluid_suites(fluid).items():
             write_jsonl(f"heos_{module}_{suite}.jsonl", rows)
+    for fluid in ["Water"] + HEOS_FLUIDS:
+        write_jsonl(f"heos_{module_name(fluid)}_hs.jsonl", gen_heos_fluid_hs(fluid))
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

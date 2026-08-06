@@ -36,20 +36,27 @@ PLAN.md **Phases 0–3 are complete**: verification infrastructure; core paramet
 
 Phase 3 added the data pipeline: fluid JSON dumped verbatim from the oracle wheel into `data/coolprop-json/` (pinned, attributed), `rustprop-datagen` emitting feature-gated modules into `rustprop-data` (Water first, bitwise fidelity-tested, CI regeneration guard).
 
-Phase 4 (HEOS pure fluids) is complete through 4.7 except the (H,S) pair: Helmholtz term
+Phase 4 (HEOS pure fluids) is complete through 4.7 — **all seven flash pairs**: Helmholtz term
 machinery (GenExp with B-recursion, NonAnalytic, GaoB; ideal container in upstream's fixed member
 order), single-phase properties, classic + super-ancillaries (piecewise Chebyshev, dyadic-split
 inverse-on-ln(p)), QT/PQ/PT flashes with upstream's solver strategy tree (SRK seed, Halley,
-Householder4, Brent), and the (D,T)/(H,P)/(P,S)/(D,P) pairs. **Six fluids ported and
-golden-verified end to end** — Water, Nitrogen, CarbonDioxide, R134a, n-Propane, Ammonia — each
-running the full suite battery (terms 1e-13/1e-12, props 1e-9, ancillaries 1e-12, saturation 1e-8
-policy with observed ≤4e-12 for the new fluids, PT 1e-9 with Cp/A at the solver-dependent 1e-8
-tier, flash pairs 1e-9/1e-8) against ~5,900 committed oracle records, plus bitwise data-fidelity
-walks of every fluid document. Ammonia's document carries two EOS blocks — upstream evaluates
-`EOSVector[0]` only (Gao-2020), the Tillner-Roth alternate is not ported.
+Householder4, Brent), the (D,T)/(H,P)/(P,S)/(D,P) pairs, and the (H,S) pair: runtime-built
+caloric superancillaries (degree-12 L/U refit of h/s along both saturation branches),
+colleague-matrix extrema (EISPACK `hqr` — logged stand-in for Eigen's RealSchur), the
+two-phase Qh==Qs screen + Brent, the three-leg single-phase cascade with the (T, ln rho)
+homotopy corrector, and the legacy TS-scan sad path with its (Smolar,T) inner flash — which
+low-quality two-phase inputs genuinely require (upstream's endpoint Brent cannot bracket
+them). Single-phase HS results carry upstream's `_Q = 10000` sentinel (oracle-confirmed).
+**Six fluids golden-verified end to end** — Water, Nitrogen, CarbonDioxide, R134a, n-Propane,
+Ammonia — full suite battery (terms 1e-13/1e-12, props 1e-9, ancillaries 1e-12, saturation
+1e-8 policy observed ≤4e-12, PT 1e-9 with Cp/A at 1e-8, flash pairs 1e-9/1e-8, hs 1e-8 with
+documented Dmolar/P scale guards) against ~6,200 committed oracle records, plus bitwise
+data-fidelity walks of every fluid document. Ammonia's document carries two EOS blocks —
+upstream evaluates `EOSVector[0]` only (Gao-2020), the Tillner-Roth alternate is not ported.
+The melting-line caloric cascade leg is deferred with the melting line (no committed golden
+needs it).
 
-Next work: `PLAN.md` 4.6 (H,S) — the superancillary hs cascade (own session; structure scoped in
-the Decisions log) — then 4.8 all-fluids sweep.
+Next work: `PLAN.md` 4.8 all-fluids sweep (+ Maxwell fallback for non-superancillary fluids).
 
 ## Toolchain
 

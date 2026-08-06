@@ -14,9 +14,50 @@
 //! - two-phase mixing is upstream's exact `Q*V + (1-Q)*L` with the
 //!   DBL_EPSILON endpoint shortcuts.
 
+use crate::alpha::HelmholtzEos;
 use crate::flash_pt::PtFlash;
+use crate::solvers::Resid1D;
 use rustprop_core::params::Phase;
 use rustprop_core::{Error, Result};
+
+/// `LDBL_EPSILON` of the upstream build (x86-64 80-bit long double,
+/// 2^-63) — upstream passes it as the Brent `macheps` in
+/// `solver_for_rho_given_T_oneof_HSU`.
+const LDBL_EPSILON: f64 = 1.084_202_172_485_504_4e-19;
+
+/// Residual s(T, rho) - target with the analytic density derivatives
+/// (upstream `solver_resid` in `solver_for_rho_given_T_oneof_HSU`, whose
+/// `first_partial_deriv(iSmolar, iDmolar, iT)` values these closed forms
+/// reproduce).
+struct SmolarTResid<'a> {
+    eos: &'a HelmholtzEos,
+    t: f64,
+    target: f64,
+}
+
+impl Resid1D for SmolarTResid<'_> {
+    fn call(&mut self, rhomolar: f64) -> f64 {
+        self.eos.smolar(self.t, rhomolar) - self.target
+    }
+    /// ds/drho|T = R*(tau*d11 - 1/delta - d10)/rho_r
+    fn deriv(&mut self, rhomolar: f64) -> f64 {
+        let tau = self.eos.t_reducing / self.t;
+        let delta = rhomolar / self.eos.rhomolar_reducing;
+        let d = self.eos.alphar_all(tau, delta);
+        self.eos.gas_constant * (tau * d.d11 - 1.0 / delta - d.d10) / self.eos.rhomolar_reducing
+    }
+    /// d2s/drho2|T = R*(tau*d21 + 1/delta^2 - d20)/rho_r^2
+    fn second_deriv(&mut self, rhomolar: f64) -> f64 {
+        let tau = self.eos.t_reducing / self.t;
+        let delta = rhomolar / self.eos.rhomolar_reducing;
+        let d = self.eos.alphar_all(tau, delta);
+        self.eos.gas_constant * (tau * d.d21 + 1.0 / (delta * delta) - d.d20)
+            / (self.eos.rhomolar_reducing * self.eos.rhomolar_reducing)
+    }
+    fn third_deriv(&mut self, _rhomolar: f64) -> f64 {
+        unreachable!("Halley does not use the third derivative")
+    }
+}
 
 /// A fully-determined thermodynamic state for one pure fluid.
 #[derive(Debug, Clone, Copy)]
@@ -26,6 +67,10 @@ pub enum HeosState {
         p: f64,
         rhomolar: f64,
         phase: Phase,
+        /// Upstream `_Q` sentinel: -1 for the flashes that set it so
+        /// (PT/PX/DT and the legacy HS path); the superancillary HS cascade
+        /// leaves upstream's 10000, observable through `PropsSI("Q")`.
+        q: f64,
     },
     TwoPhase {
         t: f64,
@@ -55,11 +100,11 @@ impl HeosState {
             }
         }
     }
-    /// CoolProp convention: -1 for single-phase states.
+    /// Upstream `_Q`: the vapor quality for two-phase states, the
+    /// flash-specific sentinel for single-phase ones.
     pub fn q(&self) -> f64 {
         match self {
-            HeosState::SinglePhase { .. } => -1.0,
-            HeosState::TwoPhase { q, .. } => *q,
+            HeosState::SinglePhase { q, .. } | HeosState::TwoPhase { q, .. } => *q,
         }
     }
 }
@@ -150,6 +195,7 @@ impl PtFlash {
                 p: self.eos.pressure(t, rhomolar),
                 rhomolar,
                 phase,
+                q: -1.0,
             });
         }
         if t < tc {
@@ -162,6 +208,7 @@ impl PtFlash {
                     p: self.eos.pressure(t, rhomolar),
                     rhomolar,
                     phase: Phase::Liquid,
+                    q: -1.0,
                 })
             } else if q >= 1.0 {
                 Ok(HeosState::SinglePhase {
@@ -169,6 +216,7 @@ impl PtFlash {
                     p: self.eos.pressure(t, rhomolar),
                     rhomolar,
                     phase: Phase::Gas,
+                    q: -1.0,
                 })
             } else {
                 Ok(HeosState::TwoPhase {
@@ -191,11 +239,184 @@ impl PtFlash {
                 p: self.eos.pressure(t, rhomolar),
                 rhomolar,
                 phase,
+                q: -1.0,
             })
         } else {
             Err(Error::Value(
                 "temperature is out of range in dmolar_t_state".into(),
             ))
+        }
+    }
+
+    /// (Smolar, T) flash — upstream `DHSU_T_flash(iSmolar)`: superancillary
+    /// phase determination (`T_phase_determination_pure_or_pseudopure`),
+    /// then `solver_for_rho_given_T_oneof_HSU` for the single-phase
+    /// branches. Ported for the legacy HS path; it is also the (S,T) input
+    /// pair itself.
+    pub fn smolar_t_state(&self, smolar: f64, t: f64) -> Result<HeosState> {
+        let tc = self.fluid().states.critical.t;
+        if (t - tc).abs() < 10.0 * f64::EPSILON {
+            // Upstream supports only iDmolar/iP at exactly Tcrit.
+            return Err(Error::Value(
+                "T=Tcrit; invalid input for other to T_phase_determination_pure_or_pseudopure"
+                    .into(),
+            ));
+        }
+        if t < tc {
+            // Superancillary phase determination
+            let sat = self.sat().qt_flash(t, 0.0)?;
+            let s_l = self.eos.smolar(t, sat.rho_l);
+            let s_v = self.eos.smolar(t, sat.rho_v);
+            let q = (smolar - s_l) / (s_v - s_l);
+            if q < 0.0 {
+                self.rho_from_smolar_t(t, smolar, Phase::Liquid, sat.rho_l)
+            } else if q > 1.0 {
+                self.rho_from_smolar_t(t, smolar, Phase::Gas, sat.rho_v)
+            } else {
+                Ok(HeosState::TwoPhase {
+                    t,
+                    p: sat.p,
+                    rhomolar: 1.0 / (q / sat.rho_v + (1.0 - q) / sat.rho_l),
+                    q,
+                    rho_l: sat.rho_l,
+                    rho_v: sat.rho_v,
+                })
+            }
+        } else if t > tc && t > self.fluid().eos.t_triple {
+            self.rho_from_smolar_t_supercritical(t, smolar)
+        } else {
+            Err(Error::Value(
+                "temperature is out of range in smolar_t_state".into(),
+            ))
+        }
+    }
+
+    /// Subcritical single-phase branches of
+    /// `solver_for_rho_given_T_oneof_HSU(iSmolar)`. `rho_anc` is the
+    /// superancillary saturation density of the branch (upstream's
+    /// `_rhoLanc`/`_rhoVanc` set by the phase determination).
+    fn rho_from_smolar_t(
+        &self,
+        t: f64,
+        smolar: f64,
+        phase: Phase,
+        rho_anc: f64,
+    ) -> Result<HeosState> {
+        let mut resid = SmolarTResid {
+            eos: &self.eos,
+            t,
+            target: smolar,
+        };
+        let rho = match phase {
+            Phase::Liquid => {
+                let rhomelt = self.fluid().states.triple_liquid.rhomolar;
+                let ymelt = self.eos.smolar(t, rhomelt);
+                let y_l = self.eos.smolar(t, rho_anc);
+                let guess = (rhomelt - rho_anc) / (ymelt - y_l) * (smolar - y_l) + rho_anc;
+                match crate::solvers::halley(&mut resid, guess, 1e-8, 100) {
+                    Ok(rho) => rho,
+                    Err(_) => crate::solvers::secant(
+                        |rho| self.eos.smolar(t, rho) - smolar,
+                        guess,
+                        0.0001 * guess,
+                        1e-12,
+                        100,
+                    )?,
+                }
+            }
+            Phase::Gas => {
+                let rhomin = 1e-14;
+                match crate::solvers::halley(&mut resid, 0.5 * (rhomin + rho_anc), 1e-8, 100) {
+                    Ok(rho) => rho,
+                    Err(_) => crate::solvers::brent(
+                        |rho| self.eos.smolar(t, rho) - smolar,
+                        rhomin,
+                        rho_anc,
+                        LDBL_EPSILON,
+                        1e-12,
+                        100,
+                    )
+                    .map_err(|_| Error::Value(String::new()))?,
+                }
+            }
+            _ => {
+                return Err(Error::Value(
+                    "phase to solver_for_rho_given_T_oneof_HSU is invalid".into(),
+                ));
+            }
+        };
+        let p = self.eos.pressure(t, rho);
+        // Upstream tail: `_Q = -1` then `recalculate_singlephase_phase`.
+        Ok(HeosState::SinglePhase {
+            t,
+            p,
+            rhomolar: rho,
+            phase: self.recalculated_singlephase_phase(t, p, rho),
+            q: -1.0,
+        })
+    }
+
+    /// Supercritical branch of `solver_for_rho_given_T_oneof_HSU(iSmolar)`.
+    fn rho_from_smolar_t_supercritical(&self, t: f64, smolar: f64) -> Result<HeosState> {
+        let mut rhoc = self.fluid().states.critical.rhomolar;
+        let rhomin = 1e-10;
+        let yc = self.eos.smolar(t, rhoc);
+        let ymin = self.eos.smolar(t, rhomin);
+        let y = smolar;
+        let in_closed = |x1: f64, x2: f64, x: f64| x >= x1.min(x2) && x <= x1.max(x2);
+        let f = |rho: f64| self.eos.smolar(t, rho) - smolar;
+        let rho = if in_closed(yc, ymin, y) {
+            crate::solvers::brent(f, rhoc, rhomin, LDBL_EPSILON, 1e-9, 100)?
+        } else if y < yc {
+            // Increase rhoc until it bounds the solution
+            let mut yc2 = yc;
+            let mut step_count = 0;
+            while !in_closed(ymin, yc2, y) {
+                rhoc *= 1.1;
+                yc2 = self.eos.smolar(t, rhoc);
+                if step_count > 30 {
+                    return Err(Error::Value(format!(
+                        "Even by increasing rhoc, not able to bound input; input {y} is not in range {yc2},{ymin}"
+                    )));
+                }
+                step_count += 1;
+            }
+            crate::solvers::brent(f, rhomin, rhoc, LDBL_EPSILON, 1e-9, 100)?
+        } else {
+            return Err(Error::Value(format!(
+                "input {y} is not in range {yc},{ymin}"
+            )));
+        };
+        let p = self.eos.pressure(t, rho);
+        let phase = if p < self.fluid().states.critical.p {
+            Phase::SupercriticalGas
+        } else {
+            Phase::Supercritical
+        };
+        Ok(HeosState::SinglePhase {
+            t,
+            p,
+            rhomolar: rho,
+            phase,
+            q: -1.0,
+        })
+    }
+
+    /// Upstream `recalculate_singlephase_phase` (pure-fluid branch).
+    pub(crate) fn recalculated_singlephase_phase(&self, t: f64, p: f64, rho: f64) -> Phase {
+        let crit = &self.fluid().states.critical;
+        if p > crit.p {
+            if t > crit.t {
+                Phase::Supercritical
+            } else {
+                Phase::SupercriticalLiquid
+            }
+        } else if t > crit.t {
+            Phase::SupercriticalGas
+        } else if rho > crit.rhomolar {
+            Phase::Liquid
+        } else {
+            Phase::Gas
         }
     }
 
@@ -321,6 +542,7 @@ impl PtFlash {
             p,
             rhomolar: rho,
             phase,
+            q: -1.0,
         })
     }
 
@@ -406,6 +628,7 @@ impl PtFlash {
             p,
             rhomolar,
             phase,
+            q: -1.0,
         })
     }
 

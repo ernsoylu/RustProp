@@ -154,8 +154,9 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
       rel ≤ 1e-8; near-critical fixtures carry documented overrides.
 - [x] 4.5 Single-phase density solver ρ(T,p) with upstream's phase determination.
       → verify: goldens vs `PT_INPUTS` over a grid covering liquid, vapor, and supercritical.
-- [ ] 4.6 Flash routines, one input pair at a time (each its own checkbox commit): (T,Q), (P,Q),
-      (P,H), (P,S), (H,S), (D,T), (D,P) — including two-phase quality mixing.
+- [x] 4.6 Flash routines, one input pair at a time (each its own checkbox commit): (T,Q), (P,Q),
+      (P,H), (P,S), (H,S), (D,T), (D,P) — including two-phase quality mixing. ((S,T) landed too,
+      as the legacy HS path's inner solve.)
       → verify: per-pair golden grids that include two-phase states.
 - [x] 4.7 Extend datagen + the full 4.1–4.6 test battery to five structurally diverse fluids:
       Nitrogen, CO2, R134a, Propane, Ammonia (covers Gaussian and non-analytic term families).
@@ -549,3 +550,55 @@ Append-only; newest last. Seeded entries:
   Nitrogen (P,S)->Hmolar record has H = -344 J/mol near the reference-state zero with
   4.2e-6 J/mol ABSOLUTE agreement; pure relative error against an arbitrary zero is
   ill-posed.
+- 2026-08-06 — 4.6 (H,S), the final pair, ported end to end for all six fluids (284 hs golden
+  records, suite green). Structure mirrors upstream HS_flash exactly: (0) caloric-superancillary
+  two-phase screen (no EOS), (1) three-leg single-phase cascade (saturation anchor via native
+  caloric-S inversion + caloric-H disambiguation; supercritical isentrope off T=Tmax;
+  ideal-gas-departure lambda-continuation) sharing the (T, ln rho) homotopy corrector with
+  stability damping, acceptance = reproduce (h,s) AND dp/drho>0 AND cv>0 AND outside dome,
+  (2) EOS-exact Qh==Qs two-phase Brent, then (3) the legacy TS-scan sad path.
+- 2026-08-06 — (H,S) caloric superancillaries: built at runtime exactly as upstream
+  `add_variable` — U-matrix synthesis of the rhoL/rhoV node values on each degree-12 interval
+  (upstream hard-codes get_LU_matrices(12); all six fluids' expansions are degree 12), EOS
+  h/s at those (T, rho) nodes, L-matrix refit. The U caloric joins with the HSU_D flashes.
+  The #2773 reference-state stamp shift is ported as the full formula but always evaluates to
+  exactly zero (reference-state mutation is not ported). gemv is row-dot-product (Eigen
+  accumulation order not reproduced; downstream roots re-refined against the EOS, so caloric
+  ULP differences cannot reach flash outputs).
+- 2026-08-06 — (H,S) extrema machinery (`ChebyshevApproximation1D`): derivative coefficients
+  (Mason-Handscomb 2.52), transposed colleague matrix, arXiv:1401.5766 balancing, then
+  eigenvalues via the classic EISPACK/NR `hqr` Francis double-shift QR instead of Eigen's
+  RealSchur — same algorithm family; LOGGED DEVIATION. Unit-tested: T5's extrema land exactly
+  on cos(k*pi/5); a generic degree-12 expansion's extrema match a 20k-point derivative
+  sign-scan; multi-root get_x_for_y finds all three T3 crossings. The upstream right-trim of
+  zero tail coefficients (head(ilastnonzero) — drops the last nonzero too) is ported
+  bug-for-bug with a loud guard where upstream would fault.
+- 2026-08-06 — (H,S) Q-sentinel DISCOVERY (oracle-confirmed): upstream HS_flash leaves
+  `_Q = 10000` on cascade-solved single-phase states and PropsSI("Q") reports it verbatim —
+  unlike PT/PX/DT (-1). `HeosState::SinglePhase` now carries upstream's per-flash `_Q`
+  sentinel explicitly (-1 everywhere else, incl. the legacy HS path).
+- 2026-08-06 — (H,S) legacy path is REQUIRED, not vestigial: for low-quality two-phase (h,s)
+  (the Q=0.15 grids of Water/n-Propane/Ammonia/R134a), Qh-Qs has the SAME sign at both
+  saturation endpoints (wheel-verified: +0.057 / +1.99 for the water record) with the root
+  between interior sign changes, so upstream's endpoint-bracketing HS_flash_twophase throws
+  and the wheel answers via the legacy TS scan. Ported: the scan (Tmin/Tmax step-searches,
+  first ADJACENT-valid sign change refined at the deliberate 30-bit tolerance, whole-range
+  Brent fallback) and the (Smolar,T) flash it needs — superancillary T-phase determination
+  plus `solver_for_rho_given_T_oneof_HSU` (supercritical Brent at LDBL_EPSILON=2^-63 with
+  the rhoc*1.1 bound expansion; liquid Halley seeded by the melt/sat linear interp with
+  Secant fallback (Secant now ported, omega=1); gas Halley with Brent fallback). Exactly-at-
+  Tcrit (S,T) inputs throw upstream (only D/P supported there) — ported as the same error.
+- 2026-08-06 — (H,S) melting-line cascade leg 4 (upstream default-on ENABLE_MELTING_CALORIC_HS)
+  is deferred with the melting line itself. Zero observable impact on the committed goldens:
+  every cold-compressed-liquid record solves via legs 1-3 (leg 1's triple-point anchor), and
+  the wheel's own R134a HS rejects its 4 hardest cold records (try_record filtered them).
+- 2026-08-06 — (H,S) golden policy (evidence in-session): suite 1e-8; Dmolar at 2e-8 — the
+  legacy/two-phase T resolves at the shared 30-bit tolerance and the mixture density
+  amplifies it by ~1/Q (R134a Q=0.15 record observed at 1.31e-8); P measured against the
+  thermal scale rho*R*T of the resolved state — compressed-liquid pressure is the
+  cancellation residue of terms of that scale (n-Propane 0.23 Pa state: 4e-6 Pa absolute
+  agreement, rel 1.6e-5 only because p itself is 8 orders below rho*R*T).
+- 2026-08-06 — (H,S) corrector Jacobians use the closed-form (T,rho) partials of h and s (the
+  departure leg's lambda-model at lambda=1), mathematically identical to upstream's
+  first_partial_deriv values; both correctors converge the same residual to norm < 1e-11, so
+  Jacobian ULP differences cannot move the accepted root beyond that norm.
