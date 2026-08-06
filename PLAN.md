@@ -163,9 +163,12 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
       Extend core types only as these files force it. (Done except the (H,S) pair, which is
       still open in 4.6 for all fluids.)
       → verify: all suites green per fluid; data fidelity tests green per fluid.
-- [ ] 4.8 Full sweep: datagen all active upstream fluids; per-fluid feature flags; coarse golden
+- [x] 4.8 Full sweep: datagen all active upstream fluids; per-fluid feature flags; coarse golden
       smoke grid for every fluid. Keep the default `cargo test` fast — the full sweep runs as an
-      `--ignored` suite executed by a scheduled/manually-triggered CI job.
+      `--ignored` suite executed by a scheduled/manually-triggered CI job. (Scope: the 130 pure
+      fluids, all of which have superancillaries; the 6 pseudo-pure fluids — Air, R404A, R407C,
+      R410A, R507A, SES36 — need the pL/pV ancillary shape and the Maxwell saturation fallback
+      and are deferred to a dedicated step.)
       → verify: all-fluids suite green; wasm size report now shows cost per single-fluid build.
 
 **Phase gate 4**: any pure fluid, any supported input pair, HEOS parity with upstream.
@@ -602,3 +605,38 @@ Append-only; newest last. Seeded entries:
   departure leg's lambda-model at lambda=1), mathematically identical to upstream's
   first_partial_deriv values; both correctors converge the same residual to norm < 1e-11, so
   Jacobian ULP differences cannot move the accepted root beyond that norm.
+- 2026-08-06 — 4.8 survey: 136 active fluids in the wheel; exactly the 6 pseudo-pure ones
+  (Air, R404A, R407C, R410A, R507A, SES36) lack superancillaries and carry pL/pV ancillary
+  pairs — deferred with the Maxwell fallback. The 130 pure fluids force six new term
+  families, all ported op-for-op: ideal `CP0Constant`/`CP0PolyT` (new container slots after
+  PlanckEinstein, with PolyT's exact t=0 / t=-1 special cases), `CP0AlyLee` (parse-time
+  conversion: constant -> CP0PolyT extend, sinh/cosh -> Planck-Einstein-generalized entries),
+  direct-JSON `PlanckEinsteinGeneralized` (t is theta; extends the merged container), and
+  residual `Exponential` (g rides GenExp's c channel), `DoubleExponential` (gd/ld + gt/lt),
+  `Lemmon2005` (c=omega=1, l+m) — the last two activate GenExp's tau_mi channel
+  (u -= omega*tau^m, always exp*log, no powInt fast path) and with it the previously-zero
+  d3u_dtau3/d4u_dtau4 accumulators.
+- 2026-08-06 — 4.8 upstream-semantics DISCOVERY: FluidLibrary overwrites `EOS.Ttriple` and
+  `limits.Tmin` with `sat_min_liquid.T`, ignoring the document's chemical `Ttriple` key —
+  they differ for 27 of 130 fluids (CycloPropane 145.7 K vs 273.0 K, R124 75 K vs 120 K,
+  DiethylEther 156.92 K vs 270 K...). Every runtime consumer (PT phase-determination
+  threshold, DT/ST range checks, PX brackets, HS legacy Tmin) now reads sat_min_liquid.t;
+  the data field keeps the verbatim JSON value for the fidelity walker. Two documents
+  (R1130(E), R1243zf) omit hmolar/smolar from the sat_min states — upstream never reads
+  them there; the generated data holds f64::NAN and the walker checks presence-consistency.
+  Datagen now strictly parses `EOS[0]` only: alternate EOS blocks may carry never-evaluated
+  term families (Methanol's `ResidualHelmholtzAssociating`). Informational `R`/`T0` keys on
+  FunctionT/CP0PolyT terms (Methanol, R1336mzz(Z)) are unread upstream and skip-listed.
+- 2026-08-06 — 4.8 verification: all 130 fluids pass the bitwise data-fidelity walk
+  (registry-driven; `rustprop_data::fluids::all()` is datagen-emitted with per-feature cfg).
+  Six representative new-family fluids — Methanol (DoubleExponential), R125 (Lemmon2005),
+  RC318 (Exponential), R22 (CP0Constant+CP0PolyT), n-Heptane (CP0AlyLee x2), Fluorine
+  (direct PlanckEinsteinGeneralized) — run the FULL battery (terms through HS), all green on
+  first run at the established tolerances; the wheel's own HS rejects a few of their hardest
+  hs source states (Methanol 4, n-Heptane 8 — try_record filtered). The 130-fluid smoke
+  suite (heos_all_smoke.jsonl, 1,922 records: saturation, PT liquid/gas/supercritical,
+  HP/PS/DT/HS) passed on the FIRST run, 31 s, `#[ignore]`d; CI runs it on workflow_dispatch
+  and weekly schedule.
+- 2026-08-06 — 4.8 wasm size (the modularity headline): HEOS engine + Water only = 136 KB;
+  HEOS + all 130 fluids = 3.31 MB — ~26 KB per fluid of opt-in data, measured by the new
+  `heos-water` / `heos-all-fluids` probe features in the CI size report.

@@ -16,7 +16,13 @@ fn hs_flash_matches_upstream() {
         let path =
             Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("fixtures/heos_{stem}_hs.jsonl"));
         let records = load_jsonl(&path);
-        let expected_count = if stem == "r134a" { 44 } else { 48 };
+        // The wheel's own HS flash rejects a few of the hardest source
+        // states for these fluids (try_record filtered them).
+        let expected_count = match stem {
+            "r134a" | "methanol" => 44,
+            "n_heptane" => 40,
+            _ => 48,
+        };
         assert_eq!(records.len(), expected_count, "{name}: fixture size");
 
         let flash = PtFlash::new(fluid);

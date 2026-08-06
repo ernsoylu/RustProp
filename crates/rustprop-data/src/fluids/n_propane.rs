@@ -2,6 +2,7 @@
 //! Regenerate: cargo run -p rustprop-datagen
 
 #![cfg_attr(rustfmt, rustfmt::skip)]
+#![allow(clippy::approx_constant)]
 
 use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
 

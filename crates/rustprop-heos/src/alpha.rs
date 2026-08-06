@@ -87,6 +87,8 @@ struct GenExpElement {
     l_double: f64,
     l_int: i32,
     l_is_int: bool,
+    omega: f64,
+    m_double: f64,
     eta2: f64,
     epsilon2: f64,
     beta2: f64,
@@ -100,6 +102,7 @@ struct GenExpElement {
 pub(crate) struct GenExp {
     elements: Vec<GenExpElement>,
     delta_li_in_u: bool,
+    tau_mi_in_u: bool,
     eta2_in_u: bool,
     beta2_in_u: bool,
 }
@@ -109,6 +112,7 @@ impl GenExp {
         GenExp {
             elements: Vec::new(),
             delta_li_in_u: false,
+            tau_mi_in_u: false,
             eta2_in_u: false,
             beta2_in_u: false,
         }
@@ -129,6 +133,72 @@ impl GenExp {
             self.elements.push(el);
         }
         self.delta_li_in_u = true;
+    }
+
+    /// Upstream `add_Exponential`: the g coefficient rides the c channel.
+    fn add_exponential(&mut self, n: &[f64], d: &[f64], t: &[f64], g: &[f64], l: &[f64]) {
+        for i in 0..n.len() {
+            self.elements.push(GenExpElement {
+                n: n[i],
+                d: d[i],
+                t: t[i],
+                c: g[i],
+                l_double: l[i],
+                l_int: l[i] as i32,
+                ..Default::default()
+            });
+        }
+        self.delta_li_in_u = true;
+    }
+
+    /// Upstream `add_Lemmon2005`: c = omega = 1, l and m exponents.
+    fn add_lemmon2005(&mut self, n: &[f64], d: &[f64], t: &[f64], l: &[f64], m: &[f64]) {
+        for i in 0..n.len() {
+            self.elements.push(GenExpElement {
+                n: n[i],
+                d: d[i],
+                t: t[i],
+                c: 1.0,
+                omega: 1.0,
+                l_double: l[i],
+                m_double: m[i],
+                l_int: l[i] as i32,
+                ..Default::default()
+            });
+        }
+        self.delta_li_in_u = true;
+        self.tau_mi_in_u = true;
+    }
+
+    /// Upstream `add_DoubleExponential`: gd/ld ride the c/l channel,
+    /// gt/lt the omega/m channel (argument list mirrors the upstream
+    /// signature).
+    #[allow(clippy::too_many_arguments)]
+    fn add_double_exponential(
+        &mut self,
+        n: &[f64],
+        d: &[f64],
+        t: &[f64],
+        gd: &[f64],
+        ld: &[f64],
+        gt: &[f64],
+        lt: &[f64],
+    ) {
+        for i in 0..n.len() {
+            self.elements.push(GenExpElement {
+                n: n[i],
+                d: d[i],
+                t: t[i],
+                c: gd[i],
+                l_double: ld[i],
+                l_int: ld[i] as i32,
+                omega: gt[i],
+                m_double: lt[i],
+                ..Default::default()
+            });
+        }
+        self.delta_li_in_u = true;
+        self.tau_mi_in_u = true;
     }
 
     /// Upstream `add_Gaussian` (argument list mirrors the upstream signature).
@@ -184,9 +254,9 @@ impl GenExp {
             let mut d2u_ddelta2 = 0.0;
             let mut d2u_dtau2 = 0.0;
             let mut d3u_ddelta3 = 0.0;
-            let d3u_dtau3 = 0.0;
+            let mut d3u_dtau3 = 0.0;
             let mut d4u_ddelta4 = 0.0;
-            let d4u_dtau4 = 0.0;
+            let mut d4u_dtau4 = 0.0;
 
             if self.delta_li_in_u {
                 let (ci, l_double) = (el.c, el.l_double);
@@ -208,6 +278,21 @@ impl GenExp {
                     d2u_ddelta2 += d2u_ddelta2_increment;
                     d3u_ddelta3 += d3u_ddelta3_increment;
                     d4u_ddelta4 += d4u_ddelta4_increment;
+                }
+            }
+            if self.tau_mi_in_u {
+                let (omegai, m_double) = (el.omega, el.m_double);
+                if m_double.abs() > 0.0 {
+                    let u_increment = -omegai * (m_double * log_tau).exp();
+                    let du_dtau_increment = m_double * u_increment * one_over_tau;
+                    let d2u_dtau2_increment = (m_double - 1.0) * du_dtau_increment * one_over_tau;
+                    let d3u_dtau3_increment = (m_double - 2.0) * d2u_dtau2_increment * one_over_tau;
+                    let d4u_dtau4_increment = (m_double - 3.0) * d3u_dtau3_increment * one_over_tau;
+                    u += u_increment;
+                    du_dtau += du_dtau_increment;
+                    d2u_dtau2 += d2u_dtau2_increment;
+                    d3u_dtau3 += d3u_dtau3_increment;
+                    d4u_dtau4 += d4u_dtau4_increment;
                 }
             }
             if self.eta2_in_u {
@@ -883,6 +968,10 @@ struct IdealContainer {
     /// `IdealHelmholtzPlanckEinsteinGeneralized`:
     /// `sum n_i*ln(c_i + d_i*exp(theta_i*tau))`
     planck_einstein: Option<PlanckEinsteinGen>,
+    /// `IdealHelmholtzCP0Constant` — `(cp_over_r, tc, t0)`
+    cp0_constant: Option<(f64, f64, f64)>,
+    /// `IdealHelmholtzCP0PolyT` — `(c, t, tc, t0)`
+    cp0_polyt: Option<(Vec<f64>, Vec<f64>, f64, f64)>,
 }
 
 impl IdealContainer {
@@ -964,6 +1053,81 @@ impl IdealContainer {
             derivs.d03 += s03;
             derivs.d04 += s04;
         }
+        if let Some((cp_over_r, tc, t0)) = self.cp0_constant {
+            // Upstream `IdealHelmholtzCP0Constant::all` (tau0 = Tc/T0).
+            let tau0 = tc / t0;
+            derivs.d00 += cp_over_r - cp_over_r * tau / tau0 + cp_over_r * (tau / tau0).ln();
+            derivs.d01 += cp_over_r / tau - cp_over_r / tau0;
+            derivs.d02 += -cp_over_r / (tau * tau);
+            derivs.d03 += 2.0 * cp_over_r / (tau * tau * tau);
+            derivs.d04 += -6.0 * cp_over_r / pow4(tau);
+        }
+        if let Some((c, t, tc, t0)) = &self.cp0_polyt {
+            // Upstream `IdealHelmholtzCP0PolyT::all` (tau0 = Tc/T0), with its
+            // exact special cases at t = 0 and t = -1.
+            let (tc, t0) = (*tc, *t0);
+            let tau0 = tc / t0;
+            let eps10 = 10.0 * f64::EPSILON;
+            let mut sum = 0.0;
+            for i in 0..c.len() {
+                if t[i].abs() < eps10 {
+                    sum += c[i] - c[i] * tau / tau0 + c[i] * (tau / tau0).ln();
+                } else if (t[i] + 1.0).abs() < eps10 {
+                    sum += c[i] * tau / tc * (tau0 / tau).ln() + c[i] / tc * (tau - tau0);
+                } else {
+                    sum += -c[i] * tc.powf(t[i]) * tau.powf(-t[i]) / (t[i] * (t[i] + 1.0))
+                        - c[i] * t0.powf(t[i] + 1.0) * tau / (tc * (t[i] + 1.0))
+                        + c[i] * t0.powf(t[i]) / t[i];
+                }
+            }
+            derivs.d00 += sum;
+            let mut sum = 0.0;
+            for i in 0..c.len() {
+                if t[i].abs() < eps10 {
+                    sum += c[i] / tau - c[i] / tau0;
+                } else if (t[i] + 1.0).abs() < eps10 {
+                    sum += c[i] / tc * (tau0 / tau).ln();
+                } else {
+                    sum += c[i] * tc.powf(t[i]) * tau.powf(-t[i] - 1.0) / (t[i] + 1.0)
+                        - c[i] * tc.powf(t[i]) / (tau0.powf(t[i] + 1.0) * (t[i] + 1.0));
+                }
+            }
+            derivs.d01 += sum;
+            let mut sum = 0.0;
+            for i in 0..c.len() {
+                if t[i].abs() < eps10 {
+                    sum += -c[i] / (tau * tau);
+                } else if (t[i] + 1.0).abs() < eps10 {
+                    sum += -c[i] / (tau * tc);
+                } else {
+                    sum += -c[i] * (tc / tau).powf(t[i]) / (tau * tau);
+                }
+            }
+            derivs.d02 += sum;
+            let mut sum = 0.0;
+            for i in 0..c.len() {
+                if t[i].abs() < eps10 {
+                    sum += 2.0 * c[i] / (tau * tau * tau);
+                } else if (t[i] + 1.0).abs() < eps10 {
+                    sum += c[i] / (tau * tau * tc);
+                } else {
+                    sum += c[i] * (tc / tau).powf(t[i]) * (t[i] + 2.0) / (tau * tau * tau);
+                }
+            }
+            derivs.d03 += sum;
+            let mut sum = 0.0;
+            for i in 0..c.len() {
+                if t[i].abs() < eps10 {
+                    sum += -6.0 * c[i] / pow4(tau);
+                } else if (t[i] + 1.0).abs() < eps10 {
+                    sum += -3.0 * c[i] / (pow3(tau) * tc);
+                } else {
+                    sum += -c[i] * (t[i] + 2.0) * (t[i] + 3.0) * (tc / tau).powf(t[i])
+                        / (tau * tau * tau * tau);
+                }
+            }
+            derivs.d04 += sum;
+        }
     }
 }
 
@@ -1030,6 +1194,23 @@ impl HelmholtzEos {
                         });
                     }
                 }
+                AlpharTerm::Exponential { n, d, t, g, l } => {
+                    genexp.add_exponential(n, d, t, g, l);
+                }
+                AlpharTerm::DoubleExponential {
+                    n,
+                    d,
+                    t,
+                    gd,
+                    ld,
+                    gt,
+                    lt,
+                } => {
+                    genexp.add_double_exponential(n, d, t, gd, ld, gt, lt);
+                }
+                AlpharTerm::Lemmon2005 { n, d, t, l, m } => {
+                    genexp.add_lemmon2005(n, d, t, l, m);
+                }
                 AlpharTerm::GaoB {
                     n,
                     t,
@@ -1092,6 +1273,73 @@ impl HelmholtzEos {
                     pe.theta.extend(v.iter().map(|x| -x / tcrit));
                     pe.c.extend(std::iter::repeat_n(1.0, n.len()));
                     pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
+                }
+                Alpha0Term::PlanckEinsteinGeneralized { n, t, c, d } => {
+                    // Direct generalized form: t is theta already.
+                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                    pe.n.extend_from_slice(n);
+                    pe.theta.extend_from_slice(t);
+                    pe.c.extend_from_slice(c);
+                    pe.d.extend_from_slice(d);
+                }
+                Alpha0Term::Cp0Constant { cp_over_r, tc, t0 } => {
+                    // Upstream throws on a second CP0Constant term.
+                    assert!(
+                        ideal.cp0_constant.is_none(),
+                        "duplicate IdealGasHelmholtzCP0Constant"
+                    );
+                    ideal.cp0_constant = Some((*cp_over_r, *tc, *t0));
+                }
+                Alpha0Term::Cp0PolyT { c, t, tc, t0 } => {
+                    // Upstream throws on a second CP0PolyT term (AlyLee may
+                    // extend an existing one below, but not vice versa).
+                    assert!(
+                        ideal.cp0_polyt.is_none(),
+                        "duplicate IdealGasHelmholtzCP0PolyT"
+                    );
+                    ideal.cp0_polyt = Some((c.to_vec(), t.to_vec(), *tc, *t0));
+                }
+                Alpha0Term::Cp0AlyLee {
+                    c: constants,
+                    tc,
+                    t0,
+                } => {
+                    // Upstream FluidLibrary.h converts Aly-Lee at parse time:
+                    // nonzero constant -> CP0PolyT (extend if present),
+                    // sinh -> PE (n=B, theta=-2C/Tc, c=1, d=-1),
+                    // cosh -> PE (n=-D, theta=-2E/Tc, c=1, d=+1).
+                    if constants[0].abs() > 1e-14 {
+                        match &mut ideal.cp0_polyt {
+                            Some((pc, pt, _, _)) => {
+                                pc.push(constants[0]);
+                                pt.push(0.0);
+                            }
+                            None => {
+                                ideal.cp0_polyt = Some((vec![constants[0]], vec![0.0], *tc, *t0));
+                            }
+                        }
+                    }
+                    let mut n = Vec::new();
+                    let mut t = Vec::new();
+                    let mut cc = Vec::new();
+                    let mut dd = Vec::new();
+                    if constants[1].abs() > 1e-14 {
+                        n.push(constants[1]);
+                        t.push(-2.0 * constants[2] / tc);
+                        cc.push(1.0);
+                        dd.push(-1.0);
+                    }
+                    if constants[3].abs() > 1e-14 {
+                        n.push(-constants[3]);
+                        t.push(-2.0 * constants[4] / tc);
+                        cc.push(1.0);
+                        dd.push(1.0);
+                    }
+                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                    pe.n.extend_from_slice(&n);
+                    pe.theta.extend_from_slice(&t);
+                    pe.c.extend_from_slice(&cc);
+                    pe.d.extend_from_slice(&dd);
                 }
             }
         }

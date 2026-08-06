@@ -12,12 +12,268 @@ rustprop-core.workspace = true
 
 [features]
 default = []
-water = []
-nitrogen = []
-carbondioxide = []
-r134a = []
-n_propane = []
+_1_butene = []
+acetone = []
 ammonia = []
+argon = []
+benzene = []
+carbondioxide = []
+carbonmonoxide = []
+carbonylsulfide = []
+chlorine = []
+cis_2_butene = []
+cyclohexane = []
+cyclopentane = []
+cyclopropane = []
+d4 = []
+d5 = []
+d6 = []
+deuterium = []
+dichloroethane = []
+diethylether = []
+dimethylcarbonate = []
+dimethylether = []
+ethane = []
+ethanol = []
+ethylbenzene = []
+ethylene = []
+ethyleneoxide = []
+fluorine = []
+heavywater = []
+helium = []
+hfe143m = []
+hydrogen = []
+hydrogenchloride = []
+hydrogensulfide = []
+isobutane = []
+isobutene = []
+isohexane = []
+isopentane = []
+krypton = []
+m_xylene = []
+md2m = []
+md3m = []
+md4m = []
+mdm = []
+methane = []
+methanol = []
+methyllinoleate = []
+methyllinolenate = []
+methyloleate = []
+methylpalmitate = []
+methylstearate = []
+mm = []
+n_butane = []
+n_decane = []
+n_dodecane = []
+n_heptane = []
+n_hexane = []
+n_nonane = []
+n_octane = []
+n_pentane = []
+n_perfluorobutane = []
+n_perfluorohexane = []
+n_perfluoropentane = []
+n_propane = []
+n_undecane = []
+neon = []
+neopentane = []
+nitrogen = []
+nitrousoxide = []
+novec649 = []
+o_xylene = []
+orthodeuterium = []
+orthohydrogen = []
+oxygen = []
+p_xylene = []
+paradeuterium = []
+parahydrogen = []
+propylene = []
+propyleneglycol = []
+propyne = []
+r11 = []
+r1123 = []
+r113 = []
+r1130_e_ = []
+r1132_e_ = []
+r114 = []
+r115 = []
+r116 = []
+r12 = []
+r1224ydz = []
+r123 = []
+r1233zd_e_ = []
+r1234yf = []
+r1234ze_e_ = []
+r1234ze_z_ = []
+r124 = []
+r1243zf = []
+r125 = []
+r13 = []
+r1336mzz_e_ = []
+r1336mzz_z_ = []
+r134a = []
+r13i1 = []
+r14 = []
+r141b = []
+r142b = []
+r143a = []
+r152a = []
+r161 = []
+r21 = []
+r218 = []
+r22 = []
+r227ea = []
+r23 = []
+r236ea = []
+r236fa = []
+r245ca = []
+r245fa = []
+r32 = []
+r365mfc = []
+r40 = []
+r41 = []
+rc318 = []
+sulfurdioxide = []
+sulfurhexafluoride = []
+tetrahydrofuran = []
+toluene = []
+trans_2_butene = []
+vinylchloride = []
+water = []
+xenon = []
+all-fluids = [
+    "_1_butene",
+    "acetone",
+    "ammonia",
+    "argon",
+    "benzene",
+    "carbondioxide",
+    "carbonmonoxide",
+    "carbonylsulfide",
+    "chlorine",
+    "cis_2_butene",
+    "cyclohexane",
+    "cyclopentane",
+    "cyclopropane",
+    "d4",
+    "d5",
+    "d6",
+    "deuterium",
+    "dichloroethane",
+    "diethylether",
+    "dimethylcarbonate",
+    "dimethylether",
+    "ethane",
+    "ethanol",
+    "ethylbenzene",
+    "ethylene",
+    "ethyleneoxide",
+    "fluorine",
+    "heavywater",
+    "helium",
+    "hfe143m",
+    "hydrogen",
+    "hydrogenchloride",
+    "hydrogensulfide",
+    "isobutane",
+    "isobutene",
+    "isohexane",
+    "isopentane",
+    "krypton",
+    "m_xylene",
+    "md2m",
+    "md3m",
+    "md4m",
+    "mdm",
+    "methane",
+    "methanol",
+    "methyllinoleate",
+    "methyllinolenate",
+    "methyloleate",
+    "methylpalmitate",
+    "methylstearate",
+    "mm",
+    "n_butane",
+    "n_decane",
+    "n_dodecane",
+    "n_heptane",
+    "n_hexane",
+    "n_nonane",
+    "n_octane",
+    "n_pentane",
+    "n_perfluorobutane",
+    "n_perfluorohexane",
+    "n_perfluoropentane",
+    "n_propane",
+    "n_undecane",
+    "neon",
+    "neopentane",
+    "nitrogen",
+    "nitrousoxide",
+    "novec649",
+    "o_xylene",
+    "orthodeuterium",
+    "orthohydrogen",
+    "oxygen",
+    "p_xylene",
+    "paradeuterium",
+    "parahydrogen",
+    "propylene",
+    "propyleneglycol",
+    "propyne",
+    "r11",
+    "r1123",
+    "r113",
+    "r1130_e_",
+    "r1132_e_",
+    "r114",
+    "r115",
+    "r116",
+    "r12",
+    "r1224ydz",
+    "r123",
+    "r1233zd_e_",
+    "r1234yf",
+    "r1234ze_e_",
+    "r1234ze_z_",
+    "r124",
+    "r1243zf",
+    "r125",
+    "r13",
+    "r1336mzz_e_",
+    "r1336mzz_z_",
+    "r134a",
+    "r13i1",
+    "r14",
+    "r141b",
+    "r142b",
+    "r143a",
+    "r152a",
+    "r161",
+    "r21",
+    "r218",
+    "r22",
+    "r227ea",
+    "r23",
+    "r236ea",
+    "r236fa",
+    "r245ca",
+    "r245fa",
+    "r32",
+    "r365mfc",
+    "r40",
+    "r41",
+    "rc318",
+    "sulfurdioxide",
+    "sulfurhexafluoride",
+    "tetrahydrofuran",
+    "toluene",
+    "trans_2_butene",
+    "vinylchloride",
+    "water",
+    "xenon",
+]
 
 [lints]
 workspace = true

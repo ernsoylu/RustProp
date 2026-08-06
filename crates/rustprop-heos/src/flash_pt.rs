@@ -106,8 +106,13 @@ impl PtFlash {
     fn rhomolar_critical(&self) -> f64 {
         self.fluid.states.critical.rhomolar
     }
-    fn t_triple(&self) -> f64 {
-        self.fluid.eos.t_triple
+    /// Upstream `Ttriple()` / `Tmin()`: BOTH resolve to the EOS's
+    /// `sat_min_liquid.T` — FluidLibrary overwrites `EOS.Ttriple` and
+    /// `limits.Tmin` with it, ignoring the document's chemical `Ttriple`
+    /// key (they differ for 27 of the 130 fluids, e.g. CycloPropane
+    /// 145.7 K vs 273.0 K).
+    pub(crate) fn t_triple(&self) -> f64 {
+        self.fluid.eos.sat_min_liquid.t
     }
     fn p_triple(&self) -> f64 {
         self.fluid.eos.sat_min_liquid.p
@@ -199,7 +204,7 @@ impl PtFlash {
             }
         } else if p < self.p_triple() * 0.9999 {
             // Below the triple-point pressure: gas, if the temperature allows
-            if t < self.t_triple().max(self.fluid.eos.sat_min_liquid.t) {
+            if t < self.t_triple() {
                 Err(Error::NotImplemented(format!(
                     "For now, we don't support p [{p} Pa] below ptriple [{} Pa] when T [{t}] is less than Tmin [{}]",
                     self.p_triple(),

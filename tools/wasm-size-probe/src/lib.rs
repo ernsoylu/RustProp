@@ -23,3 +23,20 @@ pub extern "C" fn probe_if97(t: f64, p: f64) -> f64 {
     use rustprop_core::Param;
     rustprop::if97_api::props(Param::Hmass, Param::T, t, Param::P, p).unwrap_or(f64::NAN)
 }
+
+/// Exercises the HEOS engine over every compiled-in fluid (PT flash +
+/// enthalpy) so the linker keeps the engine and all enabled fluid data.
+/// With `heos-water` that is one fluid; with `heos-all-fluids`, all 130 —
+/// the difference is the per-fluid data cost the modularity story is about.
+#[cfg(feature = "heos-data")]
+#[unsafe(no_mangle)]
+pub extern "C" fn probe_heos(t: f64, p: f64) -> f64 {
+    let mut acc = 0.0;
+    for (_name, data) in rustprop_data::fluids::all() {
+        let flash = rustprop_heos::flash_pt::PtFlash::new(data);
+        if let Ok((rho, _phase)) = flash.pt_flash(t, p) {
+            acc += flash.eos.hmolar(t, rho);
+        }
+    }
+    acc
+}

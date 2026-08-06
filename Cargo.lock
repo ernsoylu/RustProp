@@ -147,6 +147,8 @@ version = "0.1.0"
 dependencies = [
  "rustprop",
  "rustprop-core",
+ "rustprop-data",
+ "rustprop-heos",
 ]
 
 [[package]]

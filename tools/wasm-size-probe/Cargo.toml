@@ -14,10 +14,15 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 rustprop.workspace = true
 rustprop-core.workspace = true
+rustprop-heos = { workspace = true, optional = true }
+rustprop-data = { workspace = true, optional = true }
 
 [features]
 default = []
 if97 = ["rustprop/if97"]
+heos-data = ["rustprop/heos", "dep:rustprop-heos", "dep:rustprop-data"]
+heos-water = ["heos-data", "rustprop-data/water"]
+heos-all-fluids = ["heos-data", "rustprop-data/all-fluids"]
 all-backends = ["if97", "rustprop/all-backends"]
 
 [lints]

@@ -818,8 +818,8 @@ impl PtFlash {
             Ok((self.state_hmolar(&st) - hmolar, st))
         };
 
-        // Find minimum temperature
-        let mut tmin = fluid.eos.t_triple;
+        // Find minimum temperature (upstream `Ttriple()` = sat_min_liquid.T)
+        let mut tmin = fluid.eos.sat_min_liquid.t;
         let mut rmin = f64::NAN;
         let mut good_tmin = false;
         while !good_tmin {

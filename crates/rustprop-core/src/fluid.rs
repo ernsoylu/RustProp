@@ -169,6 +169,51 @@ pub enum Alpha0Term {
         /// `.t`
         t: &'static [f64],
     },
+    /// `IdealGasHelmholtzPlanckEinsteinGeneralized` —
+    /// `sum n_k * ln(c_k + d_k*exp(t_k*tau))` (t is theta directly); merges
+    /// into the generalized Planck-Einstein container at parse time.
+    PlanckEinsteinGeneralized {
+        /// `.n`
+        n: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.c`
+        c: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+    },
+    /// `IdealGasHelmholtzCP0Constant` — constant `cp0/R` over the range,
+    /// anchored at `T0`.
+    Cp0Constant {
+        /// `.cp_over_R`
+        cp_over_r: f64,
+        /// `.Tc`
+        tc: f64,
+        /// `.T0`
+        t0: f64,
+    },
+    /// `IdealGasHelmholtzCP0PolyT` — `cp0/R = sum c_k * T^t_k`.
+    Cp0PolyT {
+        /// `.c`
+        c: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.Tc`
+        tc: f64,
+        /// `.T0`
+        t0: f64,
+    },
+    /// `IdealGasHelmholtzCP0AlyLee` — Aly-Lee cp0 form (5 constants);
+    /// upstream converts it at parse time into a CP0PolyT constant plus
+    /// sinh/cosh Planck-Einstein-generalized entries.
+    Cp0AlyLee {
+        /// `.c` (A, B, C, D, E)
+        c: &'static [f64],
+        /// `.Tc`
+        tc: f64,
+        /// `.T0`
+        t0: f64,
+    },
 }
 
 /// `EOS[0].alphar[i]`, tagged by `type`.
@@ -222,6 +267,52 @@ pub enum AlpharTerm {
         big_c: &'static [f64],
         /// `.D`
         big_d: &'static [f64],
+    },
+    /// `ResidualHelmholtzExponential` —
+    /// `sum n_k * delta^d_k * tau^t_k * exp(-g_k*delta^l_k)`
+    Exponential {
+        /// `.n`
+        n: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.g`
+        g: &'static [f64],
+        /// `.l`
+        l: &'static [f64],
+    },
+    /// `ResidualHelmholtzDoubleExponential` —
+    /// `sum n_k * delta^d_k * tau^t_k * exp(-gd_k*delta^ld_k - gt_k*tau^lt_k)`
+    DoubleExponential {
+        /// `.n`
+        n: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.gd`
+        gd: &'static [f64],
+        /// `.ld`
+        ld: &'static [f64],
+        /// `.gt`
+        gt: &'static [f64],
+        /// `.lt`
+        lt: &'static [f64],
+    },
+    /// `ResidualHelmholtzLemmon2005` —
+    /// `sum n_k * delta^d_k * tau^t_k * exp(-delta^l_k - tau^m_k)`
+    Lemmon2005 {
+        /// `.n`
+        n: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.l`
+        l: &'static [f64],
+        /// `.m`
+        m: &'static [f64],
     },
     /// `ResidualHelmholtzGaoB` (Gao et al. modified-Gaussian terms) —
     /// `sum n_k * tau^t_k * delta^d_k

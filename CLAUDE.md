@@ -56,7 +56,18 @@ upstream evaluates `EOSVector[0]` only (Gao-2020), the Tillner-Roth alternate is
 The melting-line caloric cascade leg is deferred with the melting line (no committed golden
 needs it).
 
-Next work: `PLAN.md` 4.8 all-fluids sweep (+ Maxwell fallback for non-superancillary fluids).
+**4.8 all-fluids sweep is done**: all 130 pure fluids (every one has a superancillary) are
+datagen-generated behind per-fluid features (`all-fluids` aggregate; datagen-emitted registry
+`rustprop_data::fluids::all()`), bitwise fidelity-walked, and smoke-tested against the wheel
+(1,922-record `#[ignore]`d suite, weekly/dispatch CI job). Six new term families landed with
+representative-fluid full batteries: CP0Constant/CP0PolyT/CP0AlyLee, direct
+PlanckEinsteinGeneralized, Exponential/DoubleExponential/Lemmon2005 (GenExp tau_mi channel).
+Runtime `Ttriple()`/`Tmin()` = `sat_min_liquid.T` everywhere (differs from the JSON `Ttriple`
+key for 27 fluids). Wasm cost: HEOS+Water 136 KB; all 130 fluids 3.31 MB (~26 KB/fluid).
+The 6 pseudo-pure fluids (Air, R404A, ...) are deferred with the Maxwell fallback and pL/pV
+ancillary shape.
+
+Next work: `PLAN.md` Phase 5 (PropsSI string API) — or the pseudo-pure/Maxwell step.
 
 ## Toolchain
 

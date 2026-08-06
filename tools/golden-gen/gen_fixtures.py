@@ -337,7 +337,9 @@ def gen_heos_water_flash():
 # coordinates), queried from the pinned oracle wheel — still deterministic.
 # ---------------------------------------------------------------------------
 
-HEOS_FLUIDS = ["Nitrogen", "CarbonDioxide", "R134a", "n-Propane", "Ammonia"]
+HEOS_FLUIDS = ["Nitrogen", "CarbonDioxide", "R134a", "n-Propane", "Ammonia",
+               # 4.8 representative new-term-family fluids:
+               "Methanol", "R125", "RC318", "R22", "n-Heptane", "Fluorine"]
 
 TERM_ACCESSORS = [
     "alphar", "dalphar_dDelta", "dalphar_dTau", "d2alphar_dDelta2",
@@ -550,6 +552,82 @@ def gen_heos_fluid_hs(fluid):
     return rows
 
 
+def gen_heos_all_smoke():
+    """Coarse smoke grid over every pure fluid with a superancillary
+    (PLAN 4.8): saturation, PT (liquid/gas/supercritical), one each of the
+    HP/PS/DT/HS pairs, in reduced coordinates. Runs as an `--ignored` suite."""
+    import CoolProp.CoolProp as CPP
+    all_fluids = CPP.get_global_param_string("fluids_list").split(",")
+    pure = []
+    for fl in all_fluids:
+        d = json.loads(CPP.get_fluid_param_string(fl, "JSON"))[0]
+        if not d["EOS"][0].get("pseudo_pure"):
+            pure.append(fl)
+    rows, skipped = [], 0
+    for fluid in pure:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        pc = PropsSI("pcrit", "", 0, "", 0, hf)
+
+        def TL(x):
+            return Tt + x * (Tc - Tt)
+
+        def psat(T):
+            return PropsSI("P", "T", T, "Q", 1, hf)
+
+        def rec(out, n1, v1, n2, v2):
+            nonlocal skipped
+            r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+
+        try:
+            t_mid = TL(0.5)
+            p_liq = 2.5 * psat(TL(0.3))
+            p_gas = 0.5 * psat(TL(0.8))
+        except Exception:
+            skipped += 15
+            continue
+        # saturation
+        rec("P", "T", t_mid, "Q", 0.0)
+        rec("Dmolar", "T", t_mid, "Q", 0.0)
+        rec("Dmolar", "T", t_mid, "Q", 1.0)
+        rec("Hmolar", "T", t_mid, "Q", 0.5)
+        rec("Smolar", "T", t_mid, "Q", 0.5)
+        # PT: liquid, gas, supercritical
+        rec("Dmolar", "T", TL(0.3), "P", p_liq)
+        rec("Hmolar", "T", TL(0.3), "P", p_liq)
+        rec("Dmolar", "T", TL(0.8), "P", p_gas)
+        rec("Smolar", "T", TL(0.8), "P", p_gas)
+        rec("Dmolar", "T", 1.1 * Tc, "P", 1.5 * pc)
+        # HP / PS at wheel-derived single-phase states
+        try:
+            h_gas = PropsSI("Hmolar", "T", TL(0.8), "P", p_gas, hf)
+            s_liq = PropsSI("Smolar", "T", TL(0.3), "P", p_liq, hf)
+            rec("T", "Hmolar", h_gas, "P", p_gas)
+            rec("T", "P", p_liq, "Smolar", s_liq)
+        except Exception:
+            skipped += 2
+        # DT two-phase
+        try:
+            rho_mid = PropsSI("Dmolar", "P", psat(t_mid), "Q", 0.5, hf)
+            rec("Q", "Dmolar", rho_mid, "T", t_mid)
+        except Exception:
+            skipped += 1
+        # HS: supercritical single-phase and two-phase
+        try:
+            h_sc = PropsSI("Hmolar", "T", 1.1 * Tc, "P", 1.5 * pc, hf)
+            s_sc = PropsSI("Smolar", "T", 1.1 * Tc, "P", 1.5 * pc, hf)
+            rec("T", "Hmolar", h_sc, "Smolar", s_sc)
+            h_2p = PropsSI("Hmolar", "T", t_mid, "Q", 0.5, hf)
+            s_2p = PropsSI("Smolar", "T", t_mid, "Q", 0.5, hf)
+            rec("T", "Hmolar", h_2p, "Smolar", s_2p)
+        except Exception:
+            skipped += 2
+    print(f"all-fluids smoke: {len(rows)} records over {len(pure)} fluids, {skipped} skipped")
+    return rows
+
+
 WRITTEN = []
 
 
@@ -606,6 +684,7 @@ def main():
             write_jsonl(f"heos_{module}_{suite}.jsonl", rows)
     for fluid in ["Water"] + HEOS_FLUIDS:
         write_jsonl(f"heos_{module_name(fluid)}_hs.jsonl", gen_heos_fluid_hs(fluid))
+    write_jsonl("heos_all_smoke.jsonl", gen_heos_all_smoke())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

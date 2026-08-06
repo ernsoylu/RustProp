@@ -97,6 +97,27 @@ impl Walker {
         self.num(rust.hmolar, &json["hmolar"], &format!("{path}.hmolar"));
         self.num(rust.smolar, &json["smolar"], &format!("{path}.smolar"));
     }
+    /// `sat_min_liquid`/`sat_min_vapor`: a few documents omit the caloric
+    /// fields (upstream never reads them from these states); the generated
+    /// data must then hold NaN.
+    fn sat_min_state_point(&mut self, rust: &StatePoint, json: &Value, path: &str) {
+        self.keys(json, path, &["T", "p", "rhomolar"], &["hmolar", "smolar"]);
+        self.num(rust.t, &json["T"], &format!("{path}.T"));
+        self.num(rust.p, &json["p"], &format!("{path}.p"));
+        self.num(
+            rust.rhomolar,
+            &json["rhomolar"],
+            &format!("{path}.rhomolar"),
+        );
+        for (val, key) in [(rust.hmolar, "hmolar"), (rust.smolar, "smolar")] {
+            if json.get(key).is_some() {
+                self.num(val, &json[key], &format!("{path}.{key}"));
+            } else if !val.is_nan() {
+                self.mismatches
+                    .push(format!("{path}.{key}: absent in JSON but rust {val:?}"));
+            }
+        }
+    }
     fn sat_ancillary(&mut self, rust: &SaturationAncillary, json: &Value, path: &str) {
         self.keys(
             json,
@@ -231,12 +252,12 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         &eos_states["reducing"],
         "EOS[0].STATES.reducing",
     );
-    w.state_point(
+    w.sat_min_state_point(
         &fluid.eos.sat_min_liquid,
         &eos_states["sat_min_liquid"],
         "EOS[0].STATES.sat_min_liquid",
     );
-    w.state_point(
+    w.sat_min_state_point(
         &fluid.eos.sat_min_vapor,
         &eos_states["sat_min_vapor"],
         "EOS[0].STATES.sat_min_vapor",
@@ -283,7 +304,9 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
                 w.nums(t, &json["t"], &format!("{path}.t"));
             }
             Alpha0Term::PlanckEinsteinFunctionT { n, v, tcrit } => {
-                w.keys(json, &path, &["type", "n", "v", "Tcrit"], &[]);
+                // Some documents carry informational `R`/`T0` here; upstream's
+                // parse reads neither.
+                w.keys(json, &path, &["type", "n", "v", "Tcrit"], &["R", "T0"]);
                 w.string(
                     "IdealGasHelmholtzPlanckEinsteinFunctionT",
                     &json["type"],
@@ -313,6 +336,53 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
                 );
                 w.nums(n, &json["n"], &format!("{path}.n"));
                 w.nums(t, &json["t"], &format!("{path}.t"));
+            }
+            Alpha0Term::PlanckEinsteinGeneralized { n, t, c, d } => {
+                w.keys(json, &path, &["type", "n", "t", "c", "d"], &[]);
+                w.string(
+                    "IdealGasHelmholtzPlanckEinsteinGeneralized",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+                w.nums(c, &json["c"], &format!("{path}.c"));
+                w.nums(d, &json["d"], &format!("{path}.d"));
+            }
+            Alpha0Term::Cp0Constant { cp_over_r, tc, t0 } => {
+                w.keys(json, &path, &["type", "cp_over_R", "Tc", "T0"], &[]);
+                w.string(
+                    "IdealGasHelmholtzCP0Constant",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.num(*cp_over_r, &json["cp_over_R"], &format!("{path}.cp_over_R"));
+                w.num(*tc, &json["Tc"], &format!("{path}.Tc"));
+                w.num(*t0, &json["T0"], &format!("{path}.T0"));
+            }
+            Alpha0Term::Cp0PolyT { c, t, tc, t0 } => {
+                // `R` is informational; upstream's parse does not read it.
+                w.keys(json, &path, &["type", "c", "t", "Tc", "T0"], &["R"]);
+                w.string(
+                    "IdealGasHelmholtzCP0PolyT",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(c, &json["c"], &format!("{path}.c"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+                w.num(*tc, &json["Tc"], &format!("{path}.Tc"));
+                w.num(*t0, &json["T0"], &format!("{path}.T0"));
+            }
+            Alpha0Term::Cp0AlyLee { c, tc, t0 } => {
+                w.keys(json, &path, &["type", "c", "Tc", "T0"], &[]);
+                w.string(
+                    "IdealGasHelmholtzCP0AlyLee",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(c, &json["c"], &format!("{path}.c"));
+                w.num(*tc, &json["Tc"], &format!("{path}.Tc"));
+                w.num(*t0, &json["T0"], &format!("{path}.T0"));
             }
         }
     }
@@ -392,6 +462,60 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
                 w.nums(big_b, &json["B"], &format!("{path}.B"));
                 w.nums(big_c, &json["C"], &format!("{path}.C"));
                 w.nums(big_d, &json["D"], &format!("{path}.D"));
+            }
+            AlpharTerm::Exponential { n, d, t, g, l } => {
+                w.keys(json, &path, &["type", "n", "d", "t", "g", "l"], &[]);
+                w.string(
+                    "ResidualHelmholtzExponential",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(d, &json["d"], &format!("{path}.d"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+                w.nums(g, &json["g"], &format!("{path}.g"));
+                w.nums(l, &json["l"], &format!("{path}.l"));
+            }
+            AlpharTerm::DoubleExponential {
+                n,
+                d,
+                t,
+                gd,
+                ld,
+                gt,
+                lt,
+            } => {
+                w.keys(
+                    json,
+                    &path,
+                    &["type", "n", "d", "t", "gd", "ld", "gt", "lt"],
+                    &[],
+                );
+                w.string(
+                    "ResidualHelmholtzDoubleExponential",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(d, &json["d"], &format!("{path}.d"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+                w.nums(gd, &json["gd"], &format!("{path}.gd"));
+                w.nums(ld, &json["ld"], &format!("{path}.ld"));
+                w.nums(gt, &json["gt"], &format!("{path}.gt"));
+                w.nums(lt, &json["lt"], &format!("{path}.lt"));
+            }
+            AlpharTerm::Lemmon2005 { n, d, t, l, m } => {
+                w.keys(json, &path, &["type", "n", "d", "t", "l", "m"], &[]);
+                w.string(
+                    "ResidualHelmholtzLemmon2005",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(d, &json["d"], &format!("{path}.d"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+                w.nums(l, &json["l"], &format!("{path}.l"));
+                w.nums(m, &json["m"], &format!("{path}.m"));
             }
             AlpharTerm::GaoB {
                 n,
@@ -563,37 +687,10 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
 }
 
 #[test]
-fn water_data_matches_upstream_json_exactly() {
-    check_fluid(&rustprop_data::fluids::water::WATER, "Water.json");
-}
-
-#[test]
-fn nitrogen_data_matches_upstream_json_exactly() {
-    check_fluid(&rustprop_data::fluids::nitrogen::NITROGEN, "Nitrogen.json");
-}
-
-#[test]
-fn carbondioxide_data_matches_upstream_json_exactly() {
-    check_fluid(
-        &rustprop_data::fluids::carbondioxide::CARBONDIOXIDE,
-        "CarbonDioxide.json",
-    );
-}
-
-#[test]
-fn r134a_data_matches_upstream_json_exactly() {
-    check_fluid(&rustprop_data::fluids::r134a::R134A, "R134a.json");
-}
-
-#[test]
-fn n_propane_data_matches_upstream_json_exactly() {
-    check_fluid(
-        &rustprop_data::fluids::n_propane::N_PROPANE,
-        "n-Propane.json",
-    );
-}
-
-#[test]
-fn ammonia_data_matches_upstream_json_exactly() {
-    check_fluid(&rustprop_data::fluids::ammonia::AMMONIA, "Ammonia.json");
+fn every_fluid_data_matches_upstream_json_exactly() {
+    let fluids = rustprop_data::fluids::all();
+    assert_eq!(fluids.len(), 130, "all fluid features enabled");
+    for (name, data) in fluids {
+        check_fluid(data, &format!("{name}.json"));
+    }
 }

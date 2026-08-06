@@ -23,8 +23,12 @@ use std::process::ExitCode;
 struct Doc {
     #[serde(rename = "INFO")]
     info: InfoJson,
+    /// Parsed lazily: only `EOS[0]` is evaluated by upstream's backend (the
+    /// `EOS()` accessor), and alternate blocks may carry term families the
+    /// active EOS never uses (e.g. Methanol's `ResidualHelmholtzAssociating`
+    /// alternate). Strict term parsing applies to `EOS[0]` alone.
     #[serde(rename = "EOS")]
-    eos: Vec<EosJson>,
+    eos: Vec<serde_json::Value>,
     #[serde(rename = "ANCILLARIES")]
     ancillaries: AncJson,
     #[serde(rename = "STATES")]
@@ -112,14 +116,23 @@ struct EosStatesJson {
     hs_anchor: Sp,
 }
 
+/// `hmolar`/`smolar` default to NaN: the `sat_min_liquid`/`sat_min_vapor`
+/// states of a few documents (R1130(E), R1243zf) omit them, and upstream's
+/// FluidLibrary never reads them from those states either.
 #[derive(Deserialize)]
 struct Sp {
     #[serde(rename = "T")]
     t: f64,
     p: f64,
     rhomolar: f64,
+    #[serde(default = "f64_nan")]
     hmolar: f64,
+    #[serde(default = "f64_nan")]
     smolar: f64,
+}
+
+fn f64_nan() -> f64 {
+    f64::NAN
 }
 
 #[derive(Deserialize)]
@@ -142,6 +155,39 @@ enum Alpha0Json {
     EnthalpyEntropyOffset { a1: f64, a2: f64, reference: String },
     #[serde(rename = "IdealGasHelmholtzPower")]
     Power { n: Vec<f64>, t: Vec<f64> },
+    #[serde(rename = "IdealGasHelmholtzPlanckEinsteinGeneralized")]
+    PlanckEinsteinGeneralized {
+        n: Vec<f64>,
+        t: Vec<f64>,
+        c: Vec<f64>,
+        d: Vec<f64>,
+    },
+    #[serde(rename = "IdealGasHelmholtzCP0Constant")]
+    Cp0Constant {
+        #[serde(rename = "cp_over_R")]
+        cp_over_r: f64,
+        #[serde(rename = "Tc")]
+        tc: f64,
+        #[serde(rename = "T0")]
+        t0: f64,
+    },
+    #[serde(rename = "IdealGasHelmholtzCP0PolyT")]
+    Cp0PolyT {
+        c: Vec<f64>,
+        t: Vec<f64>,
+        #[serde(rename = "Tc")]
+        tc: f64,
+        #[serde(rename = "T0")]
+        t0: f64,
+    },
+    #[serde(rename = "IdealGasHelmholtzCP0AlyLee")]
+    Cp0AlyLee {
+        c: Vec<f64>,
+        #[serde(rename = "Tc")]
+        tc: f64,
+        #[serde(rename = "T0")]
+        t0: f64,
+    },
 }
 
 #[derive(Deserialize)]
@@ -178,6 +224,32 @@ enum AlpharJson {
         big_c: Vec<f64>,
         #[serde(rename = "D")]
         big_d: Vec<f64>,
+    },
+    #[serde(rename = "ResidualHelmholtzExponential")]
+    Exponential {
+        n: Vec<f64>,
+        d: Vec<f64>,
+        t: Vec<f64>,
+        g: Vec<f64>,
+        l: Vec<f64>,
+    },
+    #[serde(rename = "ResidualHelmholtzDoubleExponential")]
+    DoubleExponential {
+        n: Vec<f64>,
+        d: Vec<f64>,
+        t: Vec<f64>,
+        gd: Vec<f64>,
+        ld: Vec<f64>,
+        gt: Vec<f64>,
+        lt: Vec<f64>,
+    },
+    #[serde(rename = "ResidualHelmholtzLemmon2005")]
+    Lemmon2005 {
+        n: Vec<f64>,
+        d: Vec<f64>,
+        t: Vec<f64>,
+        l: Vec<f64>,
+        m: Vec<f64>,
     },
     #[serde(rename = "ResidualHelmholtzGaoB")]
     GaoB {
@@ -230,7 +302,12 @@ struct StatesJson {
 // ---------------------------------------------------------------------------
 
 /// Shortest round-trip f64 literal (Rust `{:?}` guarantees exact re-parse).
+/// NaN (a document field upstream never reads, e.g. a sat_min caloric)
+/// emits as the `f64::NAN` path expression.
 fn f(v: f64) -> String {
+    if v.is_nan() {
+        return "f64::NAN".into();
+    }
     format!("{v:?}")
 }
 
@@ -322,8 +399,8 @@ fn emit_superancillary(sa: &SuperAncJson, w: &mut String) {
     writeln!(w, "        }}),").unwrap();
 }
 
-fn emit(doc: &Doc, source_file: &str) -> String {
-    let eos = &doc.eos[0];
+fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
+    let _ = &doc.eos;
     let mut out = String::new();
     let w = &mut out;
     let static_name = module_name(&doc.info.name).to_uppercase();
@@ -335,6 +412,9 @@ fn emit(doc: &Doc, source_file: &str) -> String {
     writeln!(w, "//! Regenerate: cargo run -p rustprop-datagen").unwrap();
     writeln!(w).unwrap();
     writeln!(w, "#![cfg_attr(rustfmt, rustfmt::skip)]").unwrap();
+    // Verbatim upstream coefficients may approximate mathematical constants
+    // (e.g. a fitted exponent of 3.14); the data is bit-faithful by mandate.
+    writeln!(w, "#![allow(clippy::approx_constant)]").unwrap();
     writeln!(w).unwrap();
     writeln!(
         w,
@@ -432,6 +512,48 @@ fn emit(doc: &Doc, source_file: &str) -> String {
                 )
                 .unwrap();
             }
+            Alpha0Json::PlanckEinsteinGeneralized { n, t, c, d } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::PlanckEinsteinGeneralized {{ n: {}, t: {}, c: {}, d: {} }},",
+                    slice(n),
+                    slice(t),
+                    slice(c),
+                    slice(d)
+                )
+                .unwrap();
+            }
+            Alpha0Json::Cp0Constant { cp_over_r, tc, t0 } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::Cp0Constant {{ cp_over_r: {}, tc: {}, t0: {} }},",
+                    f(*cp_over_r),
+                    f(*tc),
+                    f(*t0)
+                )
+                .unwrap();
+            }
+            Alpha0Json::Cp0PolyT { c, t, tc, t0 } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::Cp0PolyT {{ c: {}, t: {}, tc: {}, t0: {} }},",
+                    slice(c),
+                    slice(t),
+                    f(*tc),
+                    f(*t0)
+                )
+                .unwrap();
+            }
+            Alpha0Json::Cp0AlyLee { c, tc, t0 } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::Cp0AlyLee {{ c: {}, tc: {}, t0: {} }},",
+                    slice(c),
+                    f(*tc),
+                    f(*t0)
+                )
+                .unwrap();
+            }
         }
     }
     writeln!(w, "        ],").unwrap();
@@ -479,6 +601,46 @@ fn emit(doc: &Doc, source_file: &str) -> String {
                     w,
                     "            AlpharTerm::NonAnalytic {{ n: {}, a: {}, b: {}, beta: {}, big_a: {}, big_b: {}, big_c: {}, big_d: {} }},",
                     slice(n), slice(a), slice(b), slice(beta), slice(big_a), slice(big_b), slice(big_c), slice(big_d)
+                )
+                .unwrap();
+            }
+            AlpharJson::Exponential { n, d, t, g, l } => {
+                writeln!(
+                    w,
+                    "            AlpharTerm::Exponential {{ n: {}, d: {}, t: {}, g: {}, l: {} }},",
+                    slice(n),
+                    slice(d),
+                    slice(t),
+                    slice(g),
+                    slice(l)
+                )
+                .unwrap();
+            }
+            AlpharJson::DoubleExponential {
+                n,
+                d,
+                t,
+                gd,
+                ld,
+                gt,
+                lt,
+            } => {
+                writeln!(
+                    w,
+                    "            AlpharTerm::DoubleExponential {{ n: {}, d: {}, t: {}, gd: {}, ld: {}, gt: {}, lt: {} }},",
+                    slice(n), slice(d), slice(t), slice(gd), slice(ld), slice(gt), slice(lt)
+                )
+                .unwrap();
+            }
+            AlpharJson::Lemmon2005 { n, d, t, l, m } => {
+                writeln!(
+                    w,
+                    "            AlpharTerm::Lemmon2005 {{ n: {}, d: {}, t: {}, l: {}, m: {} }},",
+                    slice(n),
+                    slice(d),
+                    slice(t),
+                    slice(l),
+                    slice(m)
                 )
                 .unwrap();
             }
@@ -588,7 +750,10 @@ fn run() -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     let mut mod_rs = String::from(
-        "//! GENERATED by rustprop-datagen — DO NOT EDIT.\n//! One feature-gated module per fluid dump in data/coolprop-json/.\n\n#![cfg_attr(rustfmt, rustfmt::skip)]\n\n",
+        "//! GENERATED by rustprop-datagen — DO NOT EDIT.\n//! One feature-gated module per fluid dump in data/coolprop-json/.\n\n#![cfg_attr(rustfmt, rustfmt::skip)]\n// The registry's cfg-gated pushes require the init-then-push shape.\n#![allow(clippy::vec_init_then_push)]\n\n",
+    );
+    let mut registry = String::from(
+        "\n/// Every compiled-in fluid: (upstream name, data), in dump-file order.\npub fn all() -> Vec<(&'static str, &'static rustprop_core::fluid::FluidData)> {\n    #[allow(unused_mut)]\n    let mut v: Vec<(&'static str, &'static rustprop_core::fluid::FluidData)> = Vec::new();\n",
     );
     for fluid in &fluids {
         let path = json_dir.join(format!("{fluid}.json"));
@@ -608,12 +773,28 @@ fn run() -> Result<(), String> {
                 "feature `{module} = []` missing from crates/rustprop-data/Cargo.toml"
             ));
         }
-        let rendered = emit(doc, &format!("data/coolprop-json/{fluid}.json"));
+        let eos: EosJson = serde_json::from_value(
+            doc.eos
+                .first()
+                .ok_or_else(|| format!("{fluid}: no EOS entries"))?
+                .clone(),
+        )
+        .map_err(|e| format!("{fluid}: EOS[0]: {e}"))?;
+        let rendered = emit(doc, &eos, &format!("data/coolprop-json/{fluid}.json"));
         let out_path = out_dir.join(format!("{module}.rs"));
         std::fs::write(&out_path, rendered).map_err(|e| e.to_string())?;
         writeln!(mod_rs, "#[cfg(feature = \"{module}\")]\npub mod {module};").unwrap();
+        writeln!(
+            registry,
+            "    #[cfg(feature = \"{module}\")]\n    v.push(({:?}, &{module}::{}));",
+            doc.info.name,
+            module.to_uppercase()
+        )
+        .unwrap();
         println!("generated crates/rustprop-data/src/fluids/{module}.rs");
     }
+    registry.push_str("    v\n}\n");
+    mod_rs.push_str(&registry);
     std::fs::write(out_dir.join("mod.rs"), mod_rs).map_err(|e| e.to_string())?;
     Ok(())
 }

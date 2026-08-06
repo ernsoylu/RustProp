@@ -2,16 +2,533 @@
 //! One feature-gated module per fluid dump in data/coolprop-json/.
 
 #![cfg_attr(rustfmt, rustfmt::skip)]
+// The registry's cfg-gated pushes require the init-then-push shape.
+#![allow(clippy::vec_init_then_push)]
 
+#[cfg(feature = "_1_butene")]
+pub mod _1_butene;
+#[cfg(feature = "acetone")]
+pub mod acetone;
 #[cfg(feature = "ammonia")]
 pub mod ammonia;
+#[cfg(feature = "argon")]
+pub mod argon;
+#[cfg(feature = "benzene")]
+pub mod benzene;
 #[cfg(feature = "carbondioxide")]
 pub mod carbondioxide;
+#[cfg(feature = "carbonmonoxide")]
+pub mod carbonmonoxide;
+#[cfg(feature = "carbonylsulfide")]
+pub mod carbonylsulfide;
+#[cfg(feature = "chlorine")]
+pub mod chlorine;
+#[cfg(feature = "cyclohexane")]
+pub mod cyclohexane;
+#[cfg(feature = "cyclopropane")]
+pub mod cyclopropane;
+#[cfg(feature = "cyclopentane")]
+pub mod cyclopentane;
+#[cfg(feature = "d4")]
+pub mod d4;
+#[cfg(feature = "d5")]
+pub mod d5;
+#[cfg(feature = "d6")]
+pub mod d6;
+#[cfg(feature = "deuterium")]
+pub mod deuterium;
+#[cfg(feature = "dichloroethane")]
+pub mod dichloroethane;
+#[cfg(feature = "diethylether")]
+pub mod diethylether;
+#[cfg(feature = "dimethylcarbonate")]
+pub mod dimethylcarbonate;
+#[cfg(feature = "dimethylether")]
+pub mod dimethylether;
+#[cfg(feature = "ethane")]
+pub mod ethane;
+#[cfg(feature = "ethanol")]
+pub mod ethanol;
+#[cfg(feature = "ethylbenzene")]
+pub mod ethylbenzene;
+#[cfg(feature = "ethylene")]
+pub mod ethylene;
+#[cfg(feature = "ethyleneoxide")]
+pub mod ethyleneoxide;
+#[cfg(feature = "fluorine")]
+pub mod fluorine;
+#[cfg(feature = "hfe143m")]
+pub mod hfe143m;
+#[cfg(feature = "heavywater")]
+pub mod heavywater;
+#[cfg(feature = "helium")]
+pub mod helium;
+#[cfg(feature = "hydrogen")]
+pub mod hydrogen;
+#[cfg(feature = "hydrogenchloride")]
+pub mod hydrogenchloride;
+#[cfg(feature = "hydrogensulfide")]
+pub mod hydrogensulfide;
+#[cfg(feature = "isobutane")]
+pub mod isobutane;
+#[cfg(feature = "isobutene")]
+pub mod isobutene;
+#[cfg(feature = "isohexane")]
+pub mod isohexane;
+#[cfg(feature = "isopentane")]
+pub mod isopentane;
+#[cfg(feature = "krypton")]
+pub mod krypton;
+#[cfg(feature = "md2m")]
+pub mod md2m;
+#[cfg(feature = "md3m")]
+pub mod md3m;
+#[cfg(feature = "md4m")]
+pub mod md4m;
+#[cfg(feature = "mdm")]
+pub mod mdm;
+#[cfg(feature = "mm")]
+pub mod mm;
+#[cfg(feature = "methane")]
+pub mod methane;
+#[cfg(feature = "methanol")]
+pub mod methanol;
+#[cfg(feature = "methyllinoleate")]
+pub mod methyllinoleate;
+#[cfg(feature = "methyllinolenate")]
+pub mod methyllinolenate;
+#[cfg(feature = "methyloleate")]
+pub mod methyloleate;
+#[cfg(feature = "methylpalmitate")]
+pub mod methylpalmitate;
+#[cfg(feature = "methylstearate")]
+pub mod methylstearate;
+#[cfg(feature = "neon")]
+pub mod neon;
+#[cfg(feature = "neopentane")]
+pub mod neopentane;
 #[cfg(feature = "nitrogen")]
 pub mod nitrogen;
+#[cfg(feature = "nitrousoxide")]
+pub mod nitrousoxide;
+#[cfg(feature = "novec649")]
+pub mod novec649;
+#[cfg(feature = "orthodeuterium")]
+pub mod orthodeuterium;
+#[cfg(feature = "orthohydrogen")]
+pub mod orthohydrogen;
+#[cfg(feature = "oxygen")]
+pub mod oxygen;
+#[cfg(feature = "paradeuterium")]
+pub mod paradeuterium;
+#[cfg(feature = "parahydrogen")]
+pub mod parahydrogen;
+#[cfg(feature = "propylene")]
+pub mod propylene;
+#[cfg(feature = "propyleneglycol")]
+pub mod propyleneglycol;
+#[cfg(feature = "propyne")]
+pub mod propyne;
+#[cfg(feature = "r11")]
+pub mod r11;
+#[cfg(feature = "r1123")]
+pub mod r1123;
+#[cfg(feature = "r113")]
+pub mod r113;
+#[cfg(feature = "r1130_e_")]
+pub mod r1130_e_;
+#[cfg(feature = "r1132_e_")]
+pub mod r1132_e_;
+#[cfg(feature = "r114")]
+pub mod r114;
+#[cfg(feature = "r115")]
+pub mod r115;
+#[cfg(feature = "r116")]
+pub mod r116;
+#[cfg(feature = "r12")]
+pub mod r12;
+#[cfg(feature = "r1224ydz")]
+pub mod r1224ydz;
+#[cfg(feature = "r123")]
+pub mod r123;
+#[cfg(feature = "r1233zd_e_")]
+pub mod r1233zd_e_;
+#[cfg(feature = "r1234yf")]
+pub mod r1234yf;
+#[cfg(feature = "r1234ze_e_")]
+pub mod r1234ze_e_;
+#[cfg(feature = "r1234ze_z_")]
+pub mod r1234ze_z_;
+#[cfg(feature = "r124")]
+pub mod r124;
+#[cfg(feature = "r1243zf")]
+pub mod r1243zf;
+#[cfg(feature = "r125")]
+pub mod r125;
+#[cfg(feature = "r13")]
+pub mod r13;
+#[cfg(feature = "r1336mzz_e_")]
+pub mod r1336mzz_e_;
+#[cfg(feature = "r1336mzz_z_")]
+pub mod r1336mzz_z_;
 #[cfg(feature = "r134a")]
 pub mod r134a;
+#[cfg(feature = "r13i1")]
+pub mod r13i1;
+#[cfg(feature = "r14")]
+pub mod r14;
+#[cfg(feature = "r141b")]
+pub mod r141b;
+#[cfg(feature = "r142b")]
+pub mod r142b;
+#[cfg(feature = "r143a")]
+pub mod r143a;
+#[cfg(feature = "r152a")]
+pub mod r152a;
+#[cfg(feature = "r161")]
+pub mod r161;
+#[cfg(feature = "r21")]
+pub mod r21;
+#[cfg(feature = "r218")]
+pub mod r218;
+#[cfg(feature = "r22")]
+pub mod r22;
+#[cfg(feature = "r227ea")]
+pub mod r227ea;
+#[cfg(feature = "r23")]
+pub mod r23;
+#[cfg(feature = "r236ea")]
+pub mod r236ea;
+#[cfg(feature = "r236fa")]
+pub mod r236fa;
+#[cfg(feature = "r245ca")]
+pub mod r245ca;
+#[cfg(feature = "r245fa")]
+pub mod r245fa;
+#[cfg(feature = "r32")]
+pub mod r32;
+#[cfg(feature = "r365mfc")]
+pub mod r365mfc;
+#[cfg(feature = "r40")]
+pub mod r40;
+#[cfg(feature = "r41")]
+pub mod r41;
+#[cfg(feature = "rc318")]
+pub mod rc318;
+#[cfg(feature = "sulfurdioxide")]
+pub mod sulfurdioxide;
+#[cfg(feature = "sulfurhexafluoride")]
+pub mod sulfurhexafluoride;
+#[cfg(feature = "tetrahydrofuran")]
+pub mod tetrahydrofuran;
+#[cfg(feature = "toluene")]
+pub mod toluene;
+#[cfg(feature = "vinylchloride")]
+pub mod vinylchloride;
 #[cfg(feature = "water")]
 pub mod water;
+#[cfg(feature = "xenon")]
+pub mod xenon;
+#[cfg(feature = "cis_2_butene")]
+pub mod cis_2_butene;
+#[cfg(feature = "m_xylene")]
+pub mod m_xylene;
+#[cfg(feature = "n_butane")]
+pub mod n_butane;
+#[cfg(feature = "n_decane")]
+pub mod n_decane;
+#[cfg(feature = "n_dodecane")]
+pub mod n_dodecane;
+#[cfg(feature = "n_heptane")]
+pub mod n_heptane;
+#[cfg(feature = "n_hexane")]
+pub mod n_hexane;
+#[cfg(feature = "n_nonane")]
+pub mod n_nonane;
+#[cfg(feature = "n_octane")]
+pub mod n_octane;
+#[cfg(feature = "n_pentane")]
+pub mod n_pentane;
+#[cfg(feature = "n_perfluorobutane")]
+pub mod n_perfluorobutane;
+#[cfg(feature = "n_perfluorohexane")]
+pub mod n_perfluorohexane;
+#[cfg(feature = "n_perfluoropentane")]
+pub mod n_perfluoropentane;
 #[cfg(feature = "n_propane")]
 pub mod n_propane;
+#[cfg(feature = "n_undecane")]
+pub mod n_undecane;
+#[cfg(feature = "o_xylene")]
+pub mod o_xylene;
+#[cfg(feature = "p_xylene")]
+pub mod p_xylene;
+#[cfg(feature = "trans_2_butene")]
+pub mod trans_2_butene;
+
+/// Every compiled-in fluid: (upstream name, data), in dump-file order.
+pub fn all() -> Vec<(&'static str, &'static rustprop_core::fluid::FluidData)> {
+    #[allow(unused_mut)]
+    let mut v: Vec<(&'static str, &'static rustprop_core::fluid::FluidData)> = Vec::new();
+    #[cfg(feature = "_1_butene")]
+    v.push(("1-Butene", &_1_butene::_1_BUTENE));
+    #[cfg(feature = "acetone")]
+    v.push(("Acetone", &acetone::ACETONE));
+    #[cfg(feature = "ammonia")]
+    v.push(("Ammonia", &ammonia::AMMONIA));
+    #[cfg(feature = "argon")]
+    v.push(("Argon", &argon::ARGON));
+    #[cfg(feature = "benzene")]
+    v.push(("Benzene", &benzene::BENZENE));
+    #[cfg(feature = "carbondioxide")]
+    v.push(("CarbonDioxide", &carbondioxide::CARBONDIOXIDE));
+    #[cfg(feature = "carbonmonoxide")]
+    v.push(("CarbonMonoxide", &carbonmonoxide::CARBONMONOXIDE));
+    #[cfg(feature = "carbonylsulfide")]
+    v.push(("CarbonylSulfide", &carbonylsulfide::CARBONYLSULFIDE));
+    #[cfg(feature = "chlorine")]
+    v.push(("Chlorine", &chlorine::CHLORINE));
+    #[cfg(feature = "cyclohexane")]
+    v.push(("CycloHexane", &cyclohexane::CYCLOHEXANE));
+    #[cfg(feature = "cyclopropane")]
+    v.push(("CycloPropane", &cyclopropane::CYCLOPROPANE));
+    #[cfg(feature = "cyclopentane")]
+    v.push(("Cyclopentane", &cyclopentane::CYCLOPENTANE));
+    #[cfg(feature = "d4")]
+    v.push(("D4", &d4::D4));
+    #[cfg(feature = "d5")]
+    v.push(("D5", &d5::D5));
+    #[cfg(feature = "d6")]
+    v.push(("D6", &d6::D6));
+    #[cfg(feature = "deuterium")]
+    v.push(("Deuterium", &deuterium::DEUTERIUM));
+    #[cfg(feature = "dichloroethane")]
+    v.push(("Dichloroethane", &dichloroethane::DICHLOROETHANE));
+    #[cfg(feature = "diethylether")]
+    v.push(("DiethylEther", &diethylether::DIETHYLETHER));
+    #[cfg(feature = "dimethylcarbonate")]
+    v.push(("DimethylCarbonate", &dimethylcarbonate::DIMETHYLCARBONATE));
+    #[cfg(feature = "dimethylether")]
+    v.push(("DimethylEther", &dimethylether::DIMETHYLETHER));
+    #[cfg(feature = "ethane")]
+    v.push(("Ethane", &ethane::ETHANE));
+    #[cfg(feature = "ethanol")]
+    v.push(("Ethanol", &ethanol::ETHANOL));
+    #[cfg(feature = "ethylbenzene")]
+    v.push(("EthylBenzene", &ethylbenzene::ETHYLBENZENE));
+    #[cfg(feature = "ethylene")]
+    v.push(("Ethylene", &ethylene::ETHYLENE));
+    #[cfg(feature = "ethyleneoxide")]
+    v.push(("EthyleneOxide", &ethyleneoxide::ETHYLENEOXIDE));
+    #[cfg(feature = "fluorine")]
+    v.push(("Fluorine", &fluorine::FLUORINE));
+    #[cfg(feature = "hfe143m")]
+    v.push(("HFE143m", &hfe143m::HFE143M));
+    #[cfg(feature = "heavywater")]
+    v.push(("HeavyWater", &heavywater::HEAVYWATER));
+    #[cfg(feature = "helium")]
+    v.push(("Helium", &helium::HELIUM));
+    #[cfg(feature = "hydrogen")]
+    v.push(("Hydrogen", &hydrogen::HYDROGEN));
+    #[cfg(feature = "hydrogenchloride")]
+    v.push(("HydrogenChloride", &hydrogenchloride::HYDROGENCHLORIDE));
+    #[cfg(feature = "hydrogensulfide")]
+    v.push(("HydrogenSulfide", &hydrogensulfide::HYDROGENSULFIDE));
+    #[cfg(feature = "isobutane")]
+    v.push(("IsoButane", &isobutane::ISOBUTANE));
+    #[cfg(feature = "isobutene")]
+    v.push(("IsoButene", &isobutene::ISOBUTENE));
+    #[cfg(feature = "isohexane")]
+    v.push(("Isohexane", &isohexane::ISOHEXANE));
+    #[cfg(feature = "isopentane")]
+    v.push(("Isopentane", &isopentane::ISOPENTANE));
+    #[cfg(feature = "krypton")]
+    v.push(("Krypton", &krypton::KRYPTON));
+    #[cfg(feature = "md2m")]
+    v.push(("MD2M", &md2m::MD2M));
+    #[cfg(feature = "md3m")]
+    v.push(("MD3M", &md3m::MD3M));
+    #[cfg(feature = "md4m")]
+    v.push(("MD4M", &md4m::MD4M));
+    #[cfg(feature = "mdm")]
+    v.push(("MDM", &mdm::MDM));
+    #[cfg(feature = "mm")]
+    v.push(("MM", &mm::MM));
+    #[cfg(feature = "methane")]
+    v.push(("Methane", &methane::METHANE));
+    #[cfg(feature = "methanol")]
+    v.push(("Methanol", &methanol::METHANOL));
+    #[cfg(feature = "methyllinoleate")]
+    v.push(("MethylLinoleate", &methyllinoleate::METHYLLINOLEATE));
+    #[cfg(feature = "methyllinolenate")]
+    v.push(("MethylLinolenate", &methyllinolenate::METHYLLINOLENATE));
+    #[cfg(feature = "methyloleate")]
+    v.push(("MethylOleate", &methyloleate::METHYLOLEATE));
+    #[cfg(feature = "methylpalmitate")]
+    v.push(("MethylPalmitate", &methylpalmitate::METHYLPALMITATE));
+    #[cfg(feature = "methylstearate")]
+    v.push(("MethylStearate", &methylstearate::METHYLSTEARATE));
+    #[cfg(feature = "neon")]
+    v.push(("Neon", &neon::NEON));
+    #[cfg(feature = "neopentane")]
+    v.push(("Neopentane", &neopentane::NEOPENTANE));
+    #[cfg(feature = "nitrogen")]
+    v.push(("Nitrogen", &nitrogen::NITROGEN));
+    #[cfg(feature = "nitrousoxide")]
+    v.push(("NitrousOxide", &nitrousoxide::NITROUSOXIDE));
+    #[cfg(feature = "novec649")]
+    v.push(("Novec649", &novec649::NOVEC649));
+    #[cfg(feature = "orthodeuterium")]
+    v.push(("OrthoDeuterium", &orthodeuterium::ORTHODEUTERIUM));
+    #[cfg(feature = "orthohydrogen")]
+    v.push(("OrthoHydrogen", &orthohydrogen::ORTHOHYDROGEN));
+    #[cfg(feature = "oxygen")]
+    v.push(("Oxygen", &oxygen::OXYGEN));
+    #[cfg(feature = "paradeuterium")]
+    v.push(("ParaDeuterium", &paradeuterium::PARADEUTERIUM));
+    #[cfg(feature = "parahydrogen")]
+    v.push(("ParaHydrogen", &parahydrogen::PARAHYDROGEN));
+    #[cfg(feature = "propylene")]
+    v.push(("Propylene", &propylene::PROPYLENE));
+    #[cfg(feature = "propyleneglycol")]
+    v.push(("PropyleneGlycol", &propyleneglycol::PROPYLENEGLYCOL));
+    #[cfg(feature = "propyne")]
+    v.push(("Propyne", &propyne::PROPYNE));
+    #[cfg(feature = "r11")]
+    v.push(("R11", &r11::R11));
+    #[cfg(feature = "r1123")]
+    v.push(("R1123", &r1123::R1123));
+    #[cfg(feature = "r113")]
+    v.push(("R113", &r113::R113));
+    #[cfg(feature = "r1130_e_")]
+    v.push(("R1130(E)", &r1130_e_::R1130_E_));
+    #[cfg(feature = "r1132_e_")]
+    v.push(("R1132(E)", &r1132_e_::R1132_E_));
+    #[cfg(feature = "r114")]
+    v.push(("R114", &r114::R114));
+    #[cfg(feature = "r115")]
+    v.push(("R115", &r115::R115));
+    #[cfg(feature = "r116")]
+    v.push(("R116", &r116::R116));
+    #[cfg(feature = "r12")]
+    v.push(("R12", &r12::R12));
+    #[cfg(feature = "r1224ydz")]
+    v.push(("R1224YDZ", &r1224ydz::R1224YDZ));
+    #[cfg(feature = "r123")]
+    v.push(("R123", &r123::R123));
+    #[cfg(feature = "r1233zd_e_")]
+    v.push(("R1233zd(E)", &r1233zd_e_::R1233ZD_E_));
+    #[cfg(feature = "r1234yf")]
+    v.push(("R1234yf", &r1234yf::R1234YF));
+    #[cfg(feature = "r1234ze_e_")]
+    v.push(("R1234ze(E)", &r1234ze_e_::R1234ZE_E_));
+    #[cfg(feature = "r1234ze_z_")]
+    v.push(("R1234ze(Z)", &r1234ze_z_::R1234ZE_Z_));
+    #[cfg(feature = "r124")]
+    v.push(("R124", &r124::R124));
+    #[cfg(feature = "r1243zf")]
+    v.push(("R1243zf", &r1243zf::R1243ZF));
+    #[cfg(feature = "r125")]
+    v.push(("R125", &r125::R125));
+    #[cfg(feature = "r13")]
+    v.push(("R13", &r13::R13));
+    #[cfg(feature = "r1336mzz_e_")]
+    v.push(("R1336mzz(E)", &r1336mzz_e_::R1336MZZ_E_));
+    #[cfg(feature = "r1336mzz_z_")]
+    v.push(("R1336mzz(Z)", &r1336mzz_z_::R1336MZZ_Z_));
+    #[cfg(feature = "r134a")]
+    v.push(("R134a", &r134a::R134A));
+    #[cfg(feature = "r13i1")]
+    v.push(("R13I1", &r13i1::R13I1));
+    #[cfg(feature = "r14")]
+    v.push(("R14", &r14::R14));
+    #[cfg(feature = "r141b")]
+    v.push(("R141b", &r141b::R141B));
+    #[cfg(feature = "r142b")]
+    v.push(("R142b", &r142b::R142B));
+    #[cfg(feature = "r143a")]
+    v.push(("R143a", &r143a::R143A));
+    #[cfg(feature = "r152a")]
+    v.push(("R152A", &r152a::R152A));
+    #[cfg(feature = "r161")]
+    v.push(("R161", &r161::R161));
+    #[cfg(feature = "r21")]
+    v.push(("R21", &r21::R21));
+    #[cfg(feature = "r218")]
+    v.push(("R218", &r218::R218));
+    #[cfg(feature = "r22")]
+    v.push(("R22", &r22::R22));
+    #[cfg(feature = "r227ea")]
+    v.push(("R227EA", &r227ea::R227EA));
+    #[cfg(feature = "r23")]
+    v.push(("R23", &r23::R23));
+    #[cfg(feature = "r236ea")]
+    v.push(("R236EA", &r236ea::R236EA));
+    #[cfg(feature = "r236fa")]
+    v.push(("R236FA", &r236fa::R236FA));
+    #[cfg(feature = "r245ca")]
+    v.push(("R245ca", &r245ca::R245CA));
+    #[cfg(feature = "r245fa")]
+    v.push(("R245fa", &r245fa::R245FA));
+    #[cfg(feature = "r32")]
+    v.push(("R32", &r32::R32));
+    #[cfg(feature = "r365mfc")]
+    v.push(("R365MFC", &r365mfc::R365MFC));
+    #[cfg(feature = "r40")]
+    v.push(("R40", &r40::R40));
+    #[cfg(feature = "r41")]
+    v.push(("R41", &r41::R41));
+    #[cfg(feature = "rc318")]
+    v.push(("RC318", &rc318::RC318));
+    #[cfg(feature = "sulfurdioxide")]
+    v.push(("SulfurDioxide", &sulfurdioxide::SULFURDIOXIDE));
+    #[cfg(feature = "sulfurhexafluoride")]
+    v.push(("SulfurHexafluoride", &sulfurhexafluoride::SULFURHEXAFLUORIDE));
+    #[cfg(feature = "tetrahydrofuran")]
+    v.push(("Tetrahydrofuran", &tetrahydrofuran::TETRAHYDROFURAN));
+    #[cfg(feature = "toluene")]
+    v.push(("Toluene", &toluene::TOLUENE));
+    #[cfg(feature = "vinylchloride")]
+    v.push(("VinylChloride", &vinylchloride::VINYLCHLORIDE));
+    #[cfg(feature = "water")]
+    v.push(("Water", &water::WATER));
+    #[cfg(feature = "xenon")]
+    v.push(("Xenon", &xenon::XENON));
+    #[cfg(feature = "cis_2_butene")]
+    v.push(("cis-2-Butene", &cis_2_butene::CIS_2_BUTENE));
+    #[cfg(feature = "m_xylene")]
+    v.push(("m-Xylene", &m_xylene::M_XYLENE));
+    #[cfg(feature = "n_butane")]
+    v.push(("n-Butane", &n_butane::N_BUTANE));
+    #[cfg(feature = "n_decane")]
+    v.push(("n-Decane", &n_decane::N_DECANE));
+    #[cfg(feature = "n_dodecane")]
+    v.push(("n-Dodecane", &n_dodecane::N_DODECANE));
+    #[cfg(feature = "n_heptane")]
+    v.push(("n-Heptane", &n_heptane::N_HEPTANE));
+    #[cfg(feature = "n_hexane")]
+    v.push(("n-Hexane", &n_hexane::N_HEXANE));
+    #[cfg(feature = "n_nonane")]
+    v.push(("n-Nonane", &n_nonane::N_NONANE));
+    #[cfg(feature = "n_octane")]
+    v.push(("n-Octane", &n_octane::N_OCTANE));
+    #[cfg(feature = "n_pentane")]
+    v.push(("n-Pentane", &n_pentane::N_PENTANE));
+    #[cfg(feature = "n_perfluorobutane")]
+    v.push(("n-Perfluorobutane", &n_perfluorobutane::N_PERFLUOROBUTANE));
+    #[cfg(feature = "n_perfluorohexane")]
+    v.push(("n-Perfluorohexane", &n_perfluorohexane::N_PERFLUOROHEXANE));
+    #[cfg(feature = "n_perfluoropentane")]
+    v.push(("n-Perfluoropentane", &n_perfluoropentane::N_PERFLUOROPENTANE));
+    #[cfg(feature = "n_propane")]
+    v.push(("n-Propane", &n_propane::N_PROPANE));
+    #[cfg(feature = "n_undecane")]
+    v.push(("n-Undecane", &n_undecane::N_UNDECANE));
+    #[cfg(feature = "o_xylene")]
+    v.push(("o-Xylene", &o_xylene::O_XYLENE));
+    #[cfg(feature = "p_xylene")]
+    v.push(("p-Xylene", &p_xylene::P_XYLENE));
+    #[cfg(feature = "trans_2_butene")]
+    v.push(("trans-2-Butene", &trans_2_butene::TRANS_2_BUTENE));
+    v
+}

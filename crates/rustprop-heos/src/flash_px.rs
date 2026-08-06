@@ -228,7 +228,7 @@ impl PtFlash {
                     rho_v: sat.rho_v,
                 })
             }
-        } else if t > tc && t > self.fluid().eos.t_triple {
+        } else if t > tc && t > self.t_triple() {
             let phase = if rhomolar > rhoc {
                 Phase::SupercriticalLiquid
             } else {
@@ -282,7 +282,7 @@ impl PtFlash {
                     rho_v: sat.rho_v,
                 })
             }
-        } else if t > tc && t > self.fluid().eos.t_triple {
+        } else if t > tc && t > self.t_triple() {
             self.rho_from_smolar_t_supercritical(t, smolar)
         } else {
             Err(Error::Value(
@@ -477,7 +477,7 @@ impl PtFlash {
         };
 
         // Single-phase: bracket in T per upstream `HSU_P_flash`, then solve.
-        let t_min_fluid = self.fluid().eos.t_triple; // Tmin == Ttriple for the ported fluids
+        let t_min_fluid = self.t_triple(); // upstream Tmin() == Ttriple() == sat_min_liquid.T
         let (t_min, t_max) = match phase {
             Phase::Gas => {
                 let t_max = 1.5 * self.fluid().eos.t_max;
@@ -696,7 +696,7 @@ impl PtFlash {
             }
         }
         // Bracketed fallback: p(T, rho) is monotone in T at fixed rho.
-        let t_lo = self.fluid().eos.t_triple;
+        let t_lo = self.t_triple();
         let (f_lo, f_hi) = (resid.call(t_lo), resid.call(t_hi));
         if !(f_lo.is_finite() && f_hi.is_finite() && f_lo * f_hi < 0.0) {
             return Err(Error::Solution(format!(
