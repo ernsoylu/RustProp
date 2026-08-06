@@ -7,6 +7,7 @@
 pub mod alpha;
 pub mod ancillary;
 pub mod props;
+pub mod saturation;
 pub mod superancillary;
 
 pub use alpha::{HelmholtzDerivs, HelmholtzEos};

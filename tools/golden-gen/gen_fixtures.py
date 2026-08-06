@@ -236,6 +236,28 @@ def gen_heos_water_ancillary():
     return rows
 
 
+def gen_heos_water_sat():
+    """Saturation goldens (PLAN 4.4): QT and PQ states at Q=0/1 across the
+    dome, near-critical included."""
+    rows, skipped = [], 0
+    qt_temps = [274.0, 300.0, 350.0, 400.0, 450.0, 500.0, 550.0, 600.0,
+                620.0, 640.0, 645.0, 646.5, 647.05]
+    for t in qt_temps:
+        for q in [0.0, 1.0]:
+            for out in ["P", "Dmolar", "Hmolar", "Smolar", "Umolar", "Cpmolar", "A"]:
+                r = try_record(out, "T", t, "Q", q, "HEOS", "Water")
+                rows.append(r) if r else (skipped := skipped + 1)
+    pq_pressures = [700.0, 1e3, 1e4, 101325.0, 1e6, 5e6, 1e7, 1.5e7, 2e7,
+                    2.15e7, 2.2e7]
+    for p_ in pq_pressures:
+        for q in [0.0, 1.0]:
+            for out in ["T", "Dmolar", "Hmolar", "Smolar", "Umolar"]:
+                r = try_record(out, "P", p_, "Q", q, "HEOS", "Water")
+                rows.append(r) if r else (skipped := skipped + 1)
+    print(f"heos sat: {len(rows)} records, {skipped} rejected by the oracle")
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     print(f"wrote {len(rows):4d} records -> {name}")
@@ -279,6 +301,7 @@ def main():
     write_jsonl("heos_water_terms.jsonl", gen_heos_water_terms())
     write_jsonl("heos_water_props.jsonl", gen_heos_water_props())
     write_jsonl("heos_water_ancillary.jsonl", gen_heos_water_ancillary())
+    write_jsonl("heos_water_sat.jsonl", gen_heos_water_sat())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -292,6 +315,7 @@ def main():
         "files": [
             "heos_water_ancillary.jsonl",
             "heos_water_props.jsonl",
+            "heos_water_sat.jsonl",
             "heos_water_terms.jsonl",
             "if97_water.jsonl",
             "param_aliases.jsonl",

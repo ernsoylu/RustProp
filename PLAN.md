@@ -148,7 +148,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [x] 4.3 Ancillary equations (psat, ρ′, ρ″) and, where the fluid has one, the v8 Chebyshev
       superancillary evaluation.
       → verify: goldens vs upstream ancillary accessors across the saturation range.
-- [ ] 4.4 Pure-fluid saturation solver (ancillary-seeded, Maxwell criterion), matching upstream's
+- [x] 4.4 Pure-fluid saturation solver (ancillary-seeded, Maxwell criterion), matching upstream's
       iteration scheme.
       → verify: goldens for Q=0/Q=1 properties via `QT_INPUTS`/`PQ_INPUTS` across the dome,
       rel ≤ 1e-8; near-critical fixtures carry documented overrides.
@@ -457,3 +457,19 @@ Append-only; newest last. Seeded entries:
   stay skip-listed. Evaluation port: Clenshaw + Knuth-midpoint interval search + `eval_sat`;
   our evaluation reproduces fastchebpure's own double/multiprecision check-point ratios
   within 1e-14. The inverse (solve_for_T via TOMS748) lands with 4.4.
+- 2026-08-06 — 4.4: v8 reality overrides the step's framing — for a pure fluid WITH a
+  superancillary (ENABLE_SUPERANCILLARIES defaults on), `QT_flash`/`PQ_flash` do NO Maxwell
+  iteration at all: saturation states are direct superancillary evaluations (rhoL/rhoV/p at T;
+  for PQ, T from the lazily-FITTED `T(ln p)` Chebyshev inverse, degree = that of the p
+  expansions, dyadic splitting M=3/tol=1e-12/26 passes). The Maxwell/Akasaka solvers are the
+  no-superancillary fallback, to be ported when such a fluid arrives (4.7/4.8). Ported:
+  `rustprop-heos::saturation` with the invlnp fitter (Lobatto nodes, cosine L-matrix,
+  M-element-norm refinement) and both flashes with upstream's guards. Two logged deviations:
+  (a) the inverse assumes the p(T) curve strictly monotonic — exactly what upstream's extrema
+  machinery degenerates to with no interior extrema — with a loud construction assert (and
+  ULP-scale slack across expansion breakpoints, where adjacent expansions disagree in the
+  last bits); (b) boost TOMS748 (64-bit eps) is replaced by bisection to machine tightness
+  returning the bracket midpoint — same double to ~1 ULP. Verification: 292 QT/PQ goldens at
+  Q=0/1 across the dome incl. T=647.05 K and p=22 MPa near-critical rows, worst deviation
+  2.07e-11 (cp at 647.05 K) vs the 1e-8 policy; guard tests mirror upstream's above-critical
+  errors.
