@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static CYCLOPENTANE: FluidData = FluidData {
     name: "Cyclopentane",
@@ -313,5 +313,12 @@ pub static CYCLOPENTANE: FluidData = FluidData {
             smolar: 123.81463225524458,
         },
     },
-    transport: Some(Transport { viscosity: None }),
+    transport: Some(Transport {
+        viscosity: TransportModel::Unported,
+        conductivity: TransportModel::Model(Conductivity {
+            dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.0082523346, 0.07633654, -0.2176154, 0.31229877], n: &[0.0, 1.0, 2.0, 3.0], b: &[1.0, 0.28341479, 2.7890541, 0.32645005], m: &[0.0, 1.0, 2.0, 3.0], t_reducing: 511.72 },
+            residual: ConductivityResidual::Polynomial { b: &[0.0920536, -0.0435129, -0.172699, 0.112636, 0.126557, -0.0908663, -0.0362296, 0.028095, 0.00388718, -0.00280368], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 511.72, rhomass_reducing: 274.921 },
+            critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.02, gamma: 1.239, nu: 0.63, big_gamma: 0.058, zeta0: 2.16e-10, qd: 1602564102.5641024, t_ref: f64::NAN }),
+        }),
+    }),
 };

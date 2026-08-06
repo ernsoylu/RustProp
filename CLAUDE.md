@@ -78,10 +78,12 @@ real (e2e + doc-tests).
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
 
-6.1 slice 1 (structured viscosity) is done: all five dilute families + Rainwater-Friend/
-empirical + modified-BH/friction-theory, 160 goldens over 20 fluids at 1e-8, bitwise data
-walks, and the absent-vs-unported error split. Next 6.1 slices: structured conductivity trio
-(Olchowy-Sengers uses this viscosity), hardcoded models (Water IAPWS first), ECS/Chung/rhosr.
+6.1 slices 1+2 (structured viscosity + conductivity) are done: all five dilute viscosity
+families + Rainwater-Friend/empirical + modified-BH/friction-theory (160 goldens, 20 fluids);
+conductivity ratio-of-polynomials/eta0_and_poly + polynomial/polynomial_and_exponential +
+simplified Olchowy-Sengers (135 goldens, 15 fluids; saturation endpoints evaluate, interior
+two-phase errors). TRANSPORT slots are per-property tri-state (Absent/Unported/Model). Next
+6.1 slices: hardcoded models (Water IAPWS first), section-hardcoded fluids, ECS/Chung/rhosr.
 
 ## Toolchain
 

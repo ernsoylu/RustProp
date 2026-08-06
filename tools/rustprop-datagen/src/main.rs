@@ -438,10 +438,15 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     let mut timp = String::new();
     for ty in [
         "Transport",
+        "TransportModel",
         "Viscosity",
         "ViscosityDilute",
         "ViscosityInitialDensity",
         "ViscosityHigherOrder",
+        "Conductivity",
+        "ConductivityDilute",
+        "ConductivityResidual",
+        "ConductivityCritical",
     ] {
         if transport_rendered.contains(&format!("{ty} {{"))
             || transport_rendered.contains(&format!("{ty}::"))
@@ -760,34 +765,130 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
 }
 
 /// Classify + emit `TRANSPORT`. Returns the rendered `transport:` field.
+/// Per-property tri-state: Absent (no key -> upstream "model not
+/// available"), Unported (ECS/Chung/rhosr lists/fully-hardcoded), or the
+/// strictly-parsed structured Model.
 fn emit_transport(tr: Option<&serde_json::Value>) -> String {
     let Some(tr) = tr else {
         return "    transport: None,\n".into();
     };
-    let visc = tr.get("viscosity");
-    let viscosity = match visc {
-        Some(v) if v.is_object() => {
-            let v = v.as_object().unwrap();
-            // Not-yet-ported classes: ECS/Chung top-level types, rhosr lists
-            // (arrays), and fully-hardcoded models.
-            if v.contains_key("type") || v.contains_key("hardcoded") {
-                None
-            } else {
-                Some(render_viscosity(v))
+    let slot = |key: &str,
+                render: &dyn Fn(&serde_json::Map<String, serde_json::Value>) -> Option<String>|
+     -> String {
+        match tr.get(key) {
+            None => "TransportModel::Absent".into(),
+            Some(v) if v.is_object() => {
+                let v = v.as_object().unwrap();
+                if v.contains_key("type") || v.contains_key("hardcoded") {
+                    "TransportModel::Unported".into()
+                } else {
+                    match render(v) {
+                        Some(body) => body,
+                        None => "TransportModel::Unported".into(),
+                    }
+                }
             }
+            Some(_) => "TransportModel::Unported".into(), // rhosr-CS lists
         }
-        _ => None,
     };
-    match viscosity {
-        Some(body) => format!(
-            "    transport: Some(Transport {{\n        viscosity: Some(Viscosity {{\n{body}        }}),\n    }}),\n"
+    let visc = slot("viscosity", &|v| {
+        Some(format!(
+            "TransportModel::Model(Viscosity {{\n{}        }})",
+            render_viscosity(v)
+        ))
+    });
+    let cond = slot("conductivity", &|c| {
+        Some(format!(
+            "TransportModel::Model(Conductivity {{\n{}        }})",
+            render_conductivity(c)
+        ))
+    });
+    format!(
+        "    transport: Some(Transport {{\n        viscosity: {visc},\n        conductivity: {cond},\n    }}),\n"
+    )
+}
+
+fn render_conductivity(c: &serde_json::Map<String, serde_json::Value>) -> String {
+    let mut out = String::new();
+    let w = &mut out;
+    let dil = c.get("dilute").expect("structured conductivity has dilute");
+    let dilute = if let Some(h) = dil.get("hardcoded") {
+        format!(
+            "ConductivityDilute::Hardcoded {{ name: {:?} }}",
+            h.as_str().unwrap()
+        )
+    } else {
+        match dil.get("type").and_then(serde_json::Value::as_str).unwrap() {
+            "ratio_of_polynomials" => format!(
+                "ConductivityDilute::RatioOfPolynomials {{ a: {}, n: {}, b: {}, m: {}, t_reducing: {} }}",
+                slice(&jarr(dil, "A")),
+                slice(&jarr(dil, "n")),
+                slice(&jarr(dil, "B")),
+                slice(&jarr(dil, "m")),
+                f(jnum(dil, "T_reducing"))
+            ),
+            "eta0_and_poly" => format!(
+                "ConductivityDilute::Eta0AndPoly {{ a: {}, t: {} }}",
+                slice(&jarr(dil, "A")),
+                slice(&jarr(dil, "t"))
+            ),
+            other => panic!("unknown dilute conductivity type {other}"),
+        }
+    };
+    writeln!(w, "            dilute: {dilute},").unwrap();
+
+    let res = c
+        .get("residual")
+        .expect("structured conductivity has residual");
+    let residual = match res.get("type").and_then(serde_json::Value::as_str).unwrap() {
+        "polynomial" => format!(
+            "ConductivityResidual::Polynomial {{ b: {}, t: {}, d: {}, t_reducing: {}, rhomass_reducing: {} }}",
+            slice(&jarr(res, "B")),
+            slice(&jarr(res, "t")),
+            slice(&jarr(res, "d")),
+            f(jnum(res, "T_reducing")),
+            f(jnum(res, "rhomass_reducing"))
         ),
-        // TRANSPORT exists but its viscosity model class (ECS/Chung/rhosr/
-        // fully-hardcoded) is not ported yet: keep the block present with an
-        // empty viscosity so the API can distinguish "unported" from
-        // "no model" (upstream computes for these; we error loudly).
-        None => "    transport: Some(Transport { viscosity: None }),\n".into(),
+        "polynomial_and_exponential" => format!(
+            "ConductivityResidual::PolynomialAndExponential {{ a: {}, t: {}, d: {}, gamma: {}, l: {} }}",
+            slice(&jarr(res, "A")),
+            slice(&jarr(res, "t")),
+            slice(&jarr(res, "d")),
+            slice(&jarr(res, "gamma")),
+            slice(&jarr(res, "l"))
+        ),
+        other => panic!("unknown residual conductivity type {other}"),
+    };
+    writeln!(w, "            residual: {residual},").unwrap();
+
+    match c.get("critical") {
+        None => writeln!(w, "            critical: None,").unwrap(),
+        Some(cr) => {
+            let body = if let Some(h) = cr.get("hardcoded") {
+                format!(
+                    "ConductivityCritical::Hardcoded {{ name: {:?} }}",
+                    h.as_str().unwrap()
+                )
+            } else {
+                match cr.get("type").and_then(serde_json::Value::as_str).unwrap() {
+                    "simplified_Olchowy_Sengers" => format!(
+                        "ConductivityCritical::SimplifiedOlchowySengers {{ k: {}, r0: {}, gamma: {}, nu: {}, big_gamma: {}, zeta0: {}, qd: {}, t_ref: {} }}",
+                        f(jnum_opt(cr, "k", 1.3806488e-23)),
+                        f(jnum_opt(cr, "R0", 1.03)),
+                        f(jnum_opt(cr, "gamma", 1.239)),
+                        f(jnum_opt(cr, "nu", 0.63)),
+                        f(jnum_opt(cr, "GAMMA", 0.0496)),
+                        f(jnum_opt(cr, "zeta0", 1.94e-10)),
+                        f(jnum_opt(cr, "qD", 2e9)),
+                        f(jnum_opt(cr, "T_ref", f64::NAN))
+                    ),
+                    other => panic!("unknown critical conductivity type {other}"),
+                }
+            };
+            writeln!(w, "            critical: Some({body}),").unwrap();
+        }
     }
+    out
 }
 
 fn jnum(v: &serde_json::Value, key: &str) -> f64 {

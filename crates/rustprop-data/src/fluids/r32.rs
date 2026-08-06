@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel};
 
 pub static R32: FluidData = FluidData {
     name: "R32",
@@ -321,5 +321,8 @@ pub static R32: FluidData = FluidData {
             smolar: 171.3527627007359,
         },
     },
-    transport: Some(Transport { viscosity: None }),
+    transport: Some(Transport {
+        viscosity: TransportModel::Unported,
+        conductivity: TransportModel::Unported,
+    }),
 };

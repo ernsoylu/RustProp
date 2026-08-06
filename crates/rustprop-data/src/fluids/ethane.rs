@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ETHANE: FluidData = FluidData {
     name: "Ethane",
@@ -324,12 +324,17 @@ pub static ETHANE: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: Some(Viscosity {
+        viscosity: TransportModel::Model(Viscosity {
             epsilon_over_k: 245.0,
             sigma_eta: 4.3682e-10,
             dilute: ViscosityDilute::Hardcoded { name: "Ethane" },
             initial_density: None,
             higher_order: ViscosityHigherOrder::Hardcoded { name: "Ethane" },
+        }),
+        conductivity: TransportModel::Model(Conductivity {
+            dilute: ConductivityDilute::Hardcoded { name: "Ethane" },
+            residual: ConductivityResidual::Polynomial { b: &[0.0042448708279092, 0.01214921881971, -0.00011755611350154, -0.00034524130817994, 0.0009666869231454, 0.010536403039518, -0.0033184300792206], t: &[0.0, 0.0, 0.0, 0.0, 0.0, 1.5, 1.0], d: &[1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 3.0], t_reducing: 305.33, rhomass_reducing: 206.5809 },
+            critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.03, gamma: 1.242, nu: 0.63, big_gamma: 0.0563, zeta0: 1.9e-10, qd: 1834862385.3, t_ref: f64::NAN }),
         }),
     }),
 };

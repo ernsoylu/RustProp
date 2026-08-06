@@ -11,8 +11,9 @@
 
 use rustprop_core::fluid::ChebyshevInterval;
 use rustprop_core::fluid::{
-    Alpha0Term, AlpharTerm, FluidData, SaturationAncillary, StatePoint, ViscosityDilute,
-    ViscosityHigherOrder, ViscosityInitialDensity,
+    Alpha0Term, AlpharTerm, Conductivity, ConductivityCritical, ConductivityDilute,
+    ConductivityResidual, FluidData, SaturationAncillary, StatePoint, TransportModel, Viscosity,
+    ViscosityDilute, ViscosityHigherOrder, ViscosityInitialDensity,
 };
 use serde_json::Value;
 use std::path::Path;
@@ -711,11 +712,9 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
     );
 }
 
-/// Mirror of datagen's TRANSPORT classification: absent block -> rust None;
-/// present block with an unported viscosity class (ECS/Chung/rhosr list/
-/// fully-hardcoded) -> `Some(Transport {{ viscosity: None }})`; structured
-/// viscosity -> full field comparison. Conductivity is skipped until its
-/// slice.
+/// Mirror of datagen's TRANSPORT classification. Per-property tri-state:
+/// key absent -> `Absent`; unported class (top-level type/hardcoded, or a
+/// rhosr list) -> `Unported`; structured -> full field comparison.
 fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
     let Some(tr) = json else {
         if fluid.transport.is_some() {
@@ -729,50 +728,208 @@ fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
             .push("TRANSPORT: present in JSON but rust None".into());
         return;
     };
-    let visc = tr.get("viscosity");
-    let structured = matches!(visc, Some(v) if v.is_object()
-        && !v.as_object().unwrap().contains_key("type")
-        && !v.as_object().unwrap().contains_key("hardcoded"));
-    match (&rust_tr.viscosity, structured) {
-        (None, false) => {}
-        (Some(rv), true) => {
-            let v = visc.unwrap();
-            let path = "TRANSPORT.viscosity";
-            // epsilon_over_k / sigma_eta: NaN encodes "absent".
-            for (val, key) in [
-                (rv.epsilon_over_k, "epsilon_over_k"),
-                (rv.sigma_eta, "sigma_eta"),
-            ] {
-                match v.get(key) {
-                    Some(j) => w.num(val, j, &format!("{path}.{key}")),
-                    None if val.is_nan() => {}
-                    None => w
-                        .mismatches
-                        .push(format!("{path}.{key}: absent in JSON but rust {val:?}")),
-                }
+    check_slot(
+        w,
+        &rust_tr.viscosity,
+        tr.get("viscosity"),
+        "TRANSPORT.viscosity",
+        &check_viscosity,
+    );
+    check_slot(
+        w,
+        &rust_tr.conductivity,
+        tr.get("conductivity"),
+        "TRANSPORT.conductivity",
+        &check_conductivity,
+    );
+}
+
+/// Classify one property slot exactly as datagen does and dispatch.
+fn check_slot<T>(
+    w: &mut Walker,
+    rust: &TransportModel<T>,
+    json: Option<&Value>,
+    path: &str,
+    check: &dyn Fn(&mut Walker, &T, &Value, &str),
+) {
+    let class = match json {
+        None => "absent",
+        Some(v) if v.is_object() => {
+            let o = v.as_object().unwrap();
+            if o.contains_key("type") || o.contains_key("hardcoded") {
+                "unported"
+            } else {
+                "structured"
             }
-            check_viscosity_dilute(w, &rv.dilute, &v["dilute"], &format!("{path}.dilute"));
-            match (&rv.initial_density, v.get("initial_density")) {
-                (None, None) => {}
-                (Some(id), Some(j)) => {
-                    check_viscosity_initial(w, id, j, &format!("{path}.initial_density"));
-                }
-                (rust, json) => w.mismatches.push(format!(
-                    "{path}.initial_density: rust present={} json present={}",
-                    rust.is_some(),
-                    json.is_some()
-                )),
-            }
-            check_viscosity_higher(
-                w,
-                &rv.higher_order,
-                &v["higher_order"],
-                &format!("{path}.higher_order"),
+        }
+        Some(_) => "unported", // rhosr-CS lists
+    };
+    match (rust, class) {
+        (TransportModel::Absent, "absent") | (TransportModel::Unported, "unported") => {}
+        (TransportModel::Model(m), "structured") => check(w, m, json.unwrap(), path),
+        (rust, class) => {
+            let rust_class = match rust {
+                TransportModel::Absent => "absent",
+                TransportModel::Unported => "unported",
+                TransportModel::Model(_) => "structured",
+            };
+            w.mismatches
+                .push(format!("{path}: rust {rust_class} vs json {class}"));
+        }
+    }
+}
+
+fn check_viscosity(w: &mut Walker, rv: &Viscosity, v: &Value, path: &str) {
+    // epsilon_over_k / sigma_eta: NaN encodes "absent".
+    for (val, key) in [
+        (rv.epsilon_over_k, "epsilon_over_k"),
+        (rv.sigma_eta, "sigma_eta"),
+    ] {
+        match v.get(key) {
+            Some(j) => w.num(val, j, &format!("{path}.{key}")),
+            None if val.is_nan() => {}
+            None => w
+                .mismatches
+                .push(format!("{path}.{key}: absent in JSON but rust {val:?}")),
+        }
+    }
+    check_viscosity_dilute(w, &rv.dilute, &v["dilute"], &format!("{path}.dilute"));
+    match (&rv.initial_density, v.get("initial_density")) {
+        (None, None) => {}
+        (Some(id), Some(j)) => {
+            check_viscosity_initial(w, id, j, &format!("{path}.initial_density"));
+        }
+        (rust, json) => w.mismatches.push(format!(
+            "{path}.initial_density: rust present={} json present={}",
+            rust.is_some(),
+            json.is_some()
+        )),
+    }
+    check_viscosity_higher(
+        w,
+        &rv.higher_order,
+        &v["higher_order"],
+        &format!("{path}.higher_order"),
+    );
+}
+
+fn check_conductivity(w: &mut Walker, rc: &Conductivity, c: &Value, path: &str) {
+    let dp = format!("{path}.dilute");
+    match &rc.dilute {
+        ConductivityDilute::RatioOfPolynomials {
+            a,
+            n,
+            b,
+            m,
+            t_reducing,
+        } => {
+            let j = &c["dilute"];
+            w.string("ratio_of_polynomials", &j["type"], &format!("{dp}.type"));
+            w.nums(a, &j["A"], &format!("{dp}.A"));
+            w.nums(n, &j["n"], &format!("{dp}.n"));
+            w.nums(b, &j["B"], &format!("{dp}.B"));
+            w.nums(m, &j["m"], &format!("{dp}.m"));
+            w.num(*t_reducing, &j["T_reducing"], &format!("{dp}.T_reducing"));
+        }
+        ConductivityDilute::Eta0AndPoly { a, t } => {
+            let j = &c["dilute"];
+            w.string("eta0_and_poly", &j["type"], &format!("{dp}.type"));
+            w.nums(a, &j["A"], &format!("{dp}.A"));
+            w.nums(t, &j["t"], &format!("{dp}.t"));
+        }
+        ConductivityDilute::Hardcoded { name } => {
+            w.string(name, &c["dilute"]["hardcoded"], &format!("{dp}.hardcoded"));
+        }
+    }
+    let rp = format!("{path}.residual");
+    match &rc.residual {
+        ConductivityResidual::Polynomial {
+            b,
+            t,
+            d,
+            t_reducing,
+            rhomass_reducing,
+        } => {
+            let j = &c["residual"];
+            w.string("polynomial", &j["type"], &format!("{rp}.type"));
+            w.nums(b, &j["B"], &format!("{rp}.B"));
+            w.nums(t, &j["t"], &format!("{rp}.t"));
+            w.nums(d, &j["d"], &format!("{rp}.d"));
+            w.num(*t_reducing, &j["T_reducing"], &format!("{rp}.T_reducing"));
+            w.num(
+                *rhomass_reducing,
+                &j["rhomass_reducing"],
+                &format!("{rp}.rhomass_reducing"),
             );
         }
-        (rust, _) => w.mismatches.push(format!(
-            "TRANSPORT.viscosity: rust structured={} json structured={structured}",
-            rust.is_some()
+        ConductivityResidual::PolynomialAndExponential { a, t, d, gamma, l } => {
+            let j = &c["residual"];
+            w.string(
+                "polynomial_and_exponential",
+                &j["type"],
+                &format!("{rp}.type"),
+            );
+            w.nums(a, &j["A"], &format!("{rp}.A"));
+            w.nums(t, &j["t"], &format!("{rp}.t"));
+            w.nums(d, &j["d"], &format!("{rp}.d"));
+            w.nums(gamma, &j["gamma"], &format!("{rp}.gamma"));
+            w.nums(l, &j["l"], &format!("{rp}.l"));
+        }
+    }
+    let cp = format!("{path}.critical");
+    match (&rc.critical, c.get("critical")) {
+        (None, None) => {}
+        (
+            Some(ConductivityCritical::SimplifiedOlchowySengers {
+                k,
+                r0,
+                gamma,
+                nu,
+                big_gamma,
+                zeta0,
+                qd,
+                t_ref,
+            }),
+            Some(j),
+        ) => {
+            w.string(
+                "simplified_Olchowy_Sengers",
+                &j["type"],
+                &format!("{cp}.type"),
+            );
+            // Absent keys carry upstream's defaults in the generated data.
+            for (val, key, default) in [
+                (*k, "k", 1.380_648_8e-23),
+                (*r0, "R0", 1.03),
+                (*gamma, "gamma", 1.239),
+                (*nu, "nu", 0.63),
+                (*big_gamma, "GAMMA", 0.0496),
+                (*zeta0, "zeta0", 1.94e-10),
+                (*qd, "qD", 2e9),
+            ] {
+                match j.get(key) {
+                    Some(jv) => w.num(val, jv, &format!("{cp}.{key}")),
+                    None if val == default => {}
+                    None => w.mismatches.push(format!(
+                        "{cp}.{key}: absent in JSON but rust {val:?} != default {default:?}"
+                    )),
+                }
+            }
+            match j.get("T_ref") {
+                Some(jv) => w.num(*t_ref, jv, &format!("{cp}.T_ref")),
+                None if t_ref.is_nan() => {}
+                None => w
+                    .mismatches
+                    .push(format!("{cp}.T_ref: absent in JSON but rust {t_ref:?}")),
+            }
+        }
+        (Some(ConductivityCritical::Hardcoded { name }), Some(j)) => {
+            w.string(name, &j["hardcoded"], &format!("{cp}.hardcoded"));
+        }
+        (rust, json) => w.mismatches.push(format!(
+            "{cp}: rust present={} json present={}",
+            rust.is_some(),
+            json.is_some()
         )),
     }
 }

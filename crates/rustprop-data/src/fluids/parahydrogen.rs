@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static PARAHYDROGEN: FluidData = FluidData {
     name: "ParaHydrogen",
@@ -293,12 +293,17 @@ pub static PARAHYDROGEN: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: Some(Viscosity {
+        viscosity: TransportModel::Model(Viscosity {
             epsilon_over_k: 30.41,
             sigma_eta: 2.97e-10,
             dilute: ViscosityDilute::CollisionIntegral { a: &[0.20963, -0.455274, 0.143602, -0.0335325, 0.00276981], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.1357e-8, molar_mass: 0.00201588 },
             initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-0.187, 2.4871, 3.7151, -11.0972, 9.0965, -3.8292, 0.5166], t: &[0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0] }),
             higher_order: ViscosityHigherOrder::Hardcoded { name: "Hydrogen" },
+        }),
+        conductivity: TransportModel::Model(Conductivity {
+            dilute: ConductivityDilute::RatioOfPolynomials { a: &[-1.245, 310.212, -331.004, 246.016, -65.781, 10.826, -0.519659, 0.0143979], n: &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0], b: &[14230.4, -19392.2, 15837.9, -4818.12, 728.639, -35.7365, 1.0], m: &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0], t_reducing: 32.938 },
+            residual: ConductivityResidual::Polynomial { b: &[0.0265975, -0.00133826, 0.0130219, -0.00567678, -9.2338e-5, -0.00121727, 0.00366663, 0.00388715, -0.00921055, 0.00400723], t: &[0.0, 0.0, 0.0, 0.0, 0.0, -1.0, -1.0, -1.0, -1.0, -1.0], d: &[1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0], t_reducing: 32.938, rhomass_reducing: 31.32274344 },
+            critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.01, gamma: 1.2415, nu: 0.63, big_gamma: 0.052, zeta0: 1.5e-10, qd: 2000000000.0, t_ref: f64::NAN }),
         }),
     }),
 };

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static DIMETHYLETHER: FluidData = FluidData {
     name: "DimethylEther",
@@ -317,12 +317,13 @@ pub static DIMETHYLETHER: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: Some(Viscosity {
+        viscosity: TransportModel::Model(Viscosity {
             epsilon_over_k: 317.937,
             sigma_eta: 4.46704e-10,
             dilute: ViscosityDilute::CollisionIntegral { a: &[0.294261, -0.377826, -0.491673], t: &[0.0, 1.0, 2.0], c: 2.1357e-8, molar_mass: 0.04606844 },
             initial_density: None,
             higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-2.70002e-6, 4.44583e-6, 2.1302e-7, 6.50681e-6, -0.000104998, 7.827474e-5, 4.13751e-5, -0.000175055, 6.281975e-5, 0.0001123219], d1: &[3.0, 3.0, 5.0, 1.0, 3.0, 4.0, 5.0, 2.0, 2.0, 2.0], t1: &[5.92, 4.36, 5.87, 0.45, 2.93, 1.64, 7.86, 4.25, 4.79, 3.11], gamma: &[0.0, 0.0, 0.0, 0.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0], l: &[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 1.0, 1.0, 2.0], f: &[0.0], d2: &[1.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 400.378, rhomolar_reduce: 5940.0 },
         }),
+        conductivity: TransportModel::Absent,
     }),
 };

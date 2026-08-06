@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static METHANE: FluidData = FluidData {
     name: "Methane",
@@ -303,12 +303,13 @@ pub static METHANE: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: Some(Viscosity {
+        viscosity: TransportModel::Model(Viscosity {
             epsilon_over_k: 148.6,
             sigma_eta: 3.758e-10,
             dilute: ViscosityDilute::PowersOfTr { a: &[2.60536e-6, -1.85247e-5, 2.34216e-5, 0.0], t: &[0.0, 0.25, 0.5, 0.75], t_reducing: 190.564 },
             initial_density: None,
             higher_order: ViscosityHigherOrder::FrictionTheory { ai: &[3.49668e-8, -1.73176e-8, 0.0], aa: &[-3.12118e-8, 1.99422e-10, 0.0], ar: &[5.98858e-8, -4.91143e-8, 0.0], aaa: &[-8.52992e-13, -3.58009e-13, 0.0], arr: &[], adrdr: &[1.60099e-11, 8.50221e-13, 0.0], aii: &[-3.55631e-10, 2.80326e-10, 0.0], arrr: &[], aaaa: &[], na: 1.0, naa: 3.0, nr: 1.0, nrr: 3.0, nii: 3.0, nrrr: 0.0, naaa: 0.0, c1: 1.0, c2: 1.0, t_reduce: 190.564 },
         }),
+        conductivity: TransportModel::Unported,
     }),
 };

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static N_PENTANE: FluidData = FluidData {
     name: "n-Pentane",
@@ -326,12 +326,17 @@ pub static N_PENTANE: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: Some(Viscosity {
+        viscosity: TransportModel::Model(Viscosity {
             epsilon_over_k: 341.1,
             sigma_eta: 5.784e-10,
             dilute: ViscosityDilute::PowersOfTr { a: &[1.76805e-5, -5.56942e-5, 4.87177e-5, 0.0], t: &[0.0, 0.25, 0.5, 0.75], t_reducing: 469.7 },
             initial_density: None,
             higher_order: ViscosityHigherOrder::FrictionTheory { ai: &[-5.08307e-8, -1.07e-8, 0.0], aa: &[1.08193e-8, -4.71699e-8, 0.0], ar: &[1.21502e-7, -9.84766e-8, 0.0], aaa: &[-2.10025e-13, -1.56583e-12, 0.0], arr: &[], adrdr: &[1.98521e-11, 2.05972e-12, 0.0], aii: &[-1.18487e-10, 1.69571e-10, 0.0], arrr: &[], aaaa: &[], na: 1.0, naa: 3.0, nr: 1.0, nrr: 3.0, nii: 3.0, nrrr: 0.0, naaa: 0.0, c1: 1.0, c2: 1.0, t_reduce: 469.7 },
+        }),
+        conductivity: TransportModel::Model(Conductivity {
+            dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.00396685, 0.0353805, 0.00511554, -0.108585, 0.179573, 0.0392128], n: &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], b: &[2.71636, -5.76265, 6.77885, -0.59135, 1.0], m: &[0.0, 1.0, 2.0, 3.0, 4.0], t_reducing: 469.7 },
+            residual: ConductivityResidual::Polynomial { b: &[0.000776054, 0.00797696, 0.117655, -0.0785888, -0.133101, 0.0916089, 0.0534026, -0.0370431, -0.0068793, 0.0050962], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 469.7, rhomass_reducing: 232.0 },
+            critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.02, gamma: 1.239, nu: 0.63, big_gamma: 0.058, zeta0: 2.27e-10, qd: 1497005988.0239522, t_ref: f64::NAN }),
         }),
     }),
 };

@@ -17,7 +17,8 @@
 
 use crate::alpha::HelmholtzEos;
 use rustprop_core::fluid::{
-    Viscosity, ViscosityDilute, ViscosityHigherOrder, ViscosityInitialDensity,
+    Conductivity, ConductivityCritical, ConductivityDilute, ConductivityResidual, Viscosity,
+    ViscosityDilute, ViscosityHigherOrder, ViscosityInitialDensity,
 };
 use rustprop_core::{Error, Result};
 
@@ -258,4 +259,172 @@ fn viscosity_higher_order(
             )));
         }
     })
+}
+
+/// Upstream `calc_conductivity` (`lambda = dilute + residual + critical`)
+/// for a pure fluid at a fully-determined state. The Olchowy-Sengers
+/// critical enhancement needs the fluid's own viscosity and cp/cv — cp is
+/// undefined in the two-phase region, where upstream throws.
+#[allow(clippy::too_many_arguments)]
+pub fn conductivity(
+    eos: &HelmholtzEos,
+    c: &Conductivity,
+    viscosity_model: Option<&Viscosity>,
+    reducing_p: f64,
+    t: f64,
+    rhomolar: f64,
+    p: f64,
+    two_phase: bool,
+) -> Result<f64> {
+    let dilute = match &c.dilute {
+        ConductivityDilute::RatioOfPolynomials {
+            a,
+            n,
+            b,
+            m,
+            t_reducing,
+        } => {
+            let tr = t / t_reducing;
+            let mut summer1 = 0.0;
+            for i in 0..a.len() {
+                summer1 += a[i] * tr.powf(n[i]);
+            }
+            let mut summer2 = 0.0;
+            for i in 0..b.len() {
+                summer2 += b[i] * tr.powf(m[i]);
+            }
+            summer1 / summer2
+        }
+        ConductivityDilute::Eta0AndPoly { a, t: at } => {
+            let v = viscosity_model.ok_or_else(|| {
+                Error::NotImplemented(
+                    "conductivity eta0_and_poly needs the fluid's (unported) viscosity model"
+                        .into(),
+                )
+            })?;
+            let eta0_upas = viscosity_dilute(eos, v, t)? * 1e6;
+            let tau = eos.t_reducing / t;
+            let mut summer = a[0] * eta0_upas;
+            for i in 1..a.len() {
+                summer += a[i] * tau.powf(at[i]);
+            }
+            summer
+        }
+        ConductivityDilute::Hardcoded { name } => {
+            return Err(Error::NotImplemented(format!(
+                "hardcoded dilute conductivity [{name}] is not ported yet"
+            )));
+        }
+    };
+
+    let residual = match &c.residual {
+        ConductivityResidual::Polynomial {
+            b,
+            t: bt,
+            d,
+            t_reducing,
+            rhomass_reducing,
+        } => {
+            let tau = t_reducing / t;
+            let delta = rhomolar * eos.molar_mass / rhomass_reducing;
+            let mut summer = 0.0;
+            for i in 0..b.len() {
+                summer += b[i] * tau.powf(bt[i]) * delta.powf(d[i]);
+            }
+            summer
+        }
+        ConductivityResidual::PolynomialAndExponential {
+            a,
+            t: at,
+            d,
+            gamma,
+            l,
+        } => {
+            let tau = eos.t_reducing / t;
+            let delta = rhomolar / eos.rhomolar_reducing;
+            let mut summer = 0.0;
+            for i in 0..a.len() {
+                summer += a[i]
+                    * tau.powf(at[i])
+                    * delta.powf(d[i])
+                    * (-gamma[i] * delta.powf(l[i])).exp();
+            }
+            summer
+        }
+    };
+
+    let critical = match &c.critical {
+        None => 0.0,
+        Some(ConductivityCritical::SimplifiedOlchowySengers {
+            k,
+            r0,
+            gamma,
+            nu,
+            big_gamma,
+            zeta0,
+            qd,
+            t_ref,
+        }) => {
+            // cp/cv (and the enhancement) are undefined in the two-phase
+            // region — upstream's cpmolar() throws there.
+            if two_phase {
+                return Err(Error::Value(
+                    "Input is two-phase and the critical conductivity enhancement is not defined"
+                        .into(),
+                ));
+            }
+            let v = viscosity_model.ok_or_else(|| {
+                Error::NotImplemented(
+                    "the Olchowy-Sengers enhancement needs the fluid's (unported) viscosity model"
+                        .into(),
+                )
+            })?;
+            let tc = eos.t_reducing;
+            let rhoc = eos.rhomolar_reducing;
+            let pcrit = reducing_p;
+            let tref = if t_ref.is_finite() { *t_ref } else { 1.5 * tc };
+
+            let delta = rhomolar / rhoc;
+            let tau = tc / t;
+            let dd = eos.alphar_all(tau, delta);
+            let dp_drho =
+                eos.gas_constant * t * (1.0 + 2.0 * delta * dd.d10 + delta * delta * dd.d20);
+            let x = pcrit / rhoc.powf(2.0) * rhomolar / dp_drho;
+
+            let tau_ref = tc / tref;
+            let dref = eos.alphar_all(tau_ref, delta);
+            let dp_drho_ref =
+                eos.gas_constant * tref * (1.0 + 2.0 * delta * dref.d10 + delta * delta * dref.d20);
+            let xref = pcrit / rhoc.powf(2.0) * rhomolar / dp_drho_ref * tref / t;
+            let num = x - xref;
+
+            // No critical enhancement if the numerator is negative, zero, or
+            // just a tiny bit positive due to roundoff (Lemmon, IJT, 2004).
+            if num < f64::EPSILON * 10.0 {
+                0.0
+            } else {
+                let zeta = zeta0 * (num / big_gamma).powf(nu / gamma);
+                let cp = eos.cpmolar(t, rhomolar);
+                let cv = eos.cvmolar(t, rhomolar);
+                let mu = viscosity(eos, v, t, rhomolar, p)?;
+                let pi = std::f64::consts::PI;
+                let omega_tilde =
+                    2.0 / pi * ((cp - cv) / cp * (zeta * qd).atan() + cv / cp * (zeta * qd));
+                let omega_tilde0 = 2.0 / pi
+                    * (1.0
+                        - (-1.0
+                            / (1.0 / (qd * zeta)
+                                + 1.0 / 3.0 * (zeta * qd) * (zeta * qd) / delta / delta))
+                            .exp());
+                rhomolar * cp * r0 * k * t / (6.0 * pi * mu * zeta) * (omega_tilde - omega_tilde0)
+            }
+        }
+        Some(ConductivityCritical::Hardcoded { name }) => {
+            return Err(Error::NotImplemented(format!(
+                "hardcoded critical conductivity [{name}] is not ported yet"
+            )));
+        }
+    };
+
+    Ok(dilute + residual + critical)
 }

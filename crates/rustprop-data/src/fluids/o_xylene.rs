@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static O_XYLENE: FluidData = FluidData {
     name: "o-Xylene",
@@ -313,5 +313,12 @@ pub static O_XYLENE: FluidData = FluidData {
             smolar: 84.06314685071537,
         },
     },
-    transport: Some(Transport { viscosity: None }),
+    transport: Some(Transport {
+        viscosity: TransportModel::Unported,
+        conductivity: TransportModel::Model(Conductivity {
+            dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.0008374880000000001, 0.0127856, -0.0371925, 0.06395479999999999, -0.00443443], n: &[0.0, 1.0, 2.0, 3.0, 4.0], b: &[0.262226, -0.490519, 1.0], m: &[0.0, 1.0, 2.0], t_reducing: 630.259 },
+            residual: ConductivityResidual::Polynomial { b: &[-0.0346292, 0.0455879, 0.0757735, -0.0594473, -0.06743779999999999, 0.0550012, 0.027695, -0.0255522, -0.00374238, 0.00418805], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 630.259, rhomass_reducing: 285.0 },
+            critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.03, gamma: 1.239, nu: 0.63, big_gamma: 0.058, zeta0: 2.36e-10, qd: 1406469760.9001403, t_ref: f64::NAN }),
+        }),
+    }),
 };

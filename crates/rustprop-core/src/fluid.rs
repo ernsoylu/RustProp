@@ -23,17 +23,131 @@ pub struct FluidData {
     pub ancillaries: Ancillaries,
     /// `STATES`
     pub states: States,
-    /// `TRANSPORT` — the ported viscosity models; None when the document has
-    /// no TRANSPORT block or only not-yet-ported model classes
+    /// `TRANSPORT` — None when the document has no TRANSPORT block at all
     pub transport: Option<Transport>,
 }
 
-/// `TRANSPORT` (ported subset; conductivity joins with its slice).
+/// `TRANSPORT` (ported subset).
 pub struct Transport {
-    /// `TRANSPORT.viscosity` in the structured dilute/initial_density/
-    /// higher_order form (ECS/Chung/rhosr-CS and fully-hardcoded models are
-    /// not yet ported and leave this None)
-    pub viscosity: Option<Viscosity>,
+    /// `TRANSPORT.viscosity`
+    pub viscosity: TransportModel<Viscosity>,
+    /// `TRANSPORT.conductivity`
+    pub conductivity: TransportModel<Conductivity>,
+}
+
+/// Per-property model slot: upstream distinguishes "no model provided"
+/// (ValueError) from a model this port has not implemented yet.
+pub enum TransportModel<T: 'static> {
+    /// The property key is absent from the document
+    Absent,
+    /// The document carries a model class that is not ported yet
+    /// (ECS/Chung/rhosr-CS lists/fully-hardcoded)
+    Unported,
+    /// A ported structured model
+    Model(T),
+}
+
+/// `TRANSPORT.conductivity` (structured form); the assembly is
+/// `lambda = dilute + residual + critical`.
+pub struct Conductivity {
+    /// `.dilute`
+    pub dilute: ConductivityDilute,
+    /// `.residual`
+    pub residual: ConductivityResidual,
+    /// `.critical` — absent means no critical enhancement
+    pub critical: Option<ConductivityCritical>,
+}
+
+/// `TRANSPORT.conductivity.dilute`, tagged by `type` (or `hardcoded`).
+pub enum ConductivityDilute {
+    /// `ratio_of_polynomials` — `sum A_i Tr^n_i / sum B_i Tr^m_i`
+    RatioOfPolynomials {
+        /// `.A`
+        a: &'static [f64],
+        /// `.n`
+        n: &'static [f64],
+        /// `.B`
+        b: &'static [f64],
+        /// `.m`
+        m: &'static [f64],
+        /// `.T_reducing` [K]
+        t_reducing: f64,
+    },
+    /// `eta0_and_poly` — `A_0*eta0[uPa-s] + sum_{i>=1} A_i*tau^t_i`
+    Eta0AndPoly {
+        /// `.A`
+        a: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+    },
+    /// `.hardcoded` — ports with the hardcoded slice
+    Hardcoded {
+        /// the `.hardcoded` tag
+        name: &'static str,
+    },
+}
+
+/// `TRANSPORT.conductivity.residual`, tagged by `type`.
+pub enum ConductivityResidual {
+    /// `polynomial` — `sum B_i tau^t_i delta^d_i` with delta from the MASS
+    /// density over `rhomass_reducing`
+    Polynomial {
+        /// `.B`
+        b: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.T_reducing` [K]
+        t_reducing: f64,
+        /// `.rhomass_reducing` [kg/m^3]
+        rhomass_reducing: f64,
+    },
+    /// `polynomial_and_exponential` — EOS tau/delta with
+    /// `exp(-gamma_i*delta^l_i)` factors
+    PolynomialAndExponential {
+        /// `.A`
+        a: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.gamma`
+        gamma: &'static [f64],
+        /// `.l`
+        l: &'static [f64],
+    },
+}
+
+/// `TRANSPORT.conductivity.critical`, tagged by `type` (or `hardcoded`).
+pub enum ConductivityCritical {
+    /// `simplified_Olchowy_Sengers`; absent JSON keys carry upstream's
+    /// defaults (k = 1.3806488e-23, R0 = 1.03, gamma = 1.239, nu = 0.63,
+    /// GAMMA = 0.0496, zeta0 = 1.94e-10, qD = 2e9); `t_ref` is NaN for
+    /// upstream's 1.5*T_reducing default
+    SimplifiedOlchowySengers {
+        /// `.k` (default)
+        k: f64,
+        /// `.R0`
+        r0: f64,
+        /// `.gamma`
+        gamma: f64,
+        /// `.nu` (default)
+        nu: f64,
+        /// `.GAMMA`
+        big_gamma: f64,
+        /// `.zeta0` [m]
+        zeta0: f64,
+        /// `.qD` [1/m]
+        qd: f64,
+        /// `.T_ref` [K] (NaN -> 1.5*T_reducing)
+        t_ref: f64,
+    },
+    /// `.hardcoded` — ports with the hardcoded slice
+    Hardcoded {
+        /// the `.hardcoded` tag
+        name: &'static str,
+    },
 }
 
 /// `TRANSPORT.viscosity` (structured form).

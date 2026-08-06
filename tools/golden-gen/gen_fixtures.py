@@ -796,6 +796,50 @@ def gen_viscosity():
     return rows
 
 
+# The 15 fluids whose conductivity trio AND viscosity are fully structured
+# (the Olchowy-Sengers enhancement consumes the fluid's viscosity).
+CONDUCTIVITY_STRUCTURED = [
+    "Argon", "Ethanol", "IsoButane", "Nitrogen", "Oxygen", "R125", "R134a",
+    "SulfurHexafluoride", "n-Butane", "n-Decane", "n-Dodecane", "n-Nonane",
+    "n-Octane", "n-Pentane", "n-Propane",
+]
+
+
+def gen_conductivity():
+    """6.1 structured-conductivity goldens: L at PT states (incl. the
+    near-critical region where the Olchowy-Sengers enhancement dominates)
+    and along the saturation curve."""
+    rows, skipped = [], 0
+    for fluid in CONDUCTIVITY_STRUCTURED:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        pc = PropsSI("pcrit", "", 0, "", 0, hf)
+
+        def TL(x):
+            return Tt + x * (Tc - Tt)
+
+        def psat(T):
+            return PropsSI("P", "T", T, "Q", 1, hf)
+
+        def rec(out, n1, v1, n2, v2):
+            nonlocal skipped
+            r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+
+        rec("L", "T", TL(0.3), "P", 2.5 * psat(TL(0.3)))
+        rec("L", "T", TL(0.6), "P", 2.0 * psat(TL(0.6)))
+        rec("L", "T", TL(0.8), "P", 0.5 * psat(TL(0.8)))
+        rec("L", "T", 1.1 * Tc, "P", 1.5 * pc)
+        rec("L", "T", 1.02 * Tc, "P", 1.02 * pc)
+        rec("L", "T", TL(0.5), "Q", 0.0)
+        rec("L", "T", TL(0.5), "Q", 1.0)
+        rec("L", "T", TL(0.98), "Q", 0.0)
+        rec("conductivity", "T", TL(0.7), "P", 3.0 * psat(TL(0.7)))
+    print(f"conductivity: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 WRITTEN = []
 
 
@@ -857,6 +901,7 @@ def main():
     write_jsonl("props_si.jsonl", gen_props_si())
     write_jsonl("surface_tension.jsonl", gen_surface_tension())
     write_jsonl("viscosity.jsonl", gen_viscosity())
+    write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

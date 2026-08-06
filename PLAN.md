@@ -711,3 +711,23 @@ Append-only; newest last. Seeded entries:
   on the first run; error conditions asserted (Acetone absent-model, Water/CO2 unported
   classes). Remaining for 6.1: structured conductivity trio (needs this viscosity for
   Olchowy-Sengers), hardcoded/section-hardcoded models, ECS, Chung, rhosr-CS.
+- 2026-08-06 — 6.1 slice 2 (structured conductivity) complete: dilute ratio_of_polynomials
+  and eta0_and_poly (the latter consumes the fluid's DILUTE viscosity in uPa-s), residual
+  polynomial (delta from the MASS density over rhomass_reducing) and
+  polynomial_and_exponential (EOS tau/delta), and the simplified_Olchowy_Sengers critical
+  enhancement — X and Xref from dp/drho at T and at T_ref (JSON override, default 1.5*T_red),
+  Pcrit = the REDUCING-state pressure, the 10*DBL_EPSILON no-enhancement cutoff (Lemmon IJT
+  2004), and the fluid's own full viscosity in the denominator. Struct defaults ported
+  (k=1.3806488e-23, R0=1.03, gamma=1.239, nu=0.63, GAMMA=0.0496, zeta0=1.94e-10, qD=2e9);
+  datagen materializes them for absent JSON keys and the walker checks presence-vs-default.
+  TRANSPORT slots are now a per-property TRI-STATE (Absent -> upstream's ValueError,
+  Unported -> NotImplemented, Model -> evaluate) — this also fixed slice 1's misreport for
+  fluids with TRANSPORT but no viscosity key. Two-phase gating matches upstream empirics:
+  the saturation ENDPOINTS (Q=0/1) evaluate like the saturated phase (the oracle computes
+  them); only strictly-interior quality errors. 135 goldens over the 15 fluids whose trio
+  AND viscosity are structured (PT incl. 1.02*Tc/1.02*pc where the enhancement dominates,
+  sat Q=0/1, near-critical Q=0) pass at 1e-8 on the first run after the endpoint fix; error
+  conditions asserted (Acetone absent, Water hardcoded, Ammonia hardcoded-critical, Benzene
+  blocked-by-unported-viscosity, two-phase n-Propane). Conductivity data for ALL 35
+  structured fluids is ported and bitwise-walked; the 20 with unported viscosity classes
+  activate automatically as those slices land.
