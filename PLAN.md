@@ -90,7 +90,7 @@ are not a fidelity target.
 Proves the whole modular pipeline (engine crate → facade feature → CLI → wasm) on the one engine
 that needs no fluid data files.
 
-- [ ] 2.1 Locate the IF97 implementation upstream (v8 pulls `CoolProp/IF97` via CPM.cmake —
+- [x] 2.1 Locate the IF97 implementation upstream (v8 pulls `CoolProp/IF97` via CPM.cmake —
       find the pinned version in the build files, record it in the Decisions log, clone it
       alongside the CoolProp checkout).
       → verify: pinned IF97 ref recorded; source present locally.
@@ -365,3 +365,7 @@ Append-only; newest last. Seeded entries:
   (`eHandle`, `eUnableToLoad`, `eDirectorySize` — C handle API / DLL loading / REFPROP paths,
   meaningless in this port); `Display` shows message-only like upstream `what()`.
 - 2026-08-06 — 1.3: no engine trait defined; grep confirms no `trait` items in `rustprop-core`.
+- 2026-08-06 — 2.1: upstream pins IF97 via CPM (`cmake/dependencies.cmake`):
+  `github.com/CoolProp/IF97` @ `7aaced024a702f0985474bf293cdaae9c8d06521`. Cloned to
+  `~/homecloud/dev/IF97` and checked out at that commit. The implementation is the header-only
+  `IF97.h` (4909 lines) — the 2.2 porting source.
