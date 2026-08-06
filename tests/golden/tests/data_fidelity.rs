@@ -8,6 +8,7 @@
 //! that is neither ported nor on the explicit skip list fails the test, so
 //! nothing gets dropped silently.
 
+use rustprop_core::fluid::ChebyshevInterval;
 use rustprop_core::fluid::{Alpha0Term, AlpharTerm, SaturationAncillary, StatePoint};
 use rustprop_data::fluids::water::WATER;
 use serde_json::Value;
@@ -191,13 +192,9 @@ fn water_data_matches_upstream_json_exactly() {
             "STATES",
             "alpha0",
             "alphar",
-        ],
-        &[
-            "BibTeX_CP0",
-            "BibTeX_EOS",
             "SUPERANCILLARY",
-            "critical_region_splines",
         ],
+        &["BibTeX_CP0", "BibTeX_EOS", "critical_region_splines"],
     );
     w.num(
         WATER.eos.gas_constant,
@@ -362,6 +359,96 @@ fn water_data_matches_upstream_json_exactly() {
                 w.nums(big_d, &json["D"], &format!("{path}.D"));
             }
         }
+    }
+
+    // SUPERANCILLARY
+    let sa_json = &eos["SUPERANCILLARY"];
+    let sa = WATER
+        .eos
+        .superancillary
+        .as_ref()
+        .expect("Water has a superancillary");
+    w.keys(
+        sa_json,
+        "EOS[0].SUPERANCILLARY",
+        &[
+            "jexpansions_p",
+            "jexpansions_rhoL",
+            "jexpansions_rhoV",
+            "meta",
+            "check_points",
+        ],
+        &["crit_anc", "source_eos_hash"],
+    );
+    let cheb_sets: [(&str, &[ChebyshevInterval]); 3] = [
+        ("jexpansions_p", sa.p),
+        ("jexpansions_rhoL", sa.rho_l),
+        ("jexpansions_rhoV", sa.rho_v),
+    ];
+    for (name, rust_side) in cheb_sets {
+        let arr = sa_json[name].as_array().unwrap();
+        assert_eq!(rust_side.len(), arr.len(), "{name} interval count");
+        for (i, (r, j)) in rust_side.iter().zip(arr).enumerate() {
+            let path = format!("EOS[0].SUPERANCILLARY.{name}[{i}]");
+            w.keys(j, &path, &["xmin", "xmax", "coef"], &[]);
+            w.num(r.xmin, &j["xmin"], &format!("{path}.xmin"));
+            w.num(r.xmax, &j["xmax"], &format!("{path}.xmax"));
+            w.nums(r.coef, &j["coef"], &format!("{path}.coef"));
+        }
+    }
+    let meta = &sa_json["meta"];
+    w.keys(
+        meta,
+        "EOS[0].SUPERANCILLARY.meta",
+        &["Tcrittrue / K", "rhocrittrue / mol/m^3"],
+        &[
+            "BrhoL / mol/m^3",
+            "BrhoV / mol/m^3",
+            "Tcrit / K",
+            "Treducing / K",
+            "Ttriple / K",
+            "gas_constant / J/mol/K",
+        ],
+    );
+    w.num(sa.t_crit_num, &meta["Tcrittrue / K"], "meta.Tcrittrue");
+    w.num(
+        sa.rho_crit_num,
+        &meta["rhocrittrue / mol/m^3"],
+        "meta.rhocrittrue",
+    );
+    let cps = sa_json["check_points"].as_array().unwrap();
+    assert_eq!(sa.check_points.len(), cps.len(), "check_points count");
+    for (i, (r, j)) in sa.check_points.iter().zip(cps).enumerate() {
+        let path = format!("EOS[0].SUPERANCILLARY.check_points[{i}]");
+        w.keys(
+            j,
+            &path,
+            &[
+                "T / K",
+                "p(mp) / Pa",
+                "rho'(mp) / mol/m^3",
+                "rho''(mp) / mol/m^3",
+                "p(SA)/p(mp)",
+                "rho'(SA)/rho'(mp)",
+                "rho''(SA)/rho''(mp)",
+            ],
+            &[],
+        );
+        w.num(r.t, &j["T / K"], &format!("{path}.T"));
+        w.num(r.p, &j["p(mp) / Pa"], &format!("{path}.p"));
+        w.num(r.rho_l, &j["rho'(mp) / mol/m^3"], &format!("{path}.rhoL"));
+        w.num(r.rho_v, &j["rho''(mp) / mol/m^3"], &format!("{path}.rhoV"));
+        w.num(r.p_ratio, &j["p(SA)/p(mp)"], &format!("{path}.p_ratio"));
+        w.num(
+            r.rho_l_ratio,
+            &j["rho'(SA)/rho'(mp)"],
+            &format!("{path}.rhoL_ratio"),
+        );
+        w.num(
+            r.rho_v_ratio,
+            &j["rho''(SA)/rho''(mp)"],
+            &format!("{path}.rhoV_ratio"),
+        );
     }
 
     // ANCILLARIES

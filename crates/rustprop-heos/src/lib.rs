@@ -5,7 +5,9 @@
 //! against the CoolProp 8.0.0 wheel's `AbstractState` derivative accessors.
 
 pub mod alpha;
+pub mod ancillary;
 pub mod props;
+pub mod superancillary;
 
 pub use alpha::{HelmholtzDerivs, HelmholtzEos};
 pub use rustprop_core::UPSTREAM_VERSION;

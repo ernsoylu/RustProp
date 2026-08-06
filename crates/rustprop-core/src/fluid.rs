@@ -53,6 +53,54 @@ pub struct Eos {
     pub alpha0: &'static [Alpha0Term],
     /// `EOS[0].alphar` — residual Helmholtz terms, in document order
     pub alphar: &'static [AlpharTerm],
+    /// `EOS[0].SUPERANCILLARY` — absent for fluids without one
+    pub superancillary: Option<SuperAncillaryData>,
+}
+
+/// `EOS[0].SUPERANCILLARY` — the fields upstream's loader consumes
+/// (`src/superancillary.cpp`); `crit_anc` and the remaining `meta` entries are
+/// fitting-time artifacts and stay skip-listed.
+pub struct SuperAncillaryData {
+    /// `.jexpansions_p`
+    pub p: &'static [ChebyshevInterval],
+    /// `.jexpansions_rhoL`
+    pub rho_l: &'static [ChebyshevInterval],
+    /// `.jexpansions_rhoV`
+    pub rho_v: &'static [ChebyshevInterval],
+    /// `.meta."Tcrittrue / K"`
+    pub t_crit_num: f64,
+    /// `.meta."rhocrittrue / mol/m^3"`
+    pub rho_crit_num: f64,
+    /// `.check_points` — extended-precision verification states
+    pub check_points: &'static [SuperAncCheckPoint],
+}
+
+/// One piecewise-Chebyshev interval (`jexpansions_*` array element).
+pub struct ChebyshevInterval {
+    /// `.xmin`
+    pub xmin: f64,
+    /// `.xmax`
+    pub xmax: f64,
+    /// `.coef`
+    pub coef: &'static [f64],
+}
+
+/// One `check_points` element (keys carry units, e.g. `"T / K"`).
+pub struct SuperAncCheckPoint {
+    /// `."T / K"`
+    pub t: f64,
+    /// `."p(mp) / Pa"` — multiprecision reference
+    pub p: f64,
+    /// `."rho'(mp) / mol/m^3"`
+    pub rho_l: f64,
+    /// `."rho''(mp) / mol/m^3"`
+    pub rho_v: f64,
+    /// `."p(SA)/p(mp)"` — double-precision eval over multiprecision
+    pub p_ratio: f64,
+    /// `."rho'(SA)/rho'(mp)"`
+    pub rho_l_ratio: f64,
+    /// `."rho''(SA)/rho''(mp)"`
+    pub rho_v_ratio: f64,
 }
 
 /// A state point (`T`/`p`/`rhomolar`/`hmolar`/`smolar` fields of the JSON

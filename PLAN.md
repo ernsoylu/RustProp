@@ -145,7 +145,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [x] 4.2 Properties at given (T,ρ): p, u, h, s, cv, cp, w from the derivative matrix, exactly
       per upstream formulas.
       → verify: goldens vs upstream `DmassT_INPUTS` updates over the same grid, rel ≤ 1e-9.
-- [ ] 4.3 Ancillary equations (psat, ρ′, ρ″) and, where the fluid has one, the v8 Chebyshev
+- [x] 4.3 Ancillary equations (psat, ρ′, ρ″) and, where the fluid has one, the v8 Chebyshev
       superancillary evaluation.
       → verify: goldens vs upstream ancillary accessors across the saturation range.
 - [ ] 4.4 Pure-fluid saturation solver (ancillary-seeded, Maxwell criterion), matching upstream's
@@ -446,3 +446,14 @@ Append-only; newest last. Seeded entries:
   sit a hair INSIDE the dome per HEOS phase determination — fine for phase-agnostic term
   accessors, but the props grid bumps them to 56000/55500/54500 (clearly compressed liquid)
   because `speed_sound` legitimately refuses two-phase states.
+- 2026-08-06 — 4.3: classic ancillaries ported from `SaturationAncillaryFunction::evaluate`
+  ("rhoLnoexp" -> non-exponential form, other tags exponential; theta<0 -> NaN per upstream
+  #1611; rational_polynomial forms deferred to Phase 12) — 33 goldens vs
+  `CP.saturation_ancillary` pass at 1e-12. The v8 SUPERANCILLARY block came off the Phase-3
+  skip list: core types + datagen + bitwise fidelity walking for the 65x3 piecewise Chebyshev
+  intervals, `meta` Tcrittrue/rhocrittrue, and the embedded extended-precision check points.
+  Read from the upstream loader (`src/superancillary.cpp`): `crit_anc` and the remaining
+  `meta` entries (BrhoL/BrhoV/...) are fitting-time artifacts never loaded at runtime — they
+  stay skip-listed. Evaluation port: Clenshaw + Knuth-midpoint interval search + `eval_sat`;
+  our evaluation reproduces fastchebpure's own double/multiprecision check-point ratios
+  within 1e-14. The inverse (solve_for_T via TOMS748) lands with 4.4.

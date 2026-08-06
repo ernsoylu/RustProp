@@ -225,6 +225,17 @@ def gen_heos_water_props():
     return rows
 
 
+def gen_heos_water_ancillary():
+    """Classic ancillary goldens (PLAN 4.3) via CP.saturation_ancillary."""
+    temps = [275.0, 300.0, 350.0, 400.0, 450.0, 500.0, 550.0, 600.0, 625.0, 640.0, 645.0]
+    rows = []
+    for t in temps:
+        for (out, q) in [("P", 1), ("Dmolar", 0), ("Dmolar", 1)]:
+            rows.append({"fluid": "Water", "t": t, "out": out, "q": q,
+                         "expected": CP.saturation_ancillary("Water", out, q, "T", t)})
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     print(f"wrote {len(rows):4d} records -> {name}")
@@ -267,6 +278,7 @@ def main():
     write_jsonl("if97_water.jsonl", gen_if97_water())
     write_jsonl("heos_water_terms.jsonl", gen_heos_water_terms())
     write_jsonl("heos_water_props.jsonl", gen_heos_water_props())
+    write_jsonl("heos_water_ancillary.jsonl", gen_heos_water_ancillary())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -278,6 +290,7 @@ def main():
         "upstream_tag": "v8.0.0",
         "platform": f"{platform.system()}-{platform.machine()}",
         "files": [
+            "heos_water_ancillary.jsonl",
             "heos_water_props.jsonl",
             "heos_water_terms.jsonl",
             "if97_water.jsonl",

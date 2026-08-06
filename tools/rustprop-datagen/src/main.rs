@@ -42,6 +42,50 @@ struct InfoJson {
 }
 
 #[derive(Deserialize)]
+struct SuperAncJson {
+    jexpansions_p: Vec<ChebJson>,
+    #[serde(rename = "jexpansions_rhoL")]
+    jexpansions_rho_l: Vec<ChebJson>,
+    #[serde(rename = "jexpansions_rhoV")]
+    jexpansions_rho_v: Vec<ChebJson>,
+    meta: MetaJson,
+    check_points: Vec<CheckPointJson>,
+}
+
+#[derive(Deserialize)]
+struct ChebJson {
+    xmin: f64,
+    xmax: f64,
+    coef: Vec<f64>,
+}
+
+#[derive(Deserialize)]
+struct MetaJson {
+    #[serde(rename = "Tcrittrue / K")]
+    t_crit_num: f64,
+    #[serde(rename = "rhocrittrue / mol/m^3")]
+    rho_crit_num: f64,
+}
+
+#[derive(Deserialize)]
+struct CheckPointJson {
+    #[serde(rename = "T / K")]
+    t: f64,
+    #[serde(rename = "p(mp) / Pa")]
+    p: f64,
+    #[serde(rename = "rho'(mp) / mol/m^3")]
+    rho_l: f64,
+    #[serde(rename = "rho''(mp) / mol/m^3")]
+    rho_v: f64,
+    #[serde(rename = "p(SA)/p(mp)")]
+    p_ratio: f64,
+    #[serde(rename = "rho'(SA)/rho'(mp)")]
+    rho_l_ratio: f64,
+    #[serde(rename = "rho''(SA)/rho''(mp)")]
+    rho_v_ratio: f64,
+}
+
+#[derive(Deserialize)]
 struct EosJson {
     gas_constant: f64,
     molar_mass: f64,
@@ -56,6 +100,8 @@ struct EosJson {
     states: EosStatesJson,
     alpha0: Vec<Alpha0Json>,
     alphar: Vec<AlpharJson>,
+    #[serde(rename = "SUPERANCILLARY")]
+    superancillary: Option<SuperAncJson>,
 }
 
 #[derive(Deserialize)]
@@ -214,6 +260,46 @@ fn sat_anc(a: &SatAncJson, indent: &str) -> String {
     )
 }
 
+fn cheb_intervals(name: &str, blocks: &[ChebJson], out: &mut String) {
+    writeln!(out, "        {name}: &[").unwrap();
+    for b in blocks {
+        writeln!(
+            out,
+            "            ChebyshevInterval {{ xmin: {}, xmax: {}, coef: {} }},",
+            f(b.xmin),
+            f(b.xmax),
+            slice(&b.coef)
+        )
+        .unwrap();
+    }
+    writeln!(out, "        ],").unwrap();
+}
+
+fn emit_superancillary(sa: &SuperAncJson, w: &mut String) {
+    writeln!(w, "        superancillary: Some(SuperAncillaryData {{").unwrap();
+    let mut inner = String::new();
+    cheb_intervals("p", &sa.jexpansions_p, &mut inner);
+    cheb_intervals("rho_l", &sa.jexpansions_rho_l, &mut inner);
+    cheb_intervals("rho_v", &sa.jexpansions_rho_v, &mut inner);
+    // shift the inner indentation by four spaces to sit inside Some(..)
+    for line in inner.lines() {
+        writeln!(w, "    {line}").unwrap();
+    }
+    writeln!(w, "            t_crit_num: {},", f(sa.meta.t_crit_num)).unwrap();
+    writeln!(w, "            rho_crit_num: {},", f(sa.meta.rho_crit_num)).unwrap();
+    writeln!(w, "            check_points: &[").unwrap();
+    for c in &sa.check_points {
+        writeln!(
+            w,
+            "                SuperAncCheckPoint {{ t: {}, p: {}, rho_l: {}, rho_v: {}, p_ratio: {}, rho_l_ratio: {}, rho_v_ratio: {} }},",
+            f(c.t), f(c.p), f(c.rho_l), f(c.rho_v), f(c.p_ratio), f(c.rho_l_ratio), f(c.rho_v_ratio)
+        )
+        .unwrap();
+    }
+    writeln!(w, "            ],").unwrap();
+    writeln!(w, "        }}),").unwrap();
+}
+
 fn emit(doc: &Doc, source_file: &str) -> String {
     let eos = &doc.eos[0];
     let mut out = String::new();
@@ -230,7 +316,7 @@ fn emit(doc: &Doc, source_file: &str) -> String {
     writeln!(w).unwrap();
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -348,6 +434,10 @@ fn emit(doc: &Doc, source_file: &str) -> String {
         }
     }
     writeln!(w, "        ],").unwrap();
+    match &eos.superancillary {
+        Some(sa) => emit_superancillary(sa, w),
+        None => writeln!(w, "        superancillary: None,").unwrap(),
+    }
     writeln!(w, "    }},").unwrap();
     writeln!(w, "    ancillaries: Ancillaries {{").unwrap();
     writeln!(
