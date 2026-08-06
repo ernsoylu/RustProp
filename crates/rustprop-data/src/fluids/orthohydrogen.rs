@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, MeltingLine, MeltingLineKind, SimonMeltPart};
 
 pub static ORTHOHYDROGEN: FluidData = FluidData {
     name: "OrthoHydrogen",
@@ -269,6 +269,12 @@ pub static ORTHOHYDROGEN: FluidData = FluidData {
             t_max: 33.219999999999914,
         },
         surface_tension: None,
+        melting_line: Some(MeltingLine {
+            t_m: 14.009985,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 1.0, a: 231000.0, c: 1.7627, p_0: -236200.0, t_min: 13.957, t_max: 700.0 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

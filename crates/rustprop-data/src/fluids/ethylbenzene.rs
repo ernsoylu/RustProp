@@ -304,6 +304,7 @@ pub static ETHYLBENZENE: FluidData = FluidData {
             t_max: 617.1199999999991,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0638], n: &[1.22], tc: 617.12 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

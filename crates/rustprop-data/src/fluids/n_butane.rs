@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static N_BUTANE: FluidData = FluidData {
     name: "n-Butane",
@@ -293,6 +293,12 @@ pub static N_BUTANE: FluidData = FluidData {
             t_max: 425.124999999999,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05138], n: &[1.209], tc: 425.125 }),
+        melting_line: Some(MeltingLine {
+            t_m: 135.23,
+            kind: MeltingLineKind::PolynomialInTr { parts: &[
+                PolyMeltPart { t_0: 134.895, p_0: 0.653, t_min: 134.895, t_max: 163.9, a: &[558558236.4], t: &[2.206] },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

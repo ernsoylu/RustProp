@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ARGON: FluidData = FluidData {
     name: "Argon",
@@ -271,6 +271,12 @@ pub static ARGON: FluidData = FluidData {
             t_max: 150.68699999999976,
         },
         surface_tension: Some(SurfaceTension { a: &[0.037], n: &[1.25], tc: 150.687 }),
+        melting_line: Some(MeltingLine {
+            t_m: 87.28,
+            kind: MeltingLineKind::PolynomialInTr { parts: &[
+                PolyMeltPart { t_0: 83.8058, p_0: 68891.0, t_min: 83.806, t_max: 260.0, a: &[-7476.2665, 9959.0613], t: &[1.05, 1.275] },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

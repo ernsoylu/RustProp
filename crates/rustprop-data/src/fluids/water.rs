@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static WATER: FluidData = FluidData {
     name: "Water",
@@ -299,6 +299,15 @@ pub static WATER: FluidData = FluidData {
             t_max: 647.0959999999985,
         },
         surface_tension: Some(SurfaceTension { a: &[-0.1306, 0.2151], n: &[2.471, 1.233], tc: 647.096 }),
+        melting_line: Some(MeltingLine {
+            t_m: -1.0,
+            kind: MeltingLineKind::PolynomialInTr { parts: &[
+                PolyMeltPart { t_0: 273.16, p_0: 611.657, t_min: 273.16, t_max: 251.165, a: &[-1195393.37, -80818.3159, -3338.2686], t: &[3.0, 25.75, 103.75] },
+                PolyMeltPart { t_0: 251.165, p_0: 208566000.0, t_min: 251.165, t_max: 256.164, a: &[0.299948], t: &[60.0] },
+                PolyMeltPart { t_0: 256.164, p_0: 350100000.0, t_min: 256.164, t_max: 273.31, a: &[1.18721], t: &[8.0] },
+                PolyMeltPart { t_0: 273.31, p_0: 623400000.0, t_min: 273.31, t_max: 355.0, a: &[1.07476], t: &[4.6] },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

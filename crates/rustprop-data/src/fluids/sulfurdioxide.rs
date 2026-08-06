@@ -278,6 +278,7 @@ pub static SULFURDIOXIDE: FluidData = FluidData {
             t_max: 430.64,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0803, 0.0139, -0.0114], n: &[0.928, 1.57, 0.364], tc: 430.64 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ISOPENTANE: FluidData = FluidData {
     name: "Isopentane",
@@ -312,6 +312,12 @@ pub static ISOPENTANE: FluidData = FluidData {
             t_max: 460.3499999999989,
         },
         surface_tension: Some(SurfaceTension { a: &[0.051], n: &[1.209], tc: 460.35 }),
+        melting_line: Some(MeltingLine {
+            t_m: 113.23,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 112.5, a: 591600000.0, c: 1.563, p_0: 0.0, t_min: 112.65, t_max: 212.16 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

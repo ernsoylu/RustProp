@@ -265,6 +265,7 @@ pub static CYCLOPROPANE: FluidData = FluidData {
             t_max: 398.29999999999905,
         },
         surface_tension: Some(SurfaceTension { a: &[0.06812], n: &[1.314], tc: 398.3 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

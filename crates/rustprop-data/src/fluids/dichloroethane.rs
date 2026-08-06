@@ -295,6 +295,7 @@ pub static DICHLOROETHANE: FluidData = FluidData {
             t_max: 561.6,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

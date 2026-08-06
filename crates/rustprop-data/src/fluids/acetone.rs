@@ -298,6 +298,7 @@ pub static ACETONE: FluidData = FluidData {
             t_max: 508.0999999999992,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0633], n: &[1.16], tc: 508.1 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

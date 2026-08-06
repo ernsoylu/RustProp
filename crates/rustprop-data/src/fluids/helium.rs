@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static HELIUM: FluidData = FluidData {
     name: "Helium",
@@ -268,6 +268,12 @@ pub static HELIUM: FluidData = FluidData {
             t_max: 5.195299999999987,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0004656, 0.001889, -0.002006], n: &[1.04, 2.468, 2.661], tc: 5.1953 }),
+        melting_line: Some(MeltingLine {
+            t_m: 1.15,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 1.0, a: 1606700.0, c: 1.565, p_0: -1606700.0, t_min: 2.1768, t_max: 700.0 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

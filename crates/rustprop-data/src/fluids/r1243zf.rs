@@ -308,6 +308,7 @@ pub static R1243ZF: FluidData = FluidData {
             t_max: 376.93,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

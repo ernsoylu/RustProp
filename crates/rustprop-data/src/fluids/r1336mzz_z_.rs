@@ -296,6 +296,7 @@ pub static R1336MZZ_Z_: FluidData = FluidData {
             t_max: 444.5,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

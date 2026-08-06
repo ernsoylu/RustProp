@@ -288,6 +288,7 @@ pub static R134A: FluidData = FluidData {
             t_max: 374.20999999999935,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05801], n: &[1.241], tc: 374.21 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

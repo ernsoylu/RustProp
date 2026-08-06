@@ -270,6 +270,7 @@ pub static NITROUSOXIDE: FluidData = FluidData {
             t_max: 309.51999999999924,
         },
         surface_tension: Some(SurfaceTension { a: &[0.07087], n: &[1.204], tc: 309.52 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

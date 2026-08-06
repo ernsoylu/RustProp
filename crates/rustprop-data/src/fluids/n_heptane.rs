@@ -290,6 +290,7 @@ pub static N_HEPTANE: FluidData = FluidData {
             t_max: 540.1299999999987,
         },
         surface_tension: Some(SurfaceTension { a: &[0.07765, -0.02599], n: &[1.319, 1.6], tc: 540.13 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

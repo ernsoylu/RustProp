@@ -324,6 +324,7 @@ pub static METHYLLINOLEATE: FluidData = FluidData {
             t_max: 798.999999999998,
         },
         surface_tension: Some(SurfaceTension { a: &[0.072487], n: &[1.9014], tc: 799.0 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

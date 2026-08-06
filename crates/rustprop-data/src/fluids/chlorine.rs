@@ -287,6 +287,7 @@ pub static CHLORINE: FluidData = FluidData {
             t_max: 416.8654,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

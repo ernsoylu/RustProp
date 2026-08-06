@@ -289,6 +289,7 @@ pub static P_XYLENE: FluidData = FluidData {
             t_max: 616.1679999999988,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0619], n: &[1.21], tc: 616.168 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

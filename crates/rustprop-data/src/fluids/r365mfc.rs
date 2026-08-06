@@ -286,6 +286,7 @@ pub static R365MFC: FluidData = FluidData {
             t_max: 459.99999999999886,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0534], n: &[1.21], tc: 460.0 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

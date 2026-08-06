@@ -300,6 +300,7 @@ pub static METHYLSTEARATE: FluidData = FluidData {
             t_max: 774.9999999999982,
         },
         surface_tension: Some(SurfaceTension { a: &[0.02313, 0.04567], n: &[3.242, 1.163], tc: 775.0 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -304,6 +304,7 @@ pub static NOVEC649: FluidData = FluidData {
             t_max: 441.81,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

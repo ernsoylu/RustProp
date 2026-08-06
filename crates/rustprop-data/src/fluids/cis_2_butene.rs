@@ -297,6 +297,7 @@ pub static CIS_2_BUTENE: FluidData = FluidData {
             t_max: 435.7499999999991,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05903], n: &[1.246], tc: 435.75 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

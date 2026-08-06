@@ -300,6 +300,7 @@ pub static METHYLPALMITATE: FluidData = FluidData {
             t_max: 754.9999999999989,
         },
         surface_tension: Some(SurfaceTension { a: &[0.025025, 0.044435], n: &[3.039, 1.1653], tc: 755.0 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

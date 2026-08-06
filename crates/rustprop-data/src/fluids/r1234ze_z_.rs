@@ -280,6 +280,7 @@ pub static R1234ZE_Z_: FluidData = FluidData {
             t_max: 423.2699999999993,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05657], n: &[1.22], tc: 423.27 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

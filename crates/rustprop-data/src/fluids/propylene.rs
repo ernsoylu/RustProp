@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static PROPYLENE: FluidData = FluidData {
     name: "Propylene",
@@ -311,6 +311,13 @@ pub static PROPYLENE: FluidData = FluidData {
             t_max: 364.2109999999991,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05268], n: &[1.186], tc: 364.211 }),
+        melting_line: Some(MeltingLine {
+            t_m: 88.05999999999997,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 87.953, a: 319600000.0, c: 2.821, p_0: 0.0007471728686974104, t_min: 87.953, t_max: 129.0 },
+                SimonMeltPart { t_0: 109.6, a: 306400000.0, c: 3.871, p_0: 445000000.0, t_min: 129.0, t_max: 145.3 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

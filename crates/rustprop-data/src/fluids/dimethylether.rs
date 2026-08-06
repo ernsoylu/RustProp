@@ -292,6 +292,7 @@ pub static DIMETHYLETHER: FluidData = FluidData {
             t_max: 400.3779999999991,
         },
         surface_tension: Some(SurfaceTension { a: &[0.063157], n: &[1.2595], tc: 400.378 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -293,6 +293,7 @@ pub static AMMONIA: FluidData = FluidData {
             t_max: 405.56,
         },
         surface_tension: Some(SurfaceTension { a: &[0.1028, -0.09453], n: &[1.211, 5.585], tc: 405.4 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

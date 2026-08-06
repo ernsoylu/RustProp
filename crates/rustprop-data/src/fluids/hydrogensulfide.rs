@@ -271,6 +271,7 @@ pub static HYDROGENSULFIDE: FluidData = FluidData {
             t_max: 373.09999999999945,
         },
         surface_tension: Some(SurfaceTension { a: &[0.078557], n: &[1.2074], tc: 373.1 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

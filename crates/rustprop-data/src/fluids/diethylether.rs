@@ -268,6 +268,7 @@ pub static DIETHYLETHER: FluidData = FluidData {
             t_max: 466.699,
         },
         surface_tension: Some(SurfaceTension { a: &[1.2348, -1.1808], n: &[1.4846, 1.5021], tc: 466.7 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

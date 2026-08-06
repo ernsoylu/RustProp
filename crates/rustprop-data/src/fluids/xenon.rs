@@ -263,6 +263,7 @@ pub static XENON: FluidData = FluidData {
             t_max: 289.7329999999995,
         },
         surface_tension: Some(SurfaceTension { a: &[-0.11538, 0.16598], n: &[1.0512, 1.098], tc: 289.733 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

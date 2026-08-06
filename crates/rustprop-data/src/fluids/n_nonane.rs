@@ -291,6 +291,7 @@ pub static N_NONANE: FluidData = FluidData {
             t_max: 594.5499999999988,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05388], n: &[1.262], tc: 594.55 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

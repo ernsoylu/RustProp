@@ -841,12 +841,9 @@ impl PtFlash {
                 };
                 (t_min, t_max)
             }
-            Phase::Liquid => {
-                // Melting line deferred (PLAN.md): lower bound is Tmin - 1e-3.
-                (t_min_fluid - 1e-3, self.sat().pq_flash(p, 0.0)?.t)
-            }
+            Phase::Liquid => (self.px_t_floor(p)?, self.sat().pq_flash(p, 0.0)?.t),
             Phase::SupercriticalLiquid | Phase::SupercriticalGas | Phase::Supercritical => {
-                (t_min_fluid - 1e-3, 1.5 * self.fluid().eos.t_max)
+                (self.px_t_floor(p)?, 1.5 * self.fluid().eos.t_max)
             }
             _ => return Err(Error::Value("Not a valid homogeneous state".into())),
         };
@@ -897,6 +894,18 @@ impl PtFlash {
             phase,
             q: -1.0,
         })
+    }
+
+    /// Liquid/supercritical lower T-bound of the (p,X) bracket (upstream
+    /// `HSU_P_flash`): the melting temperature at this pressure when a
+    /// melting line covers it, else Tmin — both minus 1e-3.
+    fn px_t_floor(&self, p: f64) -> Result<f64> {
+        if let Some(ml) = &self.fluid().ancillaries.melting_line {
+            if p > crate::melting::p_min(ml) {
+                return Ok(crate::melting::t_of_p(ml, p)? - 1e-3);
+            }
+        }
+        Ok(self.t_triple() - 1e-3)
     }
 
     fn px_value(&self, key: CaloricKey, t: f64, rhomolar: f64) -> f64 {

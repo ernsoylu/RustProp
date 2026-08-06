@@ -269,6 +269,7 @@ pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
             t_max: 318.7231999999994,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0538, -4.064e-5], n: &[1.271, 0.2116], tc: 318.723 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

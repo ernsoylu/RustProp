@@ -289,6 +289,7 @@ pub static N_PERFLUOROHEXANE: FluidData = FluidData {
             t_max: 448.0,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

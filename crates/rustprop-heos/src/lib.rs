@@ -10,6 +10,7 @@ mod chebappr;
 pub mod flash_hs;
 pub mod flash_pt;
 pub mod flash_px;
+pub mod melting;
 pub mod props;
 pub mod saturation;
 mod solvers;

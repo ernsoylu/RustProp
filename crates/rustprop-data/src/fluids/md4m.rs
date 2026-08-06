@@ -325,6 +325,7 @@ pub static MD4M: FluidData = FluidData {
             t_max: 653.2,
         },
         surface_tension: Some(SurfaceTension { a: &[0.040798], n: &[1.3323], tc: 653.2 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

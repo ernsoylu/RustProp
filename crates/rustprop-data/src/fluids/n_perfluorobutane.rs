@@ -295,6 +295,7 @@ pub static N_PERFLUOROBUTANE: FluidData = FluidData {
             t_max: 386.326,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

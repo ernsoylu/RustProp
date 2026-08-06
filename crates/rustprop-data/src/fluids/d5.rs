@@ -316,6 +316,7 @@ pub static D5: FluidData = FluidData {
             t_max: 618.3,
         },
         surface_tension: Some(SurfaceTension { a: &[0.04408], n: &[1.357], tc: 619.15 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

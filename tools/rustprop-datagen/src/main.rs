@@ -277,6 +277,7 @@ struct AncJson {
     #[serde(rename = "rhoV")]
     rho_v: SatAncJson,
     surface_tension: Option<SurfTensJson>,
+    melting_line: Option<MeltJson>,
 }
 
 #[derive(Deserialize)]
@@ -285,6 +286,32 @@ struct SurfTensJson {
     n: Vec<f64>,
     #[serde(rename = "Tc")]
     tc: f64,
+}
+
+#[derive(Deserialize)]
+struct MeltJson {
+    #[serde(rename = "T_m")]
+    t_m: f64,
+    #[serde(rename = "type")]
+    melt_type: String,
+    parts: Vec<MeltPartJson>,
+}
+
+#[derive(Deserialize)]
+struct MeltPartJson {
+    #[serde(rename = "T_0")]
+    t_0: f64,
+    #[serde(rename = "p_0")]
+    p_0: f64,
+    #[serde(rename = "T_min")]
+    t_min: f64,
+    #[serde(rename = "T_max")]
+    t_max: f64,
+    // Simon segments
+    a: Option<serde_json::Value>,
+    c: Option<f64>,
+    // Polynomial segments
+    t: Option<Vec<f64>>,
 }
 
 #[derive(Deserialize)]
@@ -434,6 +461,11 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     } else {
         ""
     };
+    let melt = match &doc.ancillaries.melting_line {
+        Some(ml) if ml.melt_type == "Simon" => ", MeltingLine, MeltingLineKind, SimonMeltPart",
+        Some(_) => ", MeltingLine, MeltingLineKind, PolyMeltPart",
+        None => "",
+    };
     let transport_rendered = emit_transport(doc.transport.as_ref());
     let mut timp = String::new();
     for ty in [
@@ -459,7 +491,7 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     }
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData{surf}{timp}}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData{surf}{melt}{timp}}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -739,6 +771,66 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
         )
         .unwrap(),
         None => writeln!(w, "        surface_tension: None,").unwrap(),
+    }
+    match &doc.ancillaries.melting_line {
+        Some(ml) => {
+            writeln!(w, "        melting_line: Some(MeltingLine {{").unwrap();
+            writeln!(w, "            t_m: {},", f(ml.t_m)).unwrap();
+            let (variant, is_simon) = match ml.melt_type.as_str() {
+                "Simon" => ("Simon", true),
+                "polynomial_in_Tr" => ("PolynomialInTr", false),
+                "polynomial_in_Theta" => ("PolynomialInTheta", false),
+                other => panic!("unknown melting_line type {other:?}"),
+            };
+            writeln!(
+                w,
+                "            kind: MeltingLineKind::{variant} {{ parts: &["
+            )
+            .unwrap();
+            for part in &ml.parts {
+                if is_simon {
+                    let a = part
+                        .a
+                        .as_ref()
+                        .and_then(serde_json::Value::as_f64)
+                        .expect("Simon melting part requires scalar a");
+                    writeln!(
+                        w,
+                        "                SimonMeltPart {{ t_0: {}, a: {}, c: {}, p_0: {}, t_min: {}, t_max: {} }},",
+                        f(part.t_0),
+                        f(a),
+                        f(part.c.expect("Simon melting part requires c")),
+                        f(part.p_0),
+                        f(part.t_min),
+                        f(part.t_max)
+                    )
+                    .unwrap();
+                } else {
+                    let a: Vec<f64> = part
+                        .a
+                        .as_ref()
+                        .and_then(|v| v.as_array().cloned())
+                        .expect("polynomial melting part requires array a")
+                        .iter()
+                        .map(|x| x.as_f64().expect("numeric a"))
+                        .collect();
+                    writeln!(
+                        w,
+                        "                PolyMeltPart {{ t_0: {}, p_0: {}, t_min: {}, t_max: {}, a: {}, t: {} }},",
+                        f(part.t_0),
+                        f(part.p_0),
+                        f(part.t_min),
+                        f(part.t_max),
+                        slice(&a),
+                        slice(part.t.as_ref().expect("polynomial melting part requires t"))
+                    )
+                    .unwrap();
+                }
+            }
+            writeln!(w, "            ] }},").unwrap();
+            writeln!(w, "        }}),").unwrap();
+        }
+        None => writeln!(w, "        melting_line: None,").unwrap(),
     }
     writeln!(w, "    }},").unwrap();
     writeln!(w, "    states: States {{").unwrap();

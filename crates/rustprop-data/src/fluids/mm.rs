@@ -296,6 +296,7 @@ pub static MM: FluidData = FluidData {
             t_max: 518.7,
         },
         surface_tension: Some(SurfaceTension { a: &[0.04576], n: &[1.272], tc: 518.75 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

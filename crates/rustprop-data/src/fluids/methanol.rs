@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static METHANOL: FluidData = FluidData {
     name: "Methanol",
@@ -363,6 +363,12 @@ pub static METHANOL: FluidData = FluidData {
             t_max: 512.49,
         },
         surface_tension: Some(SurfaceTension { a: &[0.22421, -0.21408, 0.083233], n: &[1.3355, 1.677, 4.4402], tc: 513.38 }),
+        melting_line: Some(MeltingLine {
+            t_m: 337.8,
+            kind: MeltingLineKind::PolynomialInTheta { parts: &[
+                PolyMeltPart { t_0: 175.61, p_0: 0.187, t_min: 175.61, t_max: 247.0, a: &[5330770000.0, 4524780000.0, 38888610000.0], t: &[1.0, 1.5, 4.0] },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

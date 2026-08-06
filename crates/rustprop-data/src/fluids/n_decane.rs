@@ -288,6 +288,7 @@ pub static N_DECANE: FluidData = FluidData {
             t_max: 617.6999999999986,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05473], n: &[1.29], tc: 617.7 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

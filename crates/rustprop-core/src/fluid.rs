@@ -741,6 +741,64 @@ pub struct Ancillaries {
     pub rho_v: SaturationAncillary,
     /// `ANCILLARIES.surface_tension` — absent for fluids without a curve
     pub surface_tension: Option<SurfaceTension>,
+    /// `ANCILLARIES.melting_line` — absent for fluids without a curve
+    pub melting_line: Option<MeltingLine>,
+}
+
+/// `ANCILLARIES.melting_line` (upstream `MeltingLineVariables`): the
+/// pressure-temperature melting curve in one of three segment forms. The
+/// per-part and aggregate p/T limits are computed at runtime (upstream
+/// `set_limits`), not stored.
+pub struct MeltingLine {
+    /// `.T_m` [K] — the document's normal melting temperature (parsed and
+    /// carried like upstream's field; -1 encodes "not provided").
+    pub t_m: f64,
+    /// `.type` + `.parts`
+    pub kind: MeltingLineKind,
+}
+
+/// The three upstream melting-curve segment families.
+pub enum MeltingLineKind {
+    /// `Simon`: `p = p_0 + a*((T/T_0)^c - 1)`
+    Simon { parts: &'static [SimonMeltPart] },
+    /// `polynomial_in_Tr`: `p = p_0*(1 + sum a_i*((T/T_0)^t_i - 1))`
+    PolynomialInTr { parts: &'static [PolyMeltPart] },
+    /// `polynomial_in_Theta`: `p = p_0*(1 + sum a_i*(T/T_0 - 1)^t_i)`
+    PolynomialInTheta { parts: &'static [PolyMeltPart] },
+}
+
+/// One Simon-type melting segment (upstream
+/// `MeltingLinePiecewiseSimonSegment`).
+pub struct SimonMeltPart {
+    /// `.T_0` [K]
+    pub t_0: f64,
+    /// `.a` [Pa]
+    pub a: f64,
+    /// `.c`
+    pub c: f64,
+    /// `.p_0` [Pa]
+    pub p_0: f64,
+    /// `.T_min` [K]
+    pub t_min: f64,
+    /// `.T_max` [K]
+    pub t_max: f64,
+}
+
+/// One polynomial melting segment (upstream
+/// `MeltingLinePiecewisePolynomialIn{Tr,Theta}Segment`).
+pub struct PolyMeltPart {
+    /// `.T_0` [K]
+    pub t_0: f64,
+    /// `.p_0` [Pa]
+    pub p_0: f64,
+    /// `.T_min` [K]
+    pub t_min: f64,
+    /// `.T_max` [K]
+    pub t_max: f64,
+    /// `.a`
+    pub a: &'static [f64],
+    /// `.t`
+    pub t: &'static [f64],
 }
 
 /// `ANCILLARIES.surface_tension` (upstream `SurfaceTensionCorrelation`):

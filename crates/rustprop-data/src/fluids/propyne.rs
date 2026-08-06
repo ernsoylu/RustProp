@@ -266,6 +266,7 @@ pub static PROPYNE: FluidData = FluidData {
             t_max: 402.37999999999914,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05801], n: &[1.205], tc: 402.38 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

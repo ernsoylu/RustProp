@@ -324,6 +324,7 @@ pub static _1_BUTENE: FluidData = FluidData {
             t_max: 419.2899999999993,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05644], n: &[1.248], tc: 419.29 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

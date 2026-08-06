@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, MeltingLine, MeltingLineKind, SimonMeltPart};
 
 pub static ORTHODEUTERIUM: FluidData = FluidData {
     name: "OrthoDeuterium",
@@ -262,6 +262,12 @@ pub static ORTHODEUTERIUM: FluidData = FluidData {
             t_max: 38.33999999999991,
         },
         surface_tension: None,
+        melting_line: Some(MeltingLine {
+            t_m: 18.724,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 1.0, a: 366000.0, c: 1.677, p_0: -53944000.0, t_min: 19.72, t_max: 175.0 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

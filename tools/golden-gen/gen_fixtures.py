@@ -832,6 +832,49 @@ def gen_flash_pairs_extra():
     return rows
 
 
+def gen_melting():
+    """Melting-line goldens (tier-2 deferral): T(p) and p(T) via the wheel's
+    `AbstractState.melting_line` for every pure fluid with a curve, plus the
+    aggregate limits."""
+    import CoolProp.CoolProp as CPCP
+    rows, skipped = [], 0
+    all_fluids = CPCP.get_global_param_string("fluids_list").split(",")
+    pure = []
+    for fl in all_fluids:
+        d = json.loads(CPCP.get_fluid_param_string(fl, "JSON"))[0]
+        if d["EOS"][0].get("pseudo_pure", False):
+            continue
+        pure.append(fl)
+    for fluid in sorted(pure):
+        AS = CPCP.AbstractState("HEOS", fluid)
+        if not AS.has_melting_line():
+            continue
+        pmin = AS.melting_line(CPCP.iP_min, -1, -1)
+        pmax = AS.melting_line(CPCP.iP_max, -1, -1)
+        tmin = AS.melting_line(CPCP.iT_min, -1, -1)
+        tmax = AS.melting_line(CPCP.iT_max, -1, -1)
+        def rec(out, n1, v1, expected):
+            rows.append({"backend": "HEOS", "fluid": fluid, "out": out,
+                         "name1": n1, "val1": v1, "name2": "", "val2": 0.0,
+                         "expected": expected})
+        rec("melt_pmin", "", 0.0, pmin)
+        rec("melt_pmax", "", 0.0, pmax)
+        # p(T) and T(p) on a grid interior to the fit range
+        for x in [0.05, 0.3, 0.6, 0.9]:
+            T = tmin + x * (tmax - tmin)
+            try:
+                rec("melt_p", "T", T, AS.melting_line(CPCP.iP, CPCP.iT, T))
+            except ValueError:
+                skipped += 1
+            p_ = pmin + x * (pmax - pmin)
+            try:
+                rec("melt_T", "P", p_, AS.melting_line(CPCP.iT, CPCP.iP, p_))
+            except ValueError:
+                skipped += 1
+    print(f"melting: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 # The 20 fluids whose viscosity is fully structured (dilute/initial_density/
 # higher_order with typed families only) — the 6.1 structured slice.
 VISCOSITY_STRUCTURED = [
@@ -1013,6 +1056,7 @@ def main():
     write_jsonl("surface_tension.jsonl", gen_surface_tension())
     write_jsonl("viscosity.jsonl", gen_viscosity())
     write_jsonl("flash_pairs_extra.jsonl", gen_flash_pairs_extra())
+    write_jsonl("melting.jsonl", gen_melting())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

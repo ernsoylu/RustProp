@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static CYCLOHEXANE: FluidData = FluidData {
     name: "CycloHexane",
@@ -274,6 +274,12 @@ pub static CYCLOHEXANE: FluidData = FluidData {
             t_max: 553.5999999999988,
         },
         surface_tension: Some(SurfaceTension { a: &[0.06485], n: &[1.263], tc: 553.64 }),
+        melting_line: Some(MeltingLine {
+            t_m: 279.96,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 279.47, a: 383400000.0, c: 1.41, p_0: 5240.2402380798585, t_min: 279.47, t_max: 401.7 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

@@ -292,6 +292,7 @@ pub static N_UNDECANE: FluidData = FluidData {
             t_max: 638.7999999999989,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0556], n: &[1.32], tc: 638.8 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -295,6 +295,7 @@ pub static N_PERFLUOROPENTANE: FluidData = FluidData {
             t_max: 421.0,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

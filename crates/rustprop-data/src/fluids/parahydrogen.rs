@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static PARAHYDROGEN: FluidData = FluidData {
     name: "ParaHydrogen",
@@ -268,6 +268,13 @@ pub static PARAHYDROGEN: FluidData = FluidData {
             t_max: 32.93799999999992,
         },
         surface_tension: Some(SurfaceTension { a: &[0.005314], n: &[1.06], tc: 32.938 }),
+        melting_line: Some(MeltingLine {
+            t_m: 18.9,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 1.0, a: 125746.643, c: 1.955, p_0: -21155737.752, t_min: 13.8033, t_max: 22.0 },
+                SimonMeltPart { t_0: 1.0, a: 248578.596, c: 1.764739, p_0: -26280332.904, t_min: 22.0, t_max: 170.0 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

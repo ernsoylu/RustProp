@@ -655,6 +655,7 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         &["pS", "rhoL", "rhoV"],
         &["hL", "hLV", "sL", "sLV", "melting_line", "surface_tension"],
     );
+    check_melting_line(&mut w, fluid, anc.get("melting_line"));
     w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
     w.sat_ancillary(&fluid.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
     w.sat_ancillary(&fluid.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
@@ -711,6 +712,68 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         w.mismatches.len(),
         w.mismatches.join("\n")
     );
+}
+
+/// ANCILLARIES.melting_line: type + parts, field-by-field (upstream
+/// `parse_melting_line` reads T_m, type, and per-part T_0/p_0/T_min/T_max
+/// plus a/c (Simon) or a[]/t[] (polynomials); BibTeX is skip-listed).
+fn check_melting_line(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
+    use rustprop_core::fluid::MeltingLineKind;
+    let (ml, json) = match (&fluid.ancillaries.melting_line, json) {
+        (Some(ml), Some(json)) => (ml, json),
+        (None, None) => return,
+        (rust, json) => {
+            w.mismatches.push(format!(
+                "ANCILLARIES.melting_line: rust present={} json present={}",
+                rust.is_some(),
+                json.is_some()
+            ));
+            return;
+        }
+    };
+    let path = "ANCILLARIES.melting_line";
+    w.keys(json, path, &["T_m", "type", "parts"], &["BibTeX"]);
+    w.num(ml.t_m, &json["T_m"], &format!("{path}.T_m"));
+    let (type_name, n_parts) = match &ml.kind {
+        MeltingLineKind::Simon { parts } => ("Simon", parts.len()),
+        MeltingLineKind::PolynomialInTr { parts } => ("polynomial_in_Tr", parts.len()),
+        MeltingLineKind::PolynomialInTheta { parts } => ("polynomial_in_Theta", parts.len()),
+    };
+    w.string(type_name, &json["type"], &format!("{path}.type"));
+    let jparts = json["parts"].as_array().unwrap();
+    if jparts.len() != n_parts {
+        w.mismatches.push(format!(
+            "{path}.parts: rust {n_parts} vs json {}",
+            jparts.len()
+        ));
+        return;
+    }
+    for (i, jp) in jparts.iter().enumerate() {
+        let path = format!("{path}.parts[{i}]");
+        match &ml.kind {
+            MeltingLineKind::Simon { parts } => {
+                let part = &parts[i];
+                w.keys(jp, &path, &["T_0", "a", "c", "p_0", "T_min", "T_max"], &[]);
+                w.num(part.t_0, &jp["T_0"], &format!("{path}.T_0"));
+                w.num(part.a, &jp["a"], &format!("{path}.a"));
+                w.num(part.c, &jp["c"], &format!("{path}.c"));
+                w.num(part.p_0, &jp["p_0"], &format!("{path}.p_0"));
+                w.num(part.t_min, &jp["T_min"], &format!("{path}.T_min"));
+                w.num(part.t_max, &jp["T_max"], &format!("{path}.T_max"));
+            }
+            MeltingLineKind::PolynomialInTr { parts }
+            | MeltingLineKind::PolynomialInTheta { parts } => {
+                let part = &parts[i];
+                w.keys(jp, &path, &["T_0", "a", "t", "p_0", "T_min", "T_max"], &[]);
+                w.num(part.t_0, &jp["T_0"], &format!("{path}.T_0"));
+                w.nums(part.a, &jp["a"], &format!("{path}.a"));
+                w.nums(part.t, &jp["t"], &format!("{path}.t"));
+                w.num(part.p_0, &jp["p_0"], &format!("{path}.p_0"));
+                w.num(part.t_min, &jp["T_min"], &format!("{path}.T_min"));
+                w.num(part.t_max, &jp["T_max"], &format!("{path}.T_max"));
+            }
+        }
+    }
 }
 
 /// Mirror of datagen's TRANSPORT classification. Per-property tri-state:

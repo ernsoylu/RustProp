@@ -273,6 +273,7 @@ pub static NEOPENTANE: FluidData = FluidData {
             t_max: 433.73999999999927,
         },
         surface_tension: Some(SurfaceTension { a: &[0.04465], n: &[1.21], tc: 433.74 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -295,6 +295,7 @@ pub static DIMETHYLCARBONATE: FluidData = FluidData {
             t_max: 556.9999999999989,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0825], n: &[1.39], tc: 557.0 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

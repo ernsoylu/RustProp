@@ -827,3 +827,18 @@ Append-only; newest last. Seeded entries:
   Qmass rewrites (DmolarQmass/DmassQmass -> DmolarQ) and DmassQ/SmassUmass conversions
   match upstream's switch. flash_pairs_extra: 693 records + message-anchored error
   assertions, first-run green. Every PropsSI-reachable HEOS input pair is now ported.
+- 2026-08-06 — melting lines, part 1 of 2 (tier-2 deferral): data types (MeltingLine with
+  Simon / polynomial_in_Tr / polynomial_in_Theta segment families), datagen emission (29
+  pure fluids; Air's curve rides with the pseudo-pure deferral), bitwise walker checks
+  (T_m/type/parts field-by-field; BibTeX skip-listed), and the evaluation module
+  `rustprop_heos::melting` — p(T) by closed-range segment lookup, T(p) by the Simon closed
+  form (accept T in [T_0, T_max]) or per-segment Brent on the p-range (limits computed on
+  demand exactly as upstream's post-parse `set_limits`; upstream's InTr T(p) error message
+  says "polynomial_in_Theta" — a faithful copy of upstream's copy-paste). Consumers wired:
+  PT flash throws upstream's "For now, we don't support T below Tmelt(p)" for p >
+  melt-pmin and T < Tm - 0.001 (oracle Tmelt reproduced to full precision, e.g. Water
+  264.2087463240427 K at 1e8 Pa); the (P,X) liquid/supercritical bracket floor is now
+  Tmelt(p) - 1e-3 (was Tmin - 1e-3, logged deviation now closed). 290 melting goldens
+  (p/T/limits, 29 fluids, 1e-12 direct / 1e-10 Brent-inverted) + below-melt error parity
+  for Water/Nitrogen/CO2, first-run green. Part 2 (HS cascade leg 4, MeltingCaloric +
+  seed_for_hs — ENABLE_MELTING_CALORIC_HS defaults true upstream) is the remaining leg.

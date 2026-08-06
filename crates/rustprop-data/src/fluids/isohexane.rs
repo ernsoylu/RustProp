@@ -312,6 +312,7 @@ pub static ISOHEXANE: FluidData = FluidData {
             t_max: 497.6999999999989,
         },
         surface_tension: Some(SurfaceTension { a: &[0.05024], n: &[1.194], tc: 497.7 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

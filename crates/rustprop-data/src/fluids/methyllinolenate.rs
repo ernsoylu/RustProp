@@ -327,6 +327,7 @@ pub static METHYLLINOLENATE: FluidData = FluidData {
             t_max: 771.9999999999981,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

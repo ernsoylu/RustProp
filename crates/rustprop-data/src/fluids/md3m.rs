@@ -334,6 +334,7 @@ pub static MD3M: FluidData = FluidData {
             t_max: 628.0,
         },
         surface_tension: Some(SurfaceTension { a: &[0.03972], n: &[1.254], tc: 628.36 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -4,11 +4,6 @@
 //! `p_phase_determination_pure_or_pseudopure`, `other == iP`/`iT` paths), and
 //! `solver_rho_Tp` with its SRK guess (`solver_rho_Tp_SRK`).
 //!
-//! Deviations logged in PLAN.md: the melting-line check is deferred with the
-//! skip-listed `melting_line` data (upstream raises below Tmelt(p); we do
-//! not, and oracle-generated golden grids cannot contain such points); the
-//! caller-provided density guess variant and the pseudo-pure/mixture branches
-//! are unported until a consumer arrives.
 
 use crate::alpha::HelmholtzEos;
 use crate::ancillary;
@@ -181,6 +176,18 @@ impl PtFlash {
             && p <= pc * (1.0 + 1e-10)
         {
             return Ok((self.rhomolar_critical(), Phase::CriticalPoint));
+        }
+        // Upstream phase determinations (both arms): a state below the
+        // melting temperature at this pressure is unsupported.
+        if let Some(ml) = &self.fluid.ancillaries.melting_line {
+            if p > crate::melting::p_min(ml) {
+                let tm = crate::melting::t_of_p(ml, p)?;
+                if t < tm - 0.001 {
+                    return Err(Error::Value(format!(
+                        "For now, we don't support T [{t} K] below Tmelt(p) [{tm} K]"
+                    )));
+                }
+            }
         }
         let phase = if t < 0.9 * self.t_triple() + 0.1 * tc {
             self.p_phase_determination_given_t(t, p)?

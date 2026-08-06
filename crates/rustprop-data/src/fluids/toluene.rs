@@ -300,6 +300,7 @@ pub static TOLUENE: FluidData = FluidData {
             t_max: 591.7499999999987,
         },
         surface_tension: Some(SurfaceTension { a: &[0.06897], n: &[1.291], tc: 591.75 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

@@ -288,6 +288,7 @@ pub static CARBONYLSULFIDE: FluidData = FluidData {
             t_max: 378.769999999999,
         },
         surface_tension: Some(SurfaceTension { a: &[0.07246], n: &[1.407], tc: 378.77 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

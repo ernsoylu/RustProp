@@ -291,6 +291,7 @@ pub static R23: FluidData = FluidData {
             t_max: 299.29299999999944,
         },
         surface_tension: Some(SurfaceTension { a: &[-0.32359, 0.37702], n: &[1.6055, 1.5232], tc: 299.293 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

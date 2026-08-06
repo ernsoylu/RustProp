@@ -287,6 +287,7 @@ pub static R1130_E_: FluidData = FluidData {
             t_max: 515.69,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

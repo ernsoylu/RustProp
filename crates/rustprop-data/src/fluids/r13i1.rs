@@ -301,6 +301,7 @@ pub static R13I1: FluidData = FluidData {
             t_max: 396.44,
         },
         surface_tension: None,
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {

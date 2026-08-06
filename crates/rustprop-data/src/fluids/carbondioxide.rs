@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static CARBONDIOXIDE: FluidData = FluidData {
     name: "CarbonDioxide",
@@ -279,6 +279,12 @@ pub static CARBONDIOXIDE: FluidData = FluidData {
             t_max: 304.1281999999994,
         },
         surface_tension: Some(SurfaceTension { a: &[0.07863], n: &[1.254], tc: 304.128 }),
+        melting_line: Some(MeltingLine {
+            t_m: 216.58,
+            kind: MeltingLineKind::PolynomialInTheta { parts: &[
+                PolyMeltPart { t_0: 216.592, p_0: 517950.0, t_min: 216.592, t_max: 330.0, a: &[1955.539, 2055.4593], t: &[1.0, 2.0] },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

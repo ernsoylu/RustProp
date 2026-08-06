@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart};
 
 pub static KRYPTON: FluidData = FluidData {
     name: "Krypton",
@@ -263,6 +263,12 @@ pub static KRYPTON: FluidData = FluidData {
             t_max: 209.4799999999995,
         },
         surface_tension: Some(SurfaceTension { a: &[0.0447], n: &[1.245], tc: 209.48 }),
+        melting_line: Some(MeltingLine {
+            t_m: 115.95,
+            kind: MeltingLineKind::Simon { parts: &[
+                SimonMeltPart { t_0: 1.0, a: 109479.2307, c: 1.6169841, p_0: -237497645.7, t_min: 115.77, t_max: 170.0 },
+            ] },
+        }),
     },
     states: States {
         critical: StatePoint {

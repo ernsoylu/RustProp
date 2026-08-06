@@ -281,6 +281,7 @@ pub static BENZENE: FluidData = FluidData {
             t_max: 562.0199999999986,
         },
         surface_tension: Some(SurfaceTension { a: &[0.07298, -0.0007802, -0.0001756], n: &[1.232, 0.8635, 0.3065], tc: 562.02 }),
+        melting_line: None,
     },
     states: States {
         critical: StatePoint {
