@@ -179,8 +179,8 @@ impl PtFlash {
     /// (Dmolar, T) flash — upstream `DHSU_T_flash(iDmolar)`, which for a pure
     /// fluid is exactly `T_phase_determination_pure_or_pseudopure(iDmolar)`.
     pub fn dmolar_t_state(&self, rhomolar: f64, t: f64) -> Result<HeosState> {
-        let tc = self.fluid().states.critical.t;
-        let rhoc = self.fluid().states.critical.rhomolar;
+        let tc = self.t_critical();
+        let rhoc = self.rhomolar_critical();
         if (t - tc).abs() < 10.0 * f64::EPSILON {
             // Exactly at Tcrit
             let phase = if (rhomolar - rhoc).abs() < 10.0 * f64::EPSILON {
@@ -254,7 +254,7 @@ impl PtFlash {
     /// branches. Ported for the legacy HS path; it is also the (S,T) input
     /// pair itself.
     pub fn smolar_t_state(&self, smolar: f64, t: f64) -> Result<HeosState> {
-        let tc = self.fluid().states.critical.t;
+        let tc = self.t_critical();
         if (t - tc).abs() < 10.0 * f64::EPSILON {
             // Upstream supports only iDmolar/iP at exactly Tcrit.
             return Err(Error::Value(
@@ -358,7 +358,7 @@ impl PtFlash {
 
     /// Supercritical branch of `solver_for_rho_given_T_oneof_HSU(iSmolar)`.
     fn rho_from_smolar_t_supercritical(&self, t: f64, smolar: f64) -> Result<HeosState> {
-        let mut rhoc = self.fluid().states.critical.rhomolar;
+        let mut rhoc = self.rhomolar_critical();
         let rhomin = 1e-10;
         let yc = self.eos.smolar(t, rhoc);
         let ymin = self.eos.smolar(t, rhomin);
@@ -388,7 +388,7 @@ impl PtFlash {
             )));
         };
         let p = self.eos.pressure(t, rho);
-        let phase = if p < self.fluid().states.critical.p {
+        let phase = if p < self.p_critical() {
             Phase::SupercriticalGas
         } else {
             Phase::Supercritical
@@ -404,16 +404,15 @@ impl PtFlash {
 
     /// Upstream `recalculate_singlephase_phase` (pure-fluid branch).
     pub(crate) fn recalculated_singlephase_phase(&self, t: f64, p: f64, rho: f64) -> Phase {
-        let crit = &self.fluid().states.critical;
-        if p > crit.p {
-            if t > crit.t {
+        if p > self.p_critical() {
+            if t > self.t_critical() {
                 Phase::Supercritical
             } else {
                 Phase::SupercriticalLiquid
             }
-        } else if t > crit.t {
+        } else if t > self.t_critical() {
             Phase::SupercriticalGas
-        } else if rho > crit.rhomolar {
+        } else if rho > self.rhomolar_critical() {
             Phase::Liquid
         } else {
             Phase::Gas
@@ -431,9 +430,9 @@ impl PtFlash {
     }
 
     fn px_state(&self, p: f64, value: f64, key: PxKey) -> Result<HeosState> {
-        let pc = self.fluid().states.critical.p;
-        let tc = self.fluid().states.critical.t;
-        let rhoc = self.fluid().states.critical.rhomolar;
+        let pc = self.p_critical();
+        let tc = self.t_critical();
+        let rhoc = self.rhomolar_critical();
         let p_triple = self.fluid().eos.sat_min_liquid.p;
 
         // Upstream `p_phase_determination_pure_or_pseudopure(other=H/S)`
@@ -571,9 +570,9 @@ impl PtFlash {
     /// (Peng-Robinson seed for gas-like phases, saturation/1.1*Tc seeds
     /// otherwise), with the 30-bit bracketed fallback.
     pub fn dmolar_p_state(&self, rhomolar: f64, p: f64) -> Result<HeosState> {
-        let pc = self.fluid().states.critical.p;
-        let tc = self.fluid().states.critical.t;
-        let rhoc = self.fluid().states.critical.rhomolar;
+        let pc = self.p_critical();
+        let tc = self.t_critical();
+        let rhoc = self.rhomolar_critical();
         let p_triple = self.fluid().eos.sat_min_liquid.p;
 
         let (phase, t0) = if p > pc {
@@ -635,8 +634,8 @@ impl PtFlash {
     /// Upstream `T_DP_PengRobinson`: PR-based T seed at fixed (rho, p).
     fn t_dp_peng_robinson(&self, rhomolar: f64, p: f64) -> f64 {
         let omega = self.fluid().eos.acentric;
-        let tc = self.fluid().states.critical.t;
-        let pc = self.fluid().states.critical.p;
+        let tc = self.t_critical();
+        let pc = self.p_critical();
         let r = self.eos.gas_constant;
         let v = 1.0 / rhomolar;
         let kappa = 0.37464 + 1.54226 * omega - 0.26992 * omega * omega;

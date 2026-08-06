@@ -257,7 +257,7 @@ fn hs_corrector(
     tlo_override: f64,
 ) -> Option<(f64, f64)> {
     let rgas = eos.gas_constant;
-    let tsc = fluid.states.critical.t;
+    let tsc = t_critical_of(fluid);
     let (hscale, sscale) = (rgas * tsc, rgas);
     let tlo = if tlo_override > 0.0 {
         tlo_override
@@ -432,7 +432,7 @@ fn hs_leg_isentrope(
     s_t: f64,
 ) -> Option<(f64, f64)> {
     let ta = fluid.eos.t_max;
-    let rhoc = fluid.states.critical.rhomolar;
+    let rhoc = rhomolar_critical_of(fluid);
     let sres = |rho: f64| eos.smolar(ta, rho) - s_t;
     let ra = 1e-6 * rhoc;
     let ga = sres(ra);
@@ -577,6 +577,23 @@ fn hs_leg_departure(
 // Acceptance and dispatch
 // ---------------------------------------------------------------------------
 
+/// Upstream `T_critical()` for the standalone legs: the superancillary's
+/// numerical critical temperature when present.
+fn t_critical_of(fluid: &FluidData) -> f64 {
+    match &fluid.eos.superancillary {
+        Some(sa) => sa.t_crit_num,
+        None => fluid.states.critical.t,
+    }
+}
+
+/// Upstream `rhomolar_critical()` for the standalone legs.
+fn rhomolar_critical_of(fluid: &FluidData) -> f64 {
+    match &fluid.eos.superancillary {
+        Some(sa) => sa.rho_crit_num,
+        None => fluid.states.critical.rhomolar,
+    }
+}
+
 /// dp/drho|_T (upstream `first_partial_deriv(iP, iDmolar, iT)`).
 fn dpdrho_t(eos: &HelmholtzEos, t: f64, rho: f64) -> f64 {
     let tau = eos.t_reducing / t;
@@ -593,7 +610,7 @@ fn hs_accept(eos: &HelmholtzEos, fluid: &FluidData, t: f64, rho: f64, h_t: f64, 
         return false;
     }
     let rg = eos.gas_constant;
-    let tc = fluid.states.critical.t;
+    let tc = t_critical_of(fluid);
     let tmin_eff = fluid.eos.sat_min_liquid.t;
     if t < tmin_eff * (1.0 - 1e-6) || t > fluid.eos.t_max * (1.0 + 1e-6) {
         return false;
@@ -731,7 +748,7 @@ impl PtFlash {
             last_qs = qs;
             qh - qs
         };
-        let tmax_sat = fluid.states.critical.t - 1e-13;
+        let tmax_sat = self.t_critical() - 1e-13;
         let tmin_sat = fluid.eos.sat_min_liquid.t.max(fluid.eos.sat_min_vapor.t) - 1e-13;
         brent(resid, tmin_sat, tmax_sat - 0.01, f64::EPSILON, 1e-12, 20)?;
         // Run once more with the final vapor quality (upstream

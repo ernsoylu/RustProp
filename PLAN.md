@@ -175,15 +175,15 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 
 ## Phase 5 — PropsSI string API
 
-- [ ] 5.1 Fluid registry keyed by enabled data features (canonical names + aliases).
+- [x] 5.1 Fluid registry keyed by enabled data features (canonical names + aliases).
       → verify: registry contents match a golden dump of upstream's fluid and alias lists
       (restricted to enabled features).
-- [ ] 5.2 `props_si(output, n1, v1, n2, v2, fluid)` with upstream semantics: backend prefix
+- [x] 5.2 `props_si(output, n1, v1, n2, v2, fluid)` with upstream semantics: backend prefix
       parsing (`IF97::`, `HEOS::` default), input-pair resolution, trivial outputs (Tcrit, pcrit,
       M, acentric, …), error conditions.
       → verify: goldens vs upstream `PropsSI` including trivial outputs; error-condition tests
       (invalid fluid/param/pair) assert the matching error variant.
-- [ ] 5.3 CLI reaches full planned form: `rustprop-cli props T P 101325 Q 0 Water`.
+- [x] 5.3 CLI reaches full planned form: `rustprop-cli props T P 101325 Q 0 Water`.
       → verify: CLI e2e tests vs goldens; README example updated and exercised by a test.
 
 **Phase gate 5**: the README quickstart is real.
@@ -640,3 +640,34 @@ Append-only; newest last. Seeded entries:
 - 2026-08-06 — 4.8 wasm size (the modularity headline): HEOS engine + Water only = 136 KB;
   HEOS + all 130 fluids = 3.31 MB — ~26 KB per fluid of opt-in data, measured by the new
   `heos-water` / `heos-all-fluids` probe features in the CI size report.
+- 2026-08-06 — Phase 5 (PropsSI string API) complete. `rustprop::props_si` ports
+  `PropsSI`/`_PropsSImulti`/`_PropsSI_outputs` for one point/one output: backend prefix
+  parsing (`extract_backend`; bare name -> "?" -> HEOS), the trivial-output route (no state
+  update; reachable with empty/invalid input names — but a pair of VALID params in an invalid
+  combination throws even for trivial outputs, as upstream), the outputs-are-inputs echo
+  route, `mass_to_molar_inputs` (pair rewrite + molar-mass scaling), Q-range validation at
+  the update layer (OutOfRange, upstream #2195 placement), and keyed_output with mass-basis
+  conversions and two-phase error conditions for Cp/Cv/speed-of-sound/Gibbs. Fluid
+  resolution registers exactly upstream's `string_to_index_map` keys: CAS, canonical name,
+  every alias, and upper(alias) (EES compat) — 639 wheel-resolution queries all match, with
+  zero pure/pseudo-pure collisions. 196 props_si goldens over four fluids (mass aliases
+  D/H/S/U/C/O/A/G, mass inputs for every ported pair, swapped order, echoes, trivial outputs
+  in both empty-name and state-input forms) pass at 1e-8; error conditions asserted by
+  variant. Unported pairs (HmolarT, TUmolar, DmolarHmolar, ...) and multi-output/mixture
+  requests error loudly.
+- 2026-08-06 — Phase 5 DISCOVERY (critical parameters): for superancillary fluids upstream's
+  `calc_T_critical`/`calc_p_critical`/`calc_rhomolar_critical` return the NUMERICAL critical
+  point — `get_Tcrit_num()`, `get_pmax()`, `get_rhocrit_num()` — NOT the document's
+  `STATES.critical` (R134a: Tcrit 374.2119665849513 K vs 374.21 K, rhocrit differs at 9e-5).
+  The trivial-output goldens forced this out; every flash consumer (phase determinations,
+  critical short-circuit, exactly-at-Tc branches, PX supercritical splits, HS scales/legs/
+  two-phase bracket, recalculate_singlephase_phase) now routes through SA-aware accessors
+  with the upstream no-SA fallback, and the ENTIRE golden battery (all suites + the
+  130-fluid smoke) was re-run green after the switch. The SRK seed keeps `reduce.T/p`
+  (upstream uses the reducing state there, not the critical accessors).
+- 2026-08-06 — Phase 5 plumbing: facade `heos` feature now pulls `rustprop-data` (contents
+  still chosen by the application's rustprop-data features; `all-backends` adds
+  `all-fluids`); `PtFlash` is `Sync` (HS calorics cell moved to `OnceLock`) and the facade
+  caches one `PtFlash` per fluid. CLI `props` now routes everything through `props_si`
+  (`rustprop-cli props Dmolar T 300 P 101325 Water`); README quickstart shows the real CLI
+  and library forms, both exercised by tests (e2e + doc-test).

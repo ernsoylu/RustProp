@@ -24,8 +24,9 @@ pub struct PtFlash {
     sat: SaturationSuperAncillary,
     fluid: &'static FluidData,
     /// Lazily-built caloric superancillaries for the (H,S) flash (upstream
-    /// `ensure_caloric_superancillaries` — built on first HS use, cached).
-    pub(crate) hs_calorics_cell: std::cell::OnceCell<crate::flash_hs::CaloricSa>,
+    /// `ensure_caloric_superancillaries` — built on first HS use, cached;
+    /// `OnceLock` keeps `PtFlash: Sync` for the facade's per-fluid cache).
+    pub(crate) hs_calorics_cell: std::sync::OnceLock<crate::flash_hs::CaloricSa>,
 }
 
 /// Upstream `SolverTPResid`: relative pressure residual with derivatives in
@@ -85,7 +86,7 @@ impl PtFlash {
             eos,
             sat,
             fluid,
-            hs_calorics_cell: std::cell::OnceCell::new(),
+            hs_calorics_cell: std::sync::OnceLock::new(),
         }
     }
 
@@ -97,14 +98,31 @@ impl PtFlash {
         self.fluid
     }
 
-    fn t_critical(&self) -> f64 {
-        self.fluid.states.critical.t
+    /// Upstream `T_critical()`: for a superancillary fluid, the NUMERICAL
+    /// critical temperature (`meta."Tcrittrue / K"`), not the document's
+    /// `STATES.critical` — `calc_T_critical` prefers `get_Tcrit_num()`.
+    pub fn t_critical(&self) -> f64 {
+        match &self.fluid.eos.superancillary {
+            Some(sa) => sa.t_crit_num,
+            None => self.fluid.states.critical.t,
+        }
     }
-    fn p_critical(&self) -> f64 {
-        self.fluid.states.critical.p
+    /// Upstream `p_critical()`: the superancillary's numerical maximum
+    /// pressure (`get_pmax()`), falling back to the document value.
+    pub fn p_critical(&self) -> f64 {
+        if self.fluid.eos.superancillary.is_some() {
+            self.sat.pmax()
+        } else {
+            self.fluid.states.critical.p
+        }
     }
-    fn rhomolar_critical(&self) -> f64 {
-        self.fluid.states.critical.rhomolar
+    /// Upstream `rhomolar_critical()`: the superancillary's numerical
+    /// critical density (`get_rhocrit_num()`).
+    pub fn rhomolar_critical(&self) -> f64 {
+        match &self.fluid.eos.superancillary {
+            Some(sa) => sa.rho_crit_num,
+            None => self.fluid.states.critical.rhomolar,
+        }
     }
     /// Upstream `Ttriple()` / `Tmin()`: BOTH resolve to the EOS's
     /// `sat_min_liquid.T` — FluidLibrary overwrites `EOS.Ttriple` and

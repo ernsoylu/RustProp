@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 rustprop-core.workspace = true
 rustprop-heos = { workspace = true, optional = true }
+rustprop-data = { workspace = true, optional = true }
 rustprop-cubics = { workspace = true, optional = true }
 rustprop-if97 = { workspace = true, optional = true }
 rustprop-incompressible = { workspace = true, optional = true }
@@ -20,7 +21,7 @@ rustprop-humid-air = { workspace = true, optional = true }
 
 [features]
 default = []
-heos = ["dep:rustprop-heos"]
+heos = ["dep:rustprop-heos", "dep:rustprop-data"]
 cubics = ["dep:rustprop-cubics"]
 if97 = ["dep:rustprop-if97"]
 incompressible = ["dep:rustprop-incompressible"]
@@ -30,6 +31,7 @@ svdsbtl = ["dep:rustprop-svdsbtl"]
 humid-air = ["dep:rustprop-humid-air"]
 all-backends = [
     "heos",
+    "rustprop-data/all-fluids",
     "cubics",
     "if97",
     "incompressible",

@@ -4,6 +4,7 @@
   "upstream_tag": "v8.0.0",
   "platform": "Linux-x86_64",
   "files": [
+    "fluid_resolution.jsonl",
     "heos_all_smoke.jsonl",
     "heos_ammonia_ancillary.jsonl",
     "heos_ammonia_flash.jsonl",
@@ -93,6 +94,7 @@
     "param_aliases.jsonl",
     "parameters.jsonl",
     "phases.jsonl",
+    "props_si.jsonl",
     "water_propssi_smoke.jsonl"
   ]
 }

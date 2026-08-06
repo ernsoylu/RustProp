@@ -628,6 +628,105 @@ def gen_heos_all_smoke():
     return rows
 
 
+def gen_fluid_resolution():
+    """5.1 registry goldens: for every pure fluid, how the wheel resolves its
+    canonical name, CAS, aliases, and upper(aliases); plus negatives. The
+    canonical answer is INFO.NAME of the resolved document."""
+    import CoolProp.CoolProp as CPP
+    all_fluids = CPP.get_global_param_string("fluids_list").split(",")
+    pure, pseudo = [], set()
+    for fl in all_fluids:
+        d = json.loads(CPP.get_fluid_param_string(fl, "JSON"))[0]
+        (pseudo.add(fl) if d["EOS"][0].get("pseudo_pure") else pure.append(fl))
+    rows = []
+    seen = set()
+
+    def resolve(q):
+        try:
+            return json.loads(CPP.get_fluid_param_string(q, "JSON"))[0]["INFO"]["NAME"]
+        except Exception:
+            return None
+
+    for fl in pure:
+        d = json.loads(CPP.get_fluid_param_string(fl, "JSON"))[0]
+        queries = [fl, d["INFO"]["CAS"]]
+        for a in d["INFO"]["ALIASES"]:
+            queries += [a, a.upper()]
+        for q in queries:
+            if q in seen:
+                continue
+            seen.add(q)
+            name = resolve(q)
+            if name in pseudo:
+                # A pure fluid's string claimed by a pseudo-pure fluid (not
+                # in the ported registry) — record for visibility.
+                print(f"  NOTE: query {q!r} resolves to pseudo-pure {name!r}")
+            rows.append({"query": q, "name": name})
+    for q in ["Watr", "", "R134A", "H2O!"]:
+        if q not in seen:
+            rows.append({"query": q, "name": resolve(q)})
+    print(f"fluid resolution: {len(rows)} queries")
+    return rows
+
+
+def gen_props_si():
+    """5.2 string-API goldens: mass-basis aliases and inputs, molar forms,
+    swapped pair order, input echo, and trivial outputs (empty-name and
+    state-input forms), over four fluids."""
+    rows, skipped = [], 0
+
+    def rec(fluid, out, n1, v1, n2, v2):
+        nonlocal skipped
+        r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+        rows.append(r) if r else (skipped := skipped + 1)
+
+    for fluid in ["Water", "CarbonDioxide", "R134a", "Ammonia"]:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+
+        def TL(x):
+            return Tt + x * (Tc - Tt)
+
+        t_liq = TL(0.3)
+        p_liq = 2.5 * PropsSI("P", "T", t_liq, "Q", 1, hf)
+        t_gas = TL(0.8)
+        p_gas = 0.5 * PropsSI("P", "T", t_gas, "Q", 1, hf)
+        # mass-basis output aliases at PT states
+        for (t, p) in [(t_liq, p_liq), (t_gas, p_gas)]:
+            for out in ["D", "H", "S", "U", "C", "O", "A", "G",
+                        "Dmolar", "Hmolar", "Cvmolar"]:
+                rec(fluid, out, "T", t, "P", p)
+        # swapped order + input echo
+        rec(fluid, "Dmolar", "P", p_gas, "T", t_gas)
+        rec(fluid, "T", "T", t_gas, "P", p_gas)
+        rec(fluid, "P", "T", t_gas, "P", p_gas)
+        # mass-basis inputs (values from the wheel at the same states)
+        d_mass = PropsSI("D", "T", t_gas, "P", p_gas, hf)
+        h_mass = PropsSI("H", "T", t_gas, "P", p_gas, hf)
+        s_mass = PropsSI("S", "T", t_gas, "P", p_gas, hf)
+        s_liq_mass = PropsSI("S", "T", t_liq, "P", p_liq, hf)
+        rec(fluid, "P", "Dmass", d_mass, "T", t_gas)
+        rec(fluid, "T", "Hmass", h_mass, "P", p_gas)
+        rec(fluid, "T", "P", p_liq, "Smass", s_liq_mass)
+        rec(fluid, "T", "Dmass", d_mass, "P", p_gas)
+        rec(fluid, "T", "Hmass", h_mass, "Smass", s_mass)
+        rec(fluid, "Dmolar", "Smass", s_mass, "T", t_gas)
+        # Q pairs incl. mass-basis outputs
+        rec(fluid, "H", "T", TL(0.5), "Q", 0.5)
+        rec(fluid, "D", "P", PropsSI("P", "T", TL(0.5), "Q", 1, hf), "Q", 0.3)
+        rec(fluid, "Q", "T", TL(0.5), "Q", 0.25)
+        # trivial outputs: empty-name form and state-input form
+        for out in ["Tcrit", "pcrit", "rhocrit", "rhomolar_critical",
+                    "Ttriple", "ptriple", "Tmin", "Tmax", "pmax", "M",
+                    "acentric", "gas_constant", "T_reducing"]:
+            rec(fluid, out, "", 0.0, "", 0.0)
+        rec(fluid, "Tcrit", "T", t_gas, "P", p_gas)
+        rec(fluid, "M", "T", t_liq, "P", p_liq)
+    print(f"props_si: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 WRITTEN = []
 
 
@@ -685,6 +784,8 @@ def main():
     for fluid in ["Water"] + HEOS_FLUIDS:
         write_jsonl(f"heos_{module_name(fluid)}_hs.jsonl", gen_heos_fluid_hs(fluid))
     write_jsonl("heos_all_smoke.jsonl", gen_heos_all_smoke())
+    write_jsonl("fluid_resolution.jsonl", gen_fluid_resolution())
+    write_jsonl("props_si.jsonl", gen_props_si())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

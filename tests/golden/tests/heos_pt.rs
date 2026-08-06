@@ -73,8 +73,9 @@ fn pt_guards() {
     // psat(400 K) ~ 245769 Pa: within 1e-6 relative must error
     let psat = flash.sat().qt_flash(400.0, 1.0).unwrap().p;
     assert!(flash.pt_flash(400.0, psat * (1.0 + 1e-8)).is_err());
-    // Critical short-circuit
+    // Critical short-circuit — upstream returns `rhomolar_critical()`,
+    // the superancillary's NUMERICAL critical density.
     let (rho, phase) = flash.pt_flash(647.096, 22064000.0).unwrap();
-    assert_eq!(rho, water.states.critical.rhomolar);
+    assert_eq!(rho, water.eos.superancillary.as_ref().unwrap().rho_crit_num);
     assert_eq!(phase, rustprop_core::params::Phase::CriticalPoint);
 }

@@ -6,14 +6,19 @@
 //! `rustprop-data`, the fluids) a calculation needs, keeping compiled WASM
 //! minimal.
 //!
-//! # Example: IF97 steam properties (feature `if97`)
+//! # Example: the `PropsSI` string API
 //!
 //! ```
+//! # #[cfg(feature = "all-backends")] {
+//! // Equivalent to PropsSI("Dmolar", "T", 300, "P", 101325, "Water").
+//! let d = rustprop::props_si("Dmolar", "T", 300.0, "P", 101325.0, "Water").unwrap();
+//! // Golden value from the CoolProp 8.0.0 oracle:
+//! assert!(((d - 55317.35277350119) / d).abs() < 1e-8);
+//! # }
 //! # #[cfg(feature = "if97")] {
 //! use rustprop::Param;
 //! // Equivalent to PropsSI("H", "T", 300, "P", 101325, "IF97::Water").
 //! let h = rustprop::if97_api::props(Param::Hmass, Param::T, 300.0, Param::P, 101325.0).unwrap();
-//! // Golden value from the CoolProp 8.0.0 oracle:
 //! assert!(((h - 112665.04341853978) / h).abs() < 1e-11);
 //! # }
 //! ```
@@ -28,6 +33,10 @@ pub use rustprop_heos as heos;
 pub use rustprop_humid_air as humid_air;
 #[cfg(feature = "if97")]
 pub mod if97_api;
+#[cfg(any(feature = "heos", feature = "if97"))]
+pub mod props_api;
+#[cfg(any(feature = "heos", feature = "if97"))]
+pub use props_api::props_si;
 #[cfg(feature = "if97")]
 pub use rustprop_if97 as if97;
 #[cfg(feature = "incompressible")]

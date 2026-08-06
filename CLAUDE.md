@@ -67,7 +67,16 @@ key for 27 fluids). Wasm cost: HEOS+Water 136 KB; all 130 fluids 3.31 MB (~26 KB
 The 6 pseudo-pure fluids (Air, R404A, ...) are deferred with the Maxwell fallback and pL/pV
 ancillary shape.
 
-Next work: `PLAN.md` Phase 5 (PropsSI string API) — or the pseudo-pure/Maxwell step.
+**Phase 5 (PropsSI string API) is done**: `rustprop::props_si` with upstream's backend-prefix
+parsing, registry resolution (CAS/name/alias/upper-alias, 639 queries wheel-verified), trivial
+and echo routes, mass<->molar conversions, Q validation, and error conditions (196 goldens +
+variant-asserted errors). Critical-parameter DISCOVERY encoded: superancillary fluids report the
+NUMERICAL critical point (Tcrit_num/pmax/rhocrit_num) through every consumer, not
+STATES.critical. CLI: `rustprop-cli props Dmolar T 300 P 101325 Water`; README quickstart is
+real (e2e + doc-tests).
+
+Next work: `PLAN.md` Phase 6 (transport properties + surface tension) — or the pseudo-pure/
+Maxwell step.
 
 ## Toolchain
 

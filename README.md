@@ -38,16 +38,36 @@ cargo build -p rustprop --features all-backends \
     --target wasm32-unknown-unknown --release         # wasm facade
 ```
 
-## Status
+## Quickstart
 
-The IF97 steam engine is ported and golden-verified against CoolProp 8.0.0 (356 oracle records at rtol 1e-11; all IAPWS published check tables pass):
+`PropsSI` semantics, from the CLI (any of the 130 ported pure fluids, or `IF97::Water`):
 
 ```bash
-$ cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water
-373.12430000048056
+$ cargo run -p rustprop-cli -- props Dmolar T 300 P 101325 Water
+55317.35277350119
+$ cargo run -p rustprop-cli -- props H T 300 P 101325 IF97::Water
+112665.04341853978
 ```
 
-The HEOS fluid engines are next. The porting plan, fidelity rules, and upstream mapping live in `CLAUDE.md` and `PLAN.md`.
+or from Rust (features select the engines and, per fluid, the data your binary carries —
+`heos` + `rustprop-data/water` compiles to ~136 KB of wasm):
+
+```rust
+// Equivalent to PropsSI("Dmolar", "T", 300, "P", 101325, "Water")
+let d = rustprop::props_si("Dmolar", "T", 300.0, "P", 101325.0, "Water")?;
+```
+
+## Status
+
+Golden-verified against the CoolProp 8.0.0 oracle wheel (~12,000 committed records):
+
+- **IF97** steam engine (356 records at rtol 1e-11; all IAPWS published check tables pass).
+- **HEOS** pure fluids: all 130 superancillary fluids generated, bitwise data-fidelity-walked,
+  and smoke-tested; 12 fluids carry full per-suite batteries (Helmholtz terms through every
+  flash pair, including (H,S)); all eight input pairs; `PropsSI`-style string API with
+  mass-basis aliases, trivial outputs, and upstream error conditions.
+
+The porting plan, fidelity rules, and upstream mapping live in `CLAUDE.md` and `PLAN.md`.
 
 ## License
 
