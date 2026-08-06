@@ -20,7 +20,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
       - run: cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown --release
-      - run: cargo run -p rustprop-cli
+      - run: cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water
       - name: wasm size report
         run: |
           echo "### wasm size report (rustprop-wasm-size-probe, release)"
