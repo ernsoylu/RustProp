@@ -6,8 +6,10 @@
 
 pub mod alpha;
 pub mod ancillary;
+pub mod flash_pt;
 pub mod props;
 pub mod saturation;
+mod solvers;
 pub mod superancillary;
 
 pub use alpha::{HelmholtzDerivs, HelmholtzEos};

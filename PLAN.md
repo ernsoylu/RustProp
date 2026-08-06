@@ -152,7 +152,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
       iteration scheme.
       → verify: goldens for Q=0/Q=1 properties via `QT_INPUTS`/`PQ_INPUTS` across the dome,
       rel ≤ 1e-8; near-critical fixtures carry documented overrides.
-- [ ] 4.5 Single-phase density solver ρ(T,p) with upstream's phase determination.
+- [x] 4.5 Single-phase density solver ρ(T,p) with upstream's phase determination.
       → verify: goldens vs `PT_INPUTS` over a grid covering liquid, vapor, and supercritical.
 - [ ] 4.6 Flash routines, one input pair at a time (each its own checkbox commit): (T,Q), (P,Q),
       (P,H), (P,S), (H,S), (D,T), (D,P) — including two-phase quality mixing.
@@ -473,3 +473,17 @@ Append-only; newest last. Seeded entries:
   Q=0/1 across the dome incl. T=647.05 K and p=22 MPa near-critical rows, worst deviation
   2.07e-11 (cp at 647.05 K) vs the 1e-8 policy; guard tests mirror upstream's above-critical
   errors.
+- 2026-08-06 — 4.5: PT flash ported: `FlashRoutines::PT_flash` (critical short-circuit #2738,
+  the T < 0.9*Ttriple + 0.1*Tcrit threshold routing to the p-based determination — ~310.5 K
+  for Water), both superancillary phase determinations (T-side: psat compare with the 1e-6
+  proximity error; p-side: Tsat from the fitted inverse with 100-ULP bands, below-triple
+  handling), and `solver_rho_Tp` with its full strategy tree: SRK cubic guess
+  (`solve_cubic` + upstream's 30-digit SRK constants), liquid Halley from the classic rhoL
+  ancillary with dp/drho stability checks and Brent fallback, supercritical-liquid Brent
+  chains + dense-branch walk, gas Householder4 with branch-repair retries and Brent rescues.
+  Rootfinders (Halley/Householder4/Brent/solve_cubic) ported op-for-op from Solvers.cpp with
+  upstream defaults (omega=1, xtol_rel=1e-12). Deviations logged: melting-line check deferred
+  with its skip-listed data (upstream raises below Tmelt(p); oracle-generated grids cannot
+  contain such points); caller-provided-guess and pseudo-pure/mixture branches unported.
+  100 PT goldens (5 phases, both determination paths) pass at the 1e-9 policy; condition
+  tests confirm the near-saturation error and the critical short-circuit.

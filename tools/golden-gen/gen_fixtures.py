@@ -258,6 +258,32 @@ def gen_heos_water_sat():
     return rows
 
 
+def gen_heos_water_pt():
+    """PT goldens (PLAN 4.5): liquid, vapor, and the supercritical phases,
+    covering both phase-determination paths (T threshold ~310.5 K for Water)
+    and the solver strategy branches."""
+    points = [
+        # liquid (p-path below ~310.5 K, T-path above)
+        (280.0, 1e5), (300.0, 101325.0), (300.0, 1e7), (350.0, 5e6),
+        (450.0, 5e6), (550.0, 1e7), (600.0, 1.5e7),
+        # vapor
+        (300.0, 1000.0), (400.0, 1e5), (500.0, 1e6), (600.0, 5e6), (640.0, 1e7),
+        # supercritical (T>Tc, p>pc)
+        (650.0, 3e7), (660.0, 2.25e7), (700.0, 5e7),
+        # supercritical gas (T>Tc, p<pc)
+        (700.0, 1e7), (800.0, 2e7),
+        # supercritical liquid (T<Tc, p>pc)
+        (640.0, 3e7), (300.0, 5e7), (280.0, 8e7),
+    ]
+    rows, skipped = [], 0
+    for (t, p_) in points:
+        for out in ["Dmolar", "Hmolar", "Smolar", "Cpmolar", "A"]:
+            r = try_record(out, "T", t, "P", p_, "HEOS", "Water")
+            rows.append(r) if r else (skipped := skipped + 1)
+    print(f"heos pt: {len(rows)} records, {skipped} rejected by the oracle")
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     print(f"wrote {len(rows):4d} records -> {name}")
@@ -302,6 +328,7 @@ def main():
     write_jsonl("heos_water_props.jsonl", gen_heos_water_props())
     write_jsonl("heos_water_ancillary.jsonl", gen_heos_water_ancillary())
     write_jsonl("heos_water_sat.jsonl", gen_heos_water_sat())
+    write_jsonl("heos_water_pt.jsonl", gen_heos_water_pt())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -315,6 +342,7 @@ def main():
         "files": [
             "heos_water_ancillary.jsonl",
             "heos_water_props.jsonl",
+            "heos_water_pt.jsonl",
             "heos_water_sat.jsonl",
             "heos_water_terms.jsonl",
             "if97_water.jsonl",
