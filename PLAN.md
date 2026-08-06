@@ -137,7 +137,7 @@ that needs no fluid data files.
 The largest phase. Order inside follows the upstream call chain: terms → props at (T,ρ) →
 ancillaries → saturation → single-phase solvers → flash routines → all fluids.
 
-- [ ] 4.1 Helmholtz term evaluation, α⁰ and αʳ with all analytic derivatives upstream uses
+- [x] 4.1 Helmholtz term evaluation, α⁰ and αʳ with all analytic derivatives upstream uses
       (∂/∂δ, ∂/∂τ up to the orders HEOS needs), for the term families Water uses.
       → verify: term-level goldens vs upstream Python `AbstractState` (`alphar`,
       `dalphar_dDelta`, `dalphar_dTau`, second derivatives, and α⁰ counterparts) on a (T,ρ) grid,
@@ -424,3 +424,15 @@ Append-only; newest last. Seeded entries:
   any key neither ported nor skip-listed fails. Zero mismatches on first run.
 - 2026-08-06 — 3.4: CI regenerates and `git diff --exit-code`s. Drill verified locally:
   a hand edit is detected; regeneration restores byte-identical content.
+- 2026-08-06 — 4.1: Helmholtz term machinery ported to `rustprop-heos::alpha` from upstream
+  Helmholtz.h/.cpp: `ResidualHelmholtzGeneralizedExponential` (JSON Power/Gaussian convert in
+  exactly as upstream `add_Power`/`add_Gaussian`; evaluation via the B_delta/B_tau recursion to
+  4th order), `ResidualHelmholtzNonAnalytic` line-for-line including the near-critical
+  10*DBL_EPSILON nudge, and ideal Lead/LogTau/PlanckEinsteinGeneralized (JSON PlanckEinstein
+  maps with theta=-t, c=1, d=-1 per FluidLibrary.h). Two load-bearing structural facts
+  preserved: the residual container runs GenExp FIRST on a fresh accumulator (its trailing
+  1/delta,1/tau scaling touches only its own sums) with NonAnalytic added after; and upstream's
+  `powInt` is a sequential multiply (unlike IF97's binary powi) — both ported op-exactly.
+  Golden verification: 240 records (12 single-phase (T,rho) points x 20 AbstractState
+  accessors, alphar+alpha0 through THIRD derivatives — the wheel exposes them all) pass at
+  rel <= 1e-13; identically-zero alpha0 cross-derivatives compare exactly.

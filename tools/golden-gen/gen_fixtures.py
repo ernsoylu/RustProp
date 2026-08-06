@@ -168,6 +168,40 @@ def gen_if97_water():
     return rows
 
 
+def gen_heos_water_terms():
+    """Term-level goldens (PLAN 4.1): alphar/alpha0 and their tau/delta
+    derivatives from AbstractState, on a single-phase (T, rhomolar) grid
+    spanning liquid, vapor, supercritical, and near-critical states."""
+    state = CP.AbstractState("HEOS", "Water")
+    points = [
+        (280.0, 55500.0), (300.0, 55000.0), (350.0, 54000.0),
+        (400.0, 30.0), (500.0, 100.0), (600.0, 500.0),
+        (700.0, 20000.0), (650.0, 17873.72799560906), (630.0, 40000.0),
+        (647.2, 17500.0), (648.0, 18500.0), (620.0, 5000.0),
+    ]
+    accessors = [
+        "alphar", "dalphar_dDelta", "dalphar_dTau", "d2alphar_dDelta2",
+        "d2alphar_dDelta_dTau", "d2alphar_dTau2", "d3alphar_dDelta3",
+        "d3alphar_dDelta2_dTau", "d3alphar_dDelta_dTau2", "d3alphar_dTau3",
+        "alpha0", "dalpha0_dDelta", "dalpha0_dTau", "d2alpha0_dDelta2",
+        "d2alpha0_dDelta_dTau", "d2alpha0_dTau2", "d3alpha0_dDelta3",
+        "d3alpha0_dDelta2_dTau", "d3alpha0_dDelta_dTau2", "d3alpha0_dTau3",
+    ]
+    rows, skipped = [], []
+    for (t, rho) in points:
+        state.update(CP.DmolarT_INPUTS, rho, t)
+        for name in accessors:
+            fn = getattr(state, name, None)
+            if fn is None:
+                skipped.append(name)
+                continue
+            rows.append({"fluid": "Water", "t": t, "rhomolar": rho,
+                         "out": name, "expected": fn()})
+    if skipped:
+        print(f"heos terms: accessors missing from wheel: {sorted(set(skipped))}")
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     print(f"wrote {len(rows):4d} records -> {name}")
@@ -208,6 +242,7 @@ def main():
     FIXTURES.mkdir(parents=True, exist_ok=True)
     write_jsonl("water_propssi_smoke.jsonl", [record(*spec) for spec in WATER_SMOKE])
     write_jsonl("if97_water.jsonl", gen_if97_water())
+    write_jsonl("heos_water_terms.jsonl", gen_heos_water_terms())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -219,6 +254,7 @@ def main():
         "upstream_tag": "v8.0.0",
         "platform": f"{platform.system()}-{platform.machine()}",
         "files": [
+            "heos_water_terms.jsonl",
             "if97_water.jsonl",
             "param_aliases.jsonl",
             "parameters.jsonl",

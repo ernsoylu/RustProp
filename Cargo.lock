@@ -87,6 +87,7 @@ dependencies = [
  "rustprop",
  "rustprop-core",
  "rustprop-data",
+ "rustprop-heos",
  "serde",
  "serde_json",
 ]

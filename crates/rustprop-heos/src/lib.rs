@@ -1,6 +1,10 @@
 //! HEOS engine — multiparameter Helmholtz EOS for pure fluids and mixtures (port of CoolProp 8 src/Backends/Helmholtz)
 //!
-//! Not yet ported. Fidelity rule: identical algorithms and data as upstream
-//! CoolProp v8.0.0 — see CLAUDE.md.
+//! Phase 4 of PLAN.md. Currently ported: the Helmholtz term machinery
+//! ([`alpha`]) for the families Water uses, golden-verified term-by-term
+//! against the CoolProp 8.0.0 wheel's `AbstractState` derivative accessors.
 
+pub mod alpha;
+
+pub use alpha::{HelmholtzDerivs, HelmholtzEos};
 pub use rustprop_core::UPSTREAM_VERSION;
