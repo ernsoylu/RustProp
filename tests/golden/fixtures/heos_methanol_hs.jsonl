@@ -42,3 +42,11 @@
 {"backend": "HEOS", "fluid": "Methanol", "out": "Dmolar", "name1": "Hmolar", "val1": 35772.48025285425, "name2": "Smolar", "val2": 77.13244732557978, "expected": 3880.5200435750844}
 {"backend": "HEOS", "fluid": "Methanol", "out": "P", "name1": "Hmolar", "val1": 35772.48025285425, "name2": "Smolar", "val2": 77.13244732557978, "expected": 8380170.34044667}
 {"backend": "HEOS", "fluid": "Methanol", "out": "Q", "name1": "Hmolar", "val1": 35772.48025285425, "name2": "Smolar", "val2": 77.13244732557978, "expected": 10000.0}
+{"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "Hmolar", "val1": -11430.98582474598, "name2": "Smolar", "val2": -48.7418240564437, "expected": 179.82554202293701}
+{"backend": "HEOS", "fluid": "Methanol", "out": "Dmolar", "name1": "Hmolar", "val1": -11430.98582474598, "name2": "Smolar", "val2": -48.7418240564437, "expected": 28458.189298356545}
+{"backend": "HEOS", "fluid": "Methanol", "out": "P", "name1": "Hmolar", "val1": -11430.98582474598, "name2": "Smolar", "val2": -48.7418240564437, "expected": 24647559.824825812}
+{"backend": "HEOS", "fluid": "Methanol", "out": "Q", "name1": "Hmolar", "val1": -11430.98582474598, "name2": "Smolar", "val2": -48.7418240564437, "expected": 10000.0}
+{"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "Hmolar", "val1": -9830.145801757024, "name2": "Smolar", "val2": -47.82755184637711, "expected": 185.62816214871168}
+{"backend": "HEOS", "fluid": "Methanol", "out": "Dmolar", "name1": "Hmolar", "val1": -9830.145801757024, "name2": "Smolar", "val2": -47.82755184637711, "expected": 28839.806507320853}
+{"backend": "HEOS", "fluid": "Methanol", "out": "P", "name1": "Hmolar", "val1": -9830.145801757024, "name2": "Smolar", "val2": -47.82755184637711, "expected": 65726826.19965769}
+{"backend": "HEOS", "fluid": "Methanol", "out": "Q", "name1": "Hmolar", "val1": -9830.145801757024, "name2": "Smolar", "val2": -47.82755184637711, "expected": 10000.0}

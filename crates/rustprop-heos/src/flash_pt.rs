@@ -27,6 +27,9 @@ pub struct PtFlash {
     /// walks the same monotonic-interval machinery the caloric SAs use.
     pub(crate) d_approx_cell:
         std::sync::OnceLock<(crate::chebappr::ChebApprox1d, crate::chebappr::ChebApprox1d)>,
+    /// Lazily-built melting-curve caloric fits for the HS cascade's leg 4
+    /// (upstream `get_melting_caloric_cached`; None = no curve/build failed).
+    pub(crate) melting_caloric_cell: std::sync::OnceLock<Option<crate::flash_hs::MeltingCaloric>>,
 }
 
 /// Upstream `SolverTPResid`: relative pressure residual with derivatives in
@@ -88,6 +91,7 @@ impl PtFlash {
             fluid,
             hs_calorics_cell: std::sync::OnceLock::new(),
             d_approx_cell: std::sync::OnceLock::new(),
+            melting_caloric_cell: std::sync::OnceLock::new(),
         }
     }
 

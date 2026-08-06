@@ -605,13 +605,25 @@ fn dpdrho_t(eos: &HelmholtzEos, t: f64, rho: f64) -> f64 {
 /// Accept only a faithful (h,s) reproduction that is in-range and fully
 /// intrinsically stable (dp/drho|_T > 0 AND cv > 0) — over that region the
 /// (h,s)->(T,rho) map is injective.
-fn hs_accept(eos: &HelmholtzEos, fluid: &FluidData, t: f64, rho: f64, h_t: f64, s_t: f64) -> bool {
+fn hs_accept(
+    eos: &HelmholtzEos,
+    fluid: &FluidData,
+    t: f64,
+    rho: f64,
+    h_t: f64,
+    s_t: f64,
+    tmin_override: f64,
+) -> bool {
     if !t.is_finite() || !rho.is_finite() || rho <= 0.0 {
         return false;
     }
     let rg = eos.gas_constant;
     let tc = t_critical_of(fluid);
-    let tmin_eff = fluid.eos.sat_min_liquid.t;
+    let tmin_eff = if tmin_override > 0.0 {
+        tmin_override
+    } else {
+        fluid.eos.sat_min_liquid.t
+    };
     if t < tmin_eff * (1.0 - 1e-6) || t > fluid.eos.t_max * (1.0 + 1e-6) {
         return false;
     }
@@ -636,18 +648,21 @@ fn hs_inside_dome(data: &SuperAncillaryData, t: f64, rho: f64) -> bool {
     rho > eval_sat(data, t, 'D', 1) && rho < eval_sat(data, t, 'D', 0)
 }
 
-/// The three-leg cascade (upstream `hs_cascade`; leg 4 deferred with the
-/// melting line).
+/// The four-leg cascade (upstream `hs_cascade`): saturation anchor,
+/// isentrope, ideal-gas departure, and the melting-line caloric anchor for
+/// the cold compressed-liquid corner (incl. sub-triple T).
 fn hs_cascade(
     eos: &HelmholtzEos,
     fluid: &FluidData,
     data: &SuperAncillaryData,
     cal: &CaloricSa,
+    mc: Option<&MeltingCaloric>,
     h_t: f64,
     s_t: f64,
 ) -> Option<(f64, f64)> {
-    let good =
-        |t: f64, rho: f64| hs_accept(eos, fluid, t, rho, h_t, s_t) && !hs_inside_dome(data, t, rho);
+    let good = |t: f64, rho: f64| {
+        hs_accept(eos, fluid, t, rho, h_t, s_t, -1.0) && !hs_inside_dome(data, t, rho)
+    };
     if let Some((t, rho)) = hs_leg_saturation(eos, fluid, data, cal, h_t, s_t)
         && good(t, rho)
     {
@@ -663,7 +678,232 @@ fn hs_cascade(
     {
         return Some((t, rho));
     }
+    // Leg 4 (upstream `hs_leg_melting`, ENABLE_MELTING_CALORIC_HS default
+    // true): seed from the melting-curve caloric fits, correct with the
+    // homotopy corrector floored at the curve's minimum temperature (water
+    // folds to ~251 K, below Ttriple), and accept with the same gates but
+    // the melt-Tmin lower bound. No reference-frame shift is needed in this
+    // port: the cache is always built from the same document as the caller.
+    if let Some(mc) = mc {
+        let melt_tmin = mc.curve_tmin;
+        let good_melt = |t: f64, rho: f64| {
+            hs_accept(eos, fluid, t, rho, h_t, s_t, melt_tmin) && !hs_inside_dome(data, t, rho)
+        };
+        let tlo = if melt_tmin.is_finite() && melt_tmin > 0.0 {
+            melt_tmin * (1.0 - 1e-3)
+        } else {
+            -1.0
+        };
+        if let Some((t0, rho0)) = mc.seed_for_hs(s_t, h_t)
+            && let Some((t, rho)) = hs_corrector(eos, fluid, t0, rho0, h_t, s_t, tlo)
+            && good_melt(t, rho)
+        {
+            return Some((t, rho));
+        }
+    }
     None
+}
+
+/// Caloric properties along the melting curve, parametrized by ln(p) — the
+/// monotone curve variable; T is double-valued on water's curve (upstream
+/// `MeltingCaloric`, built lazily and cached on the flash).
+pub(crate) struct MeltingCaloric {
+    t_approx: ChebApprox1d,
+    rho_approx: ChebApprox1d,
+    h_approx: ChebApprox1d,
+    s_approx: ChebApprox1d,
+    /// Minimum temperature on the curve (may be below Ttriple).
+    curve_tmin: f64,
+}
+
+impl MeltingCaloric {
+    /// Upstream `MeltingCaloric::seed_for_hs`: intersect on h (monotonic in
+    /// ln p along the curve; s and T fold back), disambiguate several roots
+    /// by entropy closeness, and read the (T0, rho0) seed off the fits.
+    fn seed_for_hs(&self, s_t: f64, h_t: f64) -> Option<(f64, f64)> {
+        let mut cand: Vec<f64> = self
+            .h_approx
+            .get_x_for_y(h_t, 48, 100, 1e-12)
+            .into_iter()
+            .filter(|lnp| *lnp >= self.h_approx.xmin() && *lnp <= self.h_approx.xmax())
+            .collect();
+        if cand.is_empty() {
+            // Fallback bracket-scan + bisection on h(lnp) - h_t.
+            let (lo, hi) = (self.h_approx.xmin(), self.h_approx.xmax());
+            let nscan = 200;
+            let mut best = (lo, 1e300);
+            let mut prev = (lo, self.h_approx.eval(lo) - h_t);
+            for k in 1..=nscan {
+                let x = lo + (hi - lo) * f64::from(k) / f64::from(nscan);
+                let fx = self.h_approx.eval(x) - h_t;
+                if prev.1 * fx <= 0.0 {
+                    let (mut a, mut b, mut fa) = (prev.0, x, prev.1);
+                    for _ in 0..60 {
+                        let m = 0.5 * (a + b);
+                        let fm = self.h_approx.eval(m) - h_t;
+                        if fa * fm <= 0.0 {
+                            b = m;
+                        } else {
+                            a = m;
+                            fa = fm;
+                        }
+                        if (b - a) < 1e-14 * (a.abs() + b.abs() + 1e-30) {
+                            break;
+                        }
+                    }
+                    let root = 0.5 * (a + b);
+                    let gap = (self.h_approx.eval(root) - h_t).abs();
+                    if gap.is_finite() && gap < best.1 {
+                        best = (root, gap);
+                    }
+                }
+                prev = (x, fx);
+            }
+            if best.1 < h_t.abs() * 0.01 + 1.0 {
+                cand.push(best.0);
+            }
+        }
+        if cand.is_empty() {
+            return None;
+        }
+        let mut best_lnp = cand[0];
+        let mut best_gap = f64::INFINITY;
+        for lnp in cand {
+            let sgap = (self.s_approx.eval(lnp) - s_t).abs();
+            if sgap.is_finite() && sgap < best_gap {
+                best_gap = sgap;
+                best_lnp = lnp;
+            }
+        }
+        if !best_gap.is_finite() {
+            return None;
+        }
+        let t0 = self.t_approx.eval(best_lnp);
+        let rho0 = self.rho_approx.eval(best_lnp);
+        (t0.is_finite() && rho0.is_finite() && rho0 > 0.0).then_some((t0, rho0))
+    }
+}
+
+/// Upstream `MeltingCaloric::build`: clamp each melting part's p-range to
+/// the curve limits, keep parts whose ln-endpoints (shrunk by 1e-9 of the
+/// span) evaluate through the melting line + PT flash, dyadically fit
+/// T/rho/h/s vs ln(p) per part (degree 8, M = 3, tol 1e-10, max 2 refine
+/// passes), and scan the T fit for the curve minimum. Any failure yields
+/// None (upstream caches nullptr).
+fn build_melting_caloric(flash: &PtFlash) -> Option<MeltingCaloric> {
+    let fluid = flash.fluid();
+    let ml = fluid.ancillaries.melting_line.as_ref()?;
+    let p_lo = crate::melting::p_min(ml);
+    let p_hi = crate::melting::p_max(ml);
+    let mut pranges: Vec<(f64, f64)> = crate::melting::part_pranges(ml)
+        .into_iter()
+        .map(|(a, b)| (a.max(p_lo), b.min(p_hi)))
+        .filter(|(a, b)| b > a)
+        .collect();
+    // The melting + PT evaluation at one ln(p); None on any failure.
+    let eval_at = |lnp: f64| -> Option<(f64, f64, f64, f64)> {
+        let p = lnp.exp();
+        let tm = crate::melting::t_of_p(ml, p).ok()?;
+        let (rho, _phase) = flash.pt_flash(tm, p).ok()?;
+        let h = flash.eos.hmolar(tm, rho);
+        let sm = flash.eos.smolar(tm, rho);
+        (rho.is_finite() && h.is_finite() && sm.is_finite()).then_some((tm, rho, h, sm))
+    };
+    pranges.retain(|&(a, b)| {
+        let (lo, hi) = (a.ln(), b.ln());
+        let eps = 1e-9 * (hi - lo);
+        hi > lo && eval_at(lo + eps).is_some() && eval_at(hi - eps).is_some()
+    });
+    if pranges.is_empty() {
+        return None;
+    }
+
+    /// A picker over the (T, rho, h, s) sample tuple.
+    type Pick<'a> = &'a dyn Fn(&(f64, f64, f64, f64)) -> f64;
+    // Degree-8 Chebyshev-Lobatto fit of one property over one ln(p) span,
+    // dyadically split on the trailing-coefficient norm (upstream
+    // `detail::dyadic_splitting(8, func, lo, hi, 3, 1e-10, 2)`).
+    let ndeg = 8usize;
+    let l = lu_matrices(ndeg).0;
+    let fit_all = |pick: Pick| -> Option<Vec<OwnedInterval>> {
+        let builder = |xmin: f64, xmax: f64| -> Option<OwnedInterval> {
+            let mut fvals = vec![0.0; ndeg + 1];
+            for (j, fv) in fvals.iter_mut().enumerate() {
+                let node = ((j as f64) * std::f64::consts::PI / (ndeg as f64)).cos();
+                let x = ((xmax - xmin) * node + (xmax + xmin)) * 0.5;
+                *fv = pick(&eval_at(x)?);
+            }
+            let coef = mat_vec(&l, &fvals);
+            coef.iter()
+                .all(|c| c.is_finite())
+                .then_some(OwnedInterval { xmin, xmax, coef })
+        };
+        let m_norm = |c: &[f64]| -> f64 {
+            let m = 3;
+            let tail: f64 = c[c.len() - m..].iter().map(|v| v * v).sum::<f64>().sqrt();
+            let head: f64 = c[..m].iter().map(|v| v * v).sum::<f64>().sqrt();
+            tail / head
+        };
+        let mut expansions: Vec<OwnedInterval> = Vec::new();
+        for &(a, b) in &pranges {
+            let (lo, hi) = (a.ln(), b.ln());
+            let span = hi - lo;
+            let (adj_lo, adj_hi) = (lo + 1e-9 * span, hi - 1e-9 * span);
+            let mut part = vec![builder(adj_lo, adj_hi)?];
+            for _pass in 0..2 {
+                let mut all_converged = true;
+                let mut i = part.len() as i64 - 1;
+                while i >= 0 {
+                    let idx = i as usize;
+                    if m_norm(&part[idx].coef) > 1e-10 {
+                        let (xmin, xmax) = (part[idx].xmin, part[idx].xmax);
+                        let xmid = (xmin + xmax) / 2.0;
+                        let newleft = builder(xmin, xmid)?;
+                        let newright = builder(xmid, xmax)?;
+                        part[idx] = newleft;
+                        part.insert(idx + 1, newright);
+                        all_converged = false;
+                    }
+                    i -= 1;
+                }
+                if all_converged {
+                    break;
+                }
+            }
+            expansions.extend(part);
+        }
+        expansions.sort_by(|x, y| x.xmin.partial_cmp(&y.xmin).unwrap());
+        Some(expansions)
+    };
+
+    let t_approx = ChebApprox1d::new(fit_all(&|v| v.0)?);
+    let rho_approx = ChebApprox1d::new(fit_all(&|v| v.1)?);
+    let h_approx = ChebApprox1d::new(fit_all(&|v| v.2)?);
+    let s_approx = ChebApprox1d::new(fit_all(&|v| v.3)?);
+
+    // Curve minimum temperature: 258-point scan of the T fit.
+    let (lo, hi) = (t_approx.xmin(), t_approx.xmax());
+    let nscan = 257;
+    let mut curve_tmin = f64::INFINITY;
+    for k in 0..=nscan {
+        let t = t_approx.eval(lo + (hi - lo) * f64::from(k) / f64::from(nscan));
+        if t.is_finite() && t < curve_tmin {
+            curve_tmin = t;
+        }
+    }
+    let curve_tmin = if curve_tmin.is_finite() {
+        curve_tmin
+    } else {
+        0.0
+    };
+
+    Some(MeltingCaloric {
+        t_approx,
+        rho_approx,
+        h_approx,
+        s_approx,
+        curve_tmin,
+    })
 }
 
 /// Cheap superancillary two-phase detector (no EOS): scan the Qh==Qs
@@ -725,6 +965,16 @@ impl PtFlash {
                 .expect("HS flash currently requires a superancillary fluid");
             build_calorics(&self.eos, data, self.fluid())
         })
+    }
+
+    /// Lazily build (once) and return the melting-curve caloric fits
+    /// (upstream `get_melting_caloric_cached`) — None for fluids without a
+    /// melting line or when the build fails (leg 4 simply absent, exactly
+    /// upstream's nullptr semantics).
+    pub(crate) fn melting_caloric(&self) -> Option<&MeltingCaloric> {
+        self.melting_caloric_cell
+            .get_or_init(|| build_melting_caloric(self))
+            .as_ref()
     }
 
     /// The EOS-exact two-phase solve (upstream `HS_flash_twophase`): Brent on
@@ -794,7 +1044,15 @@ impl PtFlash {
             }
         }
         // (1) Single-phase cascade.
-        if let Some((t, rho)) = hs_cascade(&self.eos, fluid, data, cal, h_t, s_t) {
+        if let Some((t, rho)) = hs_cascade(
+            &self.eos,
+            fluid,
+            data,
+            cal,
+            self.melting_caloric(),
+            h_t,
+            s_t,
+        ) {
             let p = self.eos.pressure(t, rho);
             let st = HeosState::SinglePhase {
                 t,

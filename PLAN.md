@@ -842,3 +842,17 @@ Append-only; newest last. Seeded entries:
   (p/T/limits, 29 fluids, 1e-12 direct / 1e-10 Brent-inverted) + below-melt error parity
   for Water/Nitrogen/CO2, first-run green. Part 2 (HS cascade leg 4, MeltingCaloric +
   seed_for_hs — ENABLE_MELTING_CALORIC_HS defaults true upstream) is the remaining leg.
+- 2026-08-06 — melting lines, part 2 of 2 (tier-2 deferral) — HS cascade leg 4 DONE, the
+  melting item is closed: `MeltingCaloric` ported (upstream MeltingCaloric.{h,cpp}) —
+  per-part degree-8 Chebyshev fits of T/rho/h/s vs ln(p) along the melting curve (parts
+  clamped to the curve p-limits, endpoint-validated through melting T(p) + PT flash,
+  dyadic splitting M=3/tol 1e-10/2 refine passes), curve_Tmin from a 258-point scan
+  (water folds to ~251 K, below Ttriple), cached per fluid on the flash (build failure =>
+  leg absent, upstream's nullptr semantics). `seed_for_hs` intersects on h (monotonic in
+  ln p; s and T fold back), 200-point scan+bisect fallback, entropy disambiguation. Leg 4
+  runs after legs 1-3 with the homotopy corrector floored at curve_Tmin*(1-1e-3) and
+  hs_accept's Tmin overridden to curve_Tmin (sub-triple compressed-liquid states are
+  valid EOS states). No reference-frame shift: cache and caller share one document. The
+  HS suites gained 8 melting-corner records per melting fluid (T = Tmelt(p)*1.002 at
+  3*pc/8*pc; Water/Nitrogen/CO2/n-Propane/Fluorine 56, Methanol 52, n-Heptane 40 after
+  the oracle's own rejections), first-run green — leg-4 T matches the oracle at ~1e-14.

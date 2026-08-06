@@ -541,10 +541,28 @@ def gen_heos_fluid_hs(fluid):
         ("T", 1.3 * Tc, "P", 0.5 * pc),                # supercritical gas
         ("T", 1.02 * Tc, "P", 1.02 * pc),              # near-critical single phase
     ]
+    # Melting-corner sources (HS cascade leg 4): cold compressed liquid just
+    # above the melting curve, including sub-triple T where the curve folds
+    # back (water). Only fluids with a melting line contribute; states the
+    # oracle rejects are dropped by try_record.
+    import CoolProp.CoolProp as CPM
+    AS = CPM.AbstractState("HEOS", fluid)
+    if AS.has_melting_line():
+        for pfac in [3.0, 8.0]:
+            p_ = pfac * pc
+            try:
+                Tm = AS.melting_line(CPM.iT, CPM.iP, p_)
+                sources.append(("T", Tm * 1.002, "P", p_))
+            except ValueError:
+                pass
     rows, skipped = [], 0
     for (n1, v1, n2, v2) in sources:
-        h = PropsSI("Hmolar", n1, v1, n2, v2, hf)
-        s = PropsSI("Smolar", n1, v1, n2, v2, hf)
+        try:
+            h = PropsSI("Hmolar", n1, v1, n2, v2, hf)
+            s = PropsSI("Smolar", n1, v1, n2, v2, hf)
+        except ValueError:
+            skipped += 4
+            continue
         for out in ["T", "Dmolar", "P", "Q"]:
             r = try_record(out, "Hmolar", h, "Smolar", s, "HEOS", fluid)
             rows.append(r) if r else (skipped := skipped + 1)

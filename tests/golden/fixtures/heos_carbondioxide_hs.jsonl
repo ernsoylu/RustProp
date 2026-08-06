@@ -46,3 +46,11 @@
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Dmolar", "name1": "Hmolar", "val1": 17924.1117964338, "name2": "Smolar", "val2": 73.83049655032431, "expected": 5774.436093973711}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "P", "name1": "Hmolar", "val1": 17924.1117964338, "name2": "Smolar", "val2": 73.83049655032431, "expected": 7524844.355867687}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Q", "name1": "Hmolar", "val1": 17924.1117964338, "name2": "Smolar", "val2": 73.83049655032431, "expected": 10000.0}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "Hmolar", "val1": 4245.830005350578, "name2": "Smolar", "val2": 22.599185730249168, "expected": 221.55688340348817}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Dmolar", "name1": "Hmolar", "val1": 4245.830005350578, "name2": "Smolar", "val2": 22.599185730249168, "expected": 27322.812481456323}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "P", "name1": "Hmolar", "val1": 4245.830005350578, "name2": "Smolar", "val2": 22.599185730249168, "expected": 22131895.120342396}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Q", "name1": "Hmolar", "val1": 4245.830005350578, "name2": "Smolar", "val2": 22.599185730249168, "expected": 10000.0}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "Hmolar", "val1": 5472.759216239554, "name2": "Smolar", "val2": 22.137464805063143, "expected": 228.87934100689571}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Dmolar", "name1": "Hmolar", "val1": 5472.759216239554, "name2": "Smolar", "val2": 22.137464805063143, "expected": 28083.039241058286}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "P", "name1": "Hmolar", "val1": 5472.759216239554, "name2": "Smolar", "val2": 22.137464805063143, "expected": 59018386.98798108}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Q", "name1": "Hmolar", "val1": 5472.759216239554, "name2": "Smolar", "val2": 22.137464805063143, "expected": 10000.0}

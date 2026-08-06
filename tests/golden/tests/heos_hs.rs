@@ -17,9 +17,12 @@ fn hs_flash_matches_upstream() {
             Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("fixtures/heos_{stem}_hs.jsonl"));
         let records = load_jsonl(&path);
         // The wheel's own HS flash rejects a few of the hardest source
-        // states for these fluids (try_record filtered them).
+        // states for these fluids (try_record filtered them). Fluids with a
+        // melting line carry 8 extra melting-corner records (cascade leg 4).
         let expected_count = match stem {
-            "r134a" | "methanol" => 44,
+            "water" | "nitrogen" | "carbondioxide" | "n_propane" | "fluorine" => 56,
+            "methanol" => 52,
+            "r134a" => 44,
             "n_heptane" => 40,
             _ => 48,
         };

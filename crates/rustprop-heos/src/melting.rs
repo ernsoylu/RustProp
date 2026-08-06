@@ -60,6 +60,11 @@ fn part_count(ml: &MeltingLine) -> usize {
     }
 }
 
+/// Upstream `get_parts_pranges`: each part's (p_min, p_max).
+pub(crate) fn part_pranges(ml: &MeltingLine) -> Vec<(f64, f64)> {
+    (0..part_count(ml)).map(|i| part_p_limits(ml, i)).collect()
+}
+
 /// Upstream `pmin` after `set_limits`: the first part's `p(T_min)`.
 pub fn p_min(ml: &MeltingLine) -> f64 {
     part_p_limits(ml, 0).0
