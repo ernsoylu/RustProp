@@ -6,6 +6,7 @@
 //! form. The `rational_polynomial` type (hL/hLV/sL/sLV blocks) is Phase 12
 //! scope.
 
+use rustprop_core::Result;
 use rustprop_core::fluid::SaturationAncillary;
 
 /// Upstream `SaturationAncillaryFunction::evaluate`.
@@ -33,6 +34,17 @@ pub fn evaluate(anc: &SaturationAncillary, t: f64) -> f64 {
 
 /// Upstream `SurfaceTensionCorrelation::evaluate`:
 /// `sigma = sum a_i * (1 - T/Tc)^n_i` [N/m]; `T > Tc` errors.
+/// Upstream `SaturationAncillaryFunction::invert`: T for a given output
+/// value — Brent on [Tmin - 0.01, Tmax], secant-from-Tmax fallback
+/// (upstream `ExtrapolatingSecant`).
+pub fn invert(anc: &SaturationAncillary, value: f64) -> Result<f64> {
+    let f = |t: f64| evaluate(anc, t) - value;
+    match crate::solvers::brent(f, anc.t_min - 0.01, anc.t_max, f64::EPSILON, 1e-10, 100) {
+        Ok(t) => Ok(t),
+        Err(_) => crate::solvers::secant(f, anc.t_max, -0.01, 1e-12, 100),
+    }
+}
+
 pub fn surface_tension(
     st: &rustprop_core::fluid::SurfaceTension,
     t: f64,

@@ -16,7 +16,10 @@ use rustprop_core::{Error, Result};
 /// Everything the PT flash needs for one pure fluid.
 pub struct PtFlash {
     pub eos: HelmholtzEos,
-    sat: SaturationSuperAncillary,
+    /// The saturation superancillary — every pure fluid has one; `None` for
+    /// pseudo-pure fluids (upstream skips superancillaries there and the
+    /// classic ancillary machinery takes over).
+    sat: Option<SaturationSuperAncillary>,
     fluid: &'static FluidData,
     /// Lazily-built caloric superancillaries for the (H,S) flash (upstream
     /// `ensure_caloric_superancillaries` — built on first HS use, cached;
@@ -78,13 +81,11 @@ impl Resid1D for SolverTpResid<'_> {
 impl PtFlash {
     pub fn new(fluid: &'static FluidData) -> Self {
         let eos = HelmholtzEos::new(fluid);
-        let sat = SaturationSuperAncillary::new(
-            fluid
-                .eos
-                .superancillary
-                .as_ref()
-                .expect("PT flash currently requires a superancillary fluid"),
-        );
+        let sat = fluid
+            .eos
+            .superancillary
+            .as_ref()
+            .map(SaturationSuperAncillary::new);
         PtFlash {
             eos,
             sat,
@@ -123,8 +124,12 @@ impl PtFlash {
         })
     }
 
+    /// The superancillary — pure fluids only; the pseudo-pure flash paths
+    /// never reach the callers of this accessor.
     pub fn sat(&self) -> &SaturationSuperAncillary {
-        &self.sat
+        self.sat
+            .as_ref()
+            .expect("superancillary paths are pure-fluid only")
     }
 
     pub fn fluid(&self) -> &'static FluidData {
@@ -144,7 +149,7 @@ impl PtFlash {
     /// pressure (`get_pmax()`), falling back to the document value.
     pub fn p_critical(&self) -> f64 {
         if self.fluid.eos.superancillary.is_some() {
-            self.sat.pmax()
+            self.sat().pmax()
         } else {
             self.fluid.states.critical.p
         }
@@ -220,7 +225,7 @@ impl PtFlash {
             }
         } else if t < tc {
             // Superancillary phase determination
-            let psat = self.sat.qt_flash(t, 1.0)?.p;
+            let psat = self.sat().qt_flash(t, 1.0)?.p;
             if (psat / p - 1.0).abs() < 1e-6 {
                 Err(Error::Value(format!(
                     "Saturation pressure [{psat} Pa] corresponding to T [{t} K] is within 1e-4 % of given p [{p} Pa]"
@@ -251,13 +256,13 @@ impl PtFlash {
                 Ok(Phase::SupercriticalLiquid)
             }
         } else if p >= self.p_triple() * 0.9999 && p <= psat_max {
-            if p > self.sat.pmax() {
+            if p > self.sat().pmax() {
                 return Err(Error::Value(format!(
                     "Pressure to PQ_flash [{p:.8e} Pa] may not be above the numerical critical point of {:.15} Pa",
-                    self.sat.pmax()
+                    self.sat().pmax()
                 )));
             }
-            let tsat = self.sat.pq_flash(p, 0.0)?.t;
+            let tsat = self.sat().pq_flash(p, 0.0)?.t;
             if t < tsat - 100.0 * f64::EPSILON {
                 Ok(Phase::Liquid)
             } else if t > tsat + 100.0 * f64::EPSILON {
@@ -340,6 +345,42 @@ impl PtFlash {
     }
 
     /// Upstream `solver_rho_Tp` (no caller-provided guess; pure fluid).
+    /// Upstream `solver_rho_Tp(T, p, rhomolar_guess)` with a PROVIDED guess
+    /// (the `update_TP_guessrho` path): Householder4 from the guess with the
+    /// supercritical Brent fallbacks; no phase-specific stability retries
+    /// (the caller's phase is not imposed on this path).
+    pub fn solver_rho_tp_guessed(&self, t: f64, p: f64, rho_guess: f64) -> Result<f64> {
+        let mut resid = SolverTpResid {
+            eos: &self.eos,
+            t,
+            p,
+            rhor: self.eos.rhomolar_reducing,
+            delta: f64::NAN,
+        };
+        match householder4(&mut resid, rho_guess, 1e-8, 20) {
+            Ok(rho) if rho.is_finite() && rho >= 0.0 => Ok(rho),
+            _ => {
+                if t > self.t_critical() {
+                    let f = |rho: f64| (self.eos.pressure(t, rho) - p) / p;
+                    if let Ok(rho) = brent(
+                        f,
+                        1e-10,
+                        5.0 * self.eos.rhomolar_reducing,
+                        f64::EPSILON,
+                        1e-8,
+                        100,
+                    ) {
+                        return Ok(rho);
+                    }
+                    return householder4(&mut resid, 3.0 * self.eos.rhomolar_reducing, 1e-8, 100);
+                }
+                Err(Error::Value(format!(
+                    "solver_rho_Tp was unable to find a solution for T={t:10}, p={p:10}, with guess value {rho_guess:10}"
+                )))
+            }
+        }
+    }
+
     pub fn solver_rho_tp(&self, t: f64, p: f64, phase: Phase) -> Result<f64> {
         let mut resid = SolverTpResid {
             eos: &self.eos,

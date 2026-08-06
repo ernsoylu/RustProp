@@ -877,3 +877,16 @@ Append-only; newest last. Seeded entries:
   `props_si` guards pseudo-pure fluids with a loud NotImplemented until the classic
   Maxwell solvers land (parts 2-3: saturation_T_pure, ancillary-based phase
   determination, flashes).
+- 2026-08-06 — pseudo-pure fluids, part 2a (solver foundations): `PtFlash.sat` became an
+  Option (superancillary paths are pure-fluid-only; the accessor expects on pseudo-pure
+  misuse), `ancillary::invert` ported (Brent on [Tmin-0.01, Tmax] with the
+  ExtrapolatingSecant fallback), and `solver_rho_tp_guessed` ported (upstream
+  `solver_rho_Tp` with a PROVIDED guess — the `update_TP_guessrho` path: Householder4
+  from the guess, supercritical Brent fallbacks, no phase-specific stability retries).
+  UPSTREAM DISCOVERY banked for parts 2b/3: the pseudo-pure QT flash does NOT use
+  saturation_T_pure at all — Q must be exactly 0 or 1 ("Two-phase quality is not
+  defined"), p comes straight from the pL/pV ancillary and rho from a guessed PT solve
+  seeded by rhoL/rhoV; PQ inverts pL/pV for the two branch temperatures (T_L != T_V —
+  temperature glide) and mixes outputs by quality; PT's pseudo-pure arbiter is the
+  ancillary guard bands (1.02*pL / 0.98*pV), with the in-band region throwing "Two-phase
+  inputs not supported for pseudo-pure for now".
