@@ -142,7 +142,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
       → verify: term-level goldens vs upstream Python `AbstractState` (`alphar`,
       `dalphar_dDelta`, `dalphar_dTau`, second derivatives, and α⁰ counterparts) on a (T,ρ) grid,
       rel ≤ 1e-13.
-- [ ] 4.2 Properties at given (T,ρ): p, u, h, s, cv, cp, w from the derivative matrix, exactly
+- [x] 4.2 Properties at given (T,ρ): p, u, h, s, cv, cp, w from the derivative matrix, exactly
       per upstream formulas.
       → verify: goldens vs upstream `DmassT_INPUTS` updates over the same grid, rel ≤ 1e-9.
 - [ ] 4.3 Ancillary equations (psat, ρ′, ρ″) and, where the fluid has one, the v8 Chebyshev
@@ -436,3 +436,13 @@ Append-only; newest last. Seeded entries:
   Golden verification: 240 records (12 single-phase (T,rho) points x 20 AbstractState
   accessors, alphar+alpha0 through THIRD derivatives — the wheel exposes them all) pass at
   rel <= 1e-13; identically-zero alpha0 cross-derivatives compare exactly.
+- 2026-08-06 — 4.2: single-phase properties at (T, rhomolar) ported op-for-op from
+  `HelmholtzEOSMixtureBackend.cpp` (`calc_pressure`, `calc_{h,s,u,gibbs}molar_nocache`,
+  `calc_cvmolar`, `calc_cpmolar`, `calc_speed_sound`). Verified live from the wheel before
+  porting: for PURE fluids `gas_constant()` returns the fluid-specific EOS value
+  (`components[0].gas_constant()`, Water 8.314371357587), not CODATA — normalization applies
+  only to mixtures. All 96 golden records (12-point grid x 8 properties) pass at the 1e-9
+  policy. Grid note: the term grid's liquid densities (55500/55000/54000 at 280/300/350 K)
+  sit a hair INSIDE the dome per HEOS phase determination — fine for phase-agnostic term
+  accessors, but the props grid bumps them to 56000/55500/54500 (clearly compressed liquid)
+  because `speed_sound` legitimately refuses two-phase states.

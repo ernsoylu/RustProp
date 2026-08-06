@@ -202,6 +202,29 @@ def gen_heos_water_terms():
     return rows
 
 
+def gen_heos_water_props():
+    """Property-level goldens (PLAN 4.2): p/h/s/u/cv/cp/w/g at the same
+    single-phase (T, rhomolar) grid as the term goldens."""
+    state = CP.AbstractState("HEOS", "Water")
+    # Liquid densities sit clearly above the saturated-liquid curve; the
+    # term-grid values 55500/55000/54000 are a hair inside the dome.
+    points = [
+        (280.0, 56000.0), (300.0, 55500.0), (350.0, 54500.0),
+        (400.0, 30.0), (500.0, 100.0), (600.0, 500.0),
+        (700.0, 20000.0), (650.0, 17873.72799560906), (630.0, 40000.0),
+        (647.2, 17500.0), (648.0, 18500.0), (620.0, 5000.0),
+    ]
+    accessors = ["p", "hmolar", "smolar", "umolar", "cvmolar", "cpmolar",
+                 "speed_sound", "gibbsmolar"]
+    rows = []
+    for (t, rho) in points:
+        state.update(CP.DmolarT_INPUTS, rho, t)
+        for name in accessors:
+            rows.append({"fluid": "Water", "t": t, "rhomolar": rho,
+                         "out": name, "expected": getattr(state, name)()})
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     print(f"wrote {len(rows):4d} records -> {name}")
@@ -243,6 +266,7 @@ def main():
     write_jsonl("water_propssi_smoke.jsonl", [record(*spec) for spec in WATER_SMOKE])
     write_jsonl("if97_water.jsonl", gen_if97_water())
     write_jsonl("heos_water_terms.jsonl", gen_heos_water_terms())
+    write_jsonl("heos_water_props.jsonl", gen_heos_water_props())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -254,6 +278,7 @@ def main():
         "upstream_tag": "v8.0.0",
         "platform": f"{platform.system()}-{platform.machine()}",
         "files": [
+            "heos_water_props.jsonl",
             "heos_water_terms.jsonl",
             "if97_water.jsonl",
             "param_aliases.jsonl",

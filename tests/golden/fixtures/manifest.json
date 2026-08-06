@@ -4,6 +4,7 @@
   "upstream_tag": "v8.0.0",
   "platform": "Linux-x86_64",
   "files": [
+    "heos_water_props.jsonl",
     "heos_water_terms.jsonl",
     "if97_water.jsonl",
     "param_aliases.jsonl",
