@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ARGON: FluidData = FluidData {
     name: "Argon",
@@ -46,6 +46,8 @@ pub static ARGON: FluidData = FluidData {
             hmolar: 628.2178537264799,
             smolar: 93.58646663344116,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 8.31666243, a2: -4.94651164 },
             Alpha0Term::LogTau { a: 1.5 },
@@ -250,6 +252,7 @@ pub static ARGON: FluidData = FluidData {
             t_min: 83.80600000000001,
             t_max: 150.68699999999976,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.35549443267848707, 1.7740534055789643, 1.6692402958603283, -1326.972748274678, 3248.4827767066654, -4246.807908907579],

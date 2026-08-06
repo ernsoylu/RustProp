@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static CHLORINE: FluidData = FluidData {
     name: "Chlorine",
@@ -46,6 +46,8 @@ pub static CHLORINE: FluidData = FluidData {
             hmolar: 19614.475927,
             smolar: 53.404491877,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 0.0, a2: 0.0 },
             Alpha0Term::LogTau { a: 2.5 },
@@ -266,6 +268,7 @@ pub static CHLORINE: FluidData = FluidData {
             t_min: 172.1712,
             t_max: 416.8654,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.9662, 1.7744, -0.23081, 0.47213],

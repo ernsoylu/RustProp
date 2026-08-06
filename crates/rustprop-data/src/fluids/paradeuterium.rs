@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, MeltingLine, MeltingLineKind, SimonMeltPart};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, MeltingLine, MeltingLineKind, SimonMeltPart};
 
 pub static PARADEUTERIUM: FluidData = FluidData {
     name: "ParaDeuterium",
@@ -46,6 +46,8 @@ pub static PARADEUTERIUM: FluidData = FluidData {
             hmolar: 997.3226761039832,
             smolar: 26.56418054347146,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -2.0683998716, a2: 2.4241000701 },
             Alpha0Term::LogTau { a: 1.5 },
@@ -241,6 +243,7 @@ pub static PARADEUTERIUM: FluidData = FluidData {
             t_min: 18.72400000000001,
             t_max: 38.33999999999991,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[5.337218502231972, -37.730569203923736, 56.189484760644554, -21.538412148225337, -0.63373056265043, 48.064086849218086],

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static O_XYLENE: FluidData = FluidData {
     name: "o-Xylene",
@@ -46,6 +46,8 @@ pub static O_XYLENE: FluidData = FluidData {
             hmolar: 84455.3899461713,
             smolar: 149.34453871777248,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 10.137376, a2: -0.91282993 },
             Alpha0Term::LogTau { a: 2.748798 },
@@ -268,6 +270,7 @@ pub static O_XYLENE: FluidData = FluidData {
             t_min: 247.985,
             t_max: 630.258999999999,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.08168792579534072, 6.203503021781052, -3.8477589500686986, 4.572403149688544, -31656.07188921996, 32296.361131648908],

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static DIMETHYLCARBONATE: FluidData = FluidData {
     name: "DimethylCarbonate",
@@ -46,6 +46,8 @@ pub static DIMETHYLCARBONATE: FluidData = FluidData {
             hmolar: 58044.67342145644,
             smolar: 115.98431089353645,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 4.9916462, a2: -0.1709449 },
             Alpha0Term::LogTau { a: 8.28421 },
@@ -274,6 +276,7 @@ pub static DIMETHYLCARBONATE: FluidData = FluidData {
             t_min: 277.06,
             t_max: 556.9999999999989,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.8639422657944309, -1.688248771620619, 3.3308155638028083, 152.44139464976624, -173.70557844277656, 36624.29817631924],

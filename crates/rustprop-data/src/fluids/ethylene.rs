@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
 
 pub static ETHYLENE: FluidData = FluidData {
     name: "Ethylene",
@@ -46,6 +46,8 @@ pub static ETHYLENE: FluidData = FluidData {
             hmolar: 13467.302769838352,
             smolar: 52.91020757486265,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 8.68815523, a2: -4.47960564 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -272,6 +274,7 @@ pub static ETHYLENE: FluidData = FluidData {
             t_min: 103.98900000000002,
             t_max: 282.3499999999994,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[1.8464339723391991, 0.7268516869915771, -1.717280185311927, 1686.1315441396878, -3729.1628980234223, 2049.0293383014655],

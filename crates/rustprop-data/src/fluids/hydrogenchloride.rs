@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static HYDROGENCHLORIDE: FluidData = FluidData {
     name: "HydrogenChloride",
@@ -46,6 +46,8 @@ pub static HYDROGENCHLORIDE: FluidData = FluidData {
             hmolar: 14247.951487766051,
             smolar: 49.24006006399749,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -4.069044527, a2: 4.0257768311 },
             Alpha0Term::LogTau { a: 2.5 },
@@ -256,6 +258,7 @@ pub static HYDROGENCHLORIDE: FluidData = FluidData {
             t_min: 159.07,
             t_max: 324.68,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[2.547, -0.631, 1.75, -1.922, 1.03],

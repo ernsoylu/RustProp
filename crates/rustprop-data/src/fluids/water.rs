@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static WATER: FluidData = FluidData {
     name: "Water",
@@ -46,6 +46,8 @@ pub static WATER: FluidData = FluidData {
             hmolar: 43781.065905123054,
             smolar: 87.17706239787964,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -8.3204464837497, a2: 6.6832105275932 },
             Alpha0Term::LogTau { a: 3.00632 },
@@ -278,6 +280,7 @@ pub static WATER: FluidData = FluidData {
             t_min: 273.16,
             t_max: 647.0959999999985,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.8157021355019343, 2.0434712177006693, -78.58278372496308, 1026.427394007031, -2290.5642779377695, 8420.141408210317],

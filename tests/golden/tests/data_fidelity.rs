@@ -13,8 +13,8 @@ use rustprop_core::fluid::ChebyshevInterval;
 use rustprop_core::fluid::{
     Alpha0Term, AlpharTerm, Conductivity, ConductivityCritical, ConductivityDilute,
     ConductivityModel, ConductivityResidual, FluidData, SaturationAncillary, StatePoint,
-    TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, ViscosityInitialDensity,
-    ViscosityModel,
+    SuperAncillaryData, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder,
+    ViscosityInitialDensity, ViscosityModel,
 };
 use serde_json::Value;
 use std::path::Path;
@@ -221,9 +221,14 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
             "STATES",
             "alpha0",
             "alphar",
-            "SUPERANCILLARY",
         ],
-        &["BibTeX_CP0", "BibTeX_EOS", "critical_region_splines"],
+        &[
+            "BibTeX_CP0",
+            "BibTeX_EOS",
+            "critical_region_splines",
+            "SUPERANCILLARY",
+            "acentric_note",
+        ],
     );
     w.num(
         fluid.eos.gas_constant,
@@ -250,8 +255,25 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         eos_states,
         "EOS[0].STATES",
         &["reducing", "sat_min_liquid", "sat_min_vapor", "hs_anchor"],
-        &[],
+        &["temperature_max_sat", "pressure_max_sat"],
     );
+    // Pseudo-pure saturation maxima (upstream `max_sat_T`/`max_sat_p`).
+    for (rust, key) in [
+        (&fluid.eos.max_sat_t, "temperature_max_sat"),
+        (&fluid.eos.max_sat_p, "pressure_max_sat"),
+    ] {
+        match (rust, eos_states.get(key)) {
+            (Some(sp), Some(json)) => {
+                w.state_point(sp, json, &format!("EOS[0].STATES.{key}"));
+            }
+            (None, None) => {}
+            (rust, json) => w.mismatches.push(format!(
+                "EOS[0].STATES.{key}: rust present={} json present={}",
+                rust.is_some(),
+                json.is_some()
+            )),
+        }
+    }
     w.state_point(
         &fluid.eos.reducing,
         &eos_states["reducing"],
@@ -557,13 +579,98 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         }
     }
 
-    // SUPERANCILLARY
-    let sa_json = &eos["SUPERANCILLARY"];
-    let sa = fluid
-        .eos
-        .superancillary
-        .as_ref()
-        .expect("every ported fluid has a superancillary");
+    // SUPERANCILLARY — absent for pseudo-pure fluids.
+    match (&fluid.eos.superancillary, eos.get("SUPERANCILLARY")) {
+        (Some(sa), Some(sa_json)) => check_superancillary(&mut w, sa, sa_json),
+        (None, None) => {}
+        (rust, json) => w.mismatches.push(format!(
+            "EOS[0].SUPERANCILLARY: rust present={} json present={}",
+            rust.is_some(),
+            json.is_some()
+        )),
+    }
+
+    // ANCILLARIES
+    let anc = &doc["ANCILLARIES"];
+    let informational = &["hL", "hLV", "sL", "sLV", "melting_line", "surface_tension"];
+    check_melting_line(&mut w, fluid, anc.get("melting_line"));
+    // Upstream parse: pL+pV present (pseudo-pure) fill the two pressure
+    // slots; else a single pS fills both (our `p_v_split: None` alias).
+    match &fluid.ancillaries.p_v_split {
+        Some(pv) => {
+            w.keys(
+                anc,
+                "ANCILLARIES",
+                &["pL", "pV", "rhoL", "rhoV"],
+                informational,
+            );
+            w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pL"], "ANCILLARIES.pL");
+            w.sat_ancillary(pv, &anc["pV"], "ANCILLARIES.pV");
+        }
+        None => {
+            w.keys(anc, "ANCILLARIES", &["pS", "rhoL", "rhoV"], informational);
+            w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
+        }
+    }
+    w.sat_ancillary(&fluid.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
+    w.sat_ancillary(&fluid.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
+    // surface_tension (Phase 6.2): ported when present.
+    match (
+        &fluid.ancillaries.surface_tension,
+        anc.get("surface_tension"),
+    ) {
+        (Some(st), Some(json)) => {
+            let path = "ANCILLARIES.surface_tension";
+            w.keys(json, path, &["a", "n", "Tc"], &["BibTeX", "description"]);
+            w.nums(st.a, &json["a"], &format!("{path}.a"));
+            w.nums(st.n, &json["n"], &format!("{path}.n"));
+            w.num(st.tc, &json["Tc"], &format!("{path}.Tc"));
+        }
+        (None, None) => {}
+        (rust, json) => w.mismatches.push(format!(
+            "ANCILLARIES.surface_tension: rust present={} json present={}",
+            rust.is_some(),
+            json.is_some()
+        )),
+    }
+
+    // STATES
+    let states = &doc["STATES"];
+    w.keys(
+        states,
+        "STATES",
+        &["critical", "triple_liquid", "triple_vapor"],
+        &[],
+    );
+    w.state_point(
+        &fluid.states.critical,
+        &states["critical"],
+        "STATES.critical",
+    );
+    w.state_point(
+        &fluid.states.triple_liquid,
+        &states["triple_liquid"],
+        "STATES.triple_liquid",
+    );
+    w.state_point(
+        &fluid.states.triple_vapor,
+        &states["triple_vapor"],
+        "STATES.triple_vapor",
+    );
+
+    // TRANSPORT (6.1, viscosity slice): mirror datagen's classification.
+    check_transport(&mut w, fluid, doc.get("TRANSPORT"));
+
+    assert!(
+        w.mismatches.is_empty(),
+        "{} fidelity mismatches:\n{}",
+        w.mismatches.len(),
+        w.mismatches.join("\n")
+    );
+}
+
+/// EOS[0].SUPERANCILLARY contents, field-by-field (pure fluids only).
+fn check_superancillary(w: &mut Walker, sa: &SuperAncillaryData, sa_json: &Value) {
     w.keys(
         sa_json,
         "EOS[0].SUPERANCILLARY",
@@ -646,72 +753,6 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
             &format!("{path}.rhoV_ratio"),
         );
     }
-
-    // ANCILLARIES
-    let anc = &doc["ANCILLARIES"];
-    w.keys(
-        anc,
-        "ANCILLARIES",
-        &["pS", "rhoL", "rhoV"],
-        &["hL", "hLV", "sL", "sLV", "melting_line", "surface_tension"],
-    );
-    check_melting_line(&mut w, fluid, anc.get("melting_line"));
-    w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
-    w.sat_ancillary(&fluid.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
-    w.sat_ancillary(&fluid.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
-    // surface_tension (Phase 6.2): ported when present.
-    match (
-        &fluid.ancillaries.surface_tension,
-        anc.get("surface_tension"),
-    ) {
-        (Some(st), Some(json)) => {
-            let path = "ANCILLARIES.surface_tension";
-            w.keys(json, path, &["a", "n", "Tc"], &["BibTeX", "description"]);
-            w.nums(st.a, &json["a"], &format!("{path}.a"));
-            w.nums(st.n, &json["n"], &format!("{path}.n"));
-            w.num(st.tc, &json["Tc"], &format!("{path}.Tc"));
-        }
-        (None, None) => {}
-        (rust, json) => w.mismatches.push(format!(
-            "ANCILLARIES.surface_tension: rust present={} json present={}",
-            rust.is_some(),
-            json.is_some()
-        )),
-    }
-
-    // STATES
-    let states = &doc["STATES"];
-    w.keys(
-        states,
-        "STATES",
-        &["critical", "triple_liquid", "triple_vapor"],
-        &[],
-    );
-    w.state_point(
-        &fluid.states.critical,
-        &states["critical"],
-        "STATES.critical",
-    );
-    w.state_point(
-        &fluid.states.triple_liquid,
-        &states["triple_liquid"],
-        "STATES.triple_liquid",
-    );
-    w.state_point(
-        &fluid.states.triple_vapor,
-        &states["triple_vapor"],
-        "STATES.triple_vapor",
-    );
-
-    // TRANSPORT (6.1, viscosity slice): mirror datagen's classification.
-    check_transport(&mut w, fluid, doc.get("TRANSPORT"));
-
-    assert!(
-        w.mismatches.is_empty(),
-        "{} fidelity mismatches:\n{}",
-        w.mismatches.len(),
-        w.mismatches.join("\n")
-    );
 }
 
 /// ANCILLARIES.melting_line: type + parts, field-by-field (upstream
@@ -1341,7 +1382,7 @@ fn check_viscosity_higher(w: &mut Walker, rust: &ViscosityHigherOrder, json: &Va
 #[test]
 fn every_fluid_data_matches_upstream_json_exactly() {
     let fluids = rustprop_data::fluids::all();
-    assert_eq!(fluids.len(), 130, "all fluid features enabled");
+    assert_eq!(fluids.len(), 136, "all fluid features enabled");
     for (name, data) in fluids {
         check_fluid(data, &format!("{name}.json"));
     }

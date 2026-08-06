@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static PARAHYDROGEN: FluidData = FluidData {
     name: "ParaHydrogen",
@@ -46,6 +46,8 @@ pub static PARAHYDROGEN: FluidData = FluidData {
             hmolar: 731.8813437590998,
             smolar: 22.240779970146143,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -1.4485891134, a2: 1.884521239 },
             Alpha0Term::LogTau { a: 1.5 },
@@ -247,6 +249,7 @@ pub static PARAHYDROGEN: FluidData = FluidData {
             t_min: 13.80330000000001,
             t_max: 32.93799999999992,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[2.42209314197553, -0.8105757647156946, 5.292441752641816, -801.4099838859875, 965.4158391322754, -2288.927990716296],

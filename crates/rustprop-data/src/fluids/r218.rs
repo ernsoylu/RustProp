@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static R218: FluidData = FluidData {
     name: "R218",
@@ -46,6 +46,8 @@ pub static R218: FluidData = FluidData {
             hmolar: 64418.41576334056,
             smolar: 267.64678100020603,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -15.6587335175, a2: 11.4531412796 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -270,6 +272,7 @@ pub static R218: FluidData = FluidData {
             t_min: 125.45000000000002,
             t_max: 345.01999999999936,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[7.303753750603384, -7.730626041358162, 3.674253188196436, -3.58395389631866, 5.552496612344577, -211.54319300173208],

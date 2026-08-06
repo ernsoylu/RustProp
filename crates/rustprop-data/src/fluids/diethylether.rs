@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static DIETHYLETHER: FluidData = FluidData {
     name: "DiethylEther",
@@ -46,6 +46,8 @@ pub static DIETHYLETHER: FluidData = FluidData {
             hmolar: 47072.53475559892,
             smolar: 111.81801938291524,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 17.099494, a2: -6.160844 },
             Alpha0Term::LogTau { a: 3.36281 },
@@ -247,6 +249,7 @@ pub static DIETHYLETHER: FluidData = FluidData {
             t_min: 270.0,
             t_max: 466.699,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[5.682880383241632, -5263.469994240878, 23798.393607859573, -35374.58571701918, 16836.712657250806, -0.09757711746576948],

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static NOVEC649: FluidData = FluidData {
     name: "Novec649",
@@ -46,6 +46,8 @@ pub static NOVEC649: FluidData = FluidData {
             hmolar: 147775.5027925161,
             smolar: 538.4625014485038,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -30.6610503233, a2: 6.8305296372 },
             Alpha0Term::LogTau { a: 29.8 },
@@ -283,6 +285,7 @@ pub static NOVEC649: FluidData = FluidData {
             t_min: 100.0,
             t_max: 441.81,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[1.5545, 1.149, 0.51565],

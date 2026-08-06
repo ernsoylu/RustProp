@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static N_NONANE: FluidData = FluidData {
     name: "n-Nonane",
@@ -46,6 +46,8 @@ pub static N_NONANE: FluidData = FluidData {
             hmolar: 100494.99108243728,
             smolar: 184.14082486513365,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 10.7927224829, a2: -8.2418318753 },
             Alpha0Term::LogTau { a: 16.349 },
@@ -270,6 +272,7 @@ pub static N_NONANE: FluidData = FluidData {
             t_min: 219.7,
             t_max: 594.5499999999988,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[-23.198712622058476, 402.39535606636224, -525.0132880466338, 158.57173971120517, -19.07334776671177, 9.495727034290676],

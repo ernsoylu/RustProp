@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static R1336MZZ_Z_: FluidData = FluidData {
     name: "R1336mzz(Z)",
@@ -46,6 +46,8 @@ pub static R1336MZZ_Z_: FluidData = FluidData {
             hmolar: 86080.94283581767,
             smolar: 301.62408154199204,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -22.613836589363007, a2: 14.68591574633538 },
             Alpha0Term::LogTau { a: -1.0 },
@@ -275,6 +277,7 @@ pub static R1336MZZ_Z_: FluidData = FluidData {
             t_min: 182.65,
             t_max: 444.5,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[2.1782, 0.68072, -0.17224, 0.39416],

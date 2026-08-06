@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static NEOPENTANE: FluidData = FluidData {
     name: "Neopentane",
@@ -46,6 +46,8 @@ pub static NEOPENTANE: FluidData = FluidData {
             hmolar: 42823.00858820105,
             smolar: 109.6920638994305,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 0.8702452614, a2: 1.6071746358 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -252,6 +254,7 @@ pub static NEOPENTANE: FluidData = FluidData {
             t_min: 256.6,
             t_max: 433.73999999999927,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[2.811511709838611, -0.6819933999019258, 143.31340246450836, -250.44132450192117, 324.6743119533206, -196312.80251857708],

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static CYCLOHEXANE: FluidData = FluidData {
     name: "CycloHexane",
@@ -46,6 +46,8 @@ pub static CYCLOHEXANE: FluidData = FluidData {
             hmolar: 65182.889121126354,
             smolar: 132.0138990348781,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 0.9891140602, a2: 1.6359660572 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -253,6 +255,7 @@ pub static CYCLOHEXANE: FluidData = FluidData {
             t_min: 279.47,
             t_max: 553.5999999999988,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.2729676351917065, -1.106482113619369, 27.748806842659924, -34.01756141062687, 9.815362300266182, 65.7039717441813],

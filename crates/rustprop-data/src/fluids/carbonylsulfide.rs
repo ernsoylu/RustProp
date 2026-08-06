@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static CARBONYLSULFIDE: FluidData = FluidData {
     name: "CarbonylSulfide",
@@ -46,6 +46,8 @@ pub static CARBONYLSULFIDE: FluidData = FluidData {
             hmolar: 19191.70166302165,
             smolar: 56.95649008394661,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -3.6587449805, a2: 3.7349245016 },
             Alpha0Term::LogTau { a: 2.5 },
@@ -267,6 +269,7 @@ pub static CARBONYLSULFIDE: FluidData = FluidData {
             t_min: 134.3,
             t_max: 378.769999999999,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[-0.006565517887508687, 9.861398057771249, -49.28678353119856, 50.765489904412995, -18.836456981431365, 10.180262280869783],

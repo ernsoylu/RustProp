@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ISOPENTANE: FluidData = FluidData {
     name: "Isopentane",
@@ -46,6 +46,8 @@ pub static ISOPENTANE: FluidData = FluidData {
             hmolar: 46561.46210015001,
             smolar: 112.26852231198176,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 2.5822330405, a2: 1.1609103419 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -291,6 +293,7 @@ pub static ISOPENTANE: FluidData = FluidData {
             t_min: 112.65000000000002,
             t_max: 460.3499999999989,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[1.90090139367392, 0.5608577220827222, 0.291792033747788, -0.22951340206902665, 50.602054710991816, -59.20907806248923],

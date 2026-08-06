@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
 
 pub static NEON: FluidData = FluidData {
     name: "Neon",
@@ -46,6 +46,8 @@ pub static NEON: FluidData = FluidData {
             hmolar: 1408.719351144198,
             smolar: 33.519135918014044,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -3.0384719151147275, a2: 3.253690479855404 },
             Alpha0Term::LogTau { a: 1.5 },
@@ -243,6 +245,7 @@ pub static NEON: FluidData = FluidData {
             t_min: 24.56000000000001,
             t_max: 44.49179999999988,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.2220765986998524, 2.4573200546328224, -1969.4302835894664, 6749.387057643627, -4813.477464106806, 591.6954480241219],

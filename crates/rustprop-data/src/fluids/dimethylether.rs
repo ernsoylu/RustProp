@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static DIMETHYLETHER: FluidData = FluidData {
     name: "DimethylEther",
@@ -46,6 +46,8 @@ pub static DIMETHYLETHER: FluidData = FluidData {
             hmolar: 27000.1090202929,
             smolar: 75.37063730362603,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -1.980976, a2: 3.171218 },
             Alpha0Term::LogTau { a: 3.039 },
@@ -271,6 +273,7 @@ pub static DIMETHYLETHER: FluidData = FluidData {
             t_min: 131.66,
             t_max: 400.3779999999991,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[16.059795192018523, -14.738564267851409, -3.731150693384918, 5.144676895857624, 0.03490664751265221, 8.503244669132489],

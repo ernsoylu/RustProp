@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static DICHLOROETHANE: FluidData = FluidData {
     name: "Dichloroethane",
@@ -46,6 +46,8 @@ pub static DICHLOROETHANE: FluidData = FluidData {
             hmolar: 18435.007124498756,
             smolar: 15.996271903243857,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 25.029988, a2: -4.8999527 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -274,6 +276,7 @@ pub static DICHLOROETHANE: FluidData = FluidData {
             t_min: 237.52,
             t_max: 561.6,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[-3486.7010459117164, 7662.134765207801, -20066.396425294417, 15893.782467519954, -0.1522403185655092, 7.705626172172473],

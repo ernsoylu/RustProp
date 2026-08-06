@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart};
 
 pub static DEUTERIUM: FluidData = FluidData {
     name: "Deuterium",
@@ -46,6 +46,8 @@ pub static DEUTERIUM: FluidData = FluidData {
             hmolar: 1012.7149455649968,
             smolar: 26.987283392692056,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -2.0677351753, a2: 2.4237151502 },
             Alpha0Term::LogTau { a: 1.5 },
@@ -241,6 +243,7 @@ pub static DEUTERIUM: FluidData = FluidData {
             t_min: 18.72400000000001,
             t_max: 38.33999999999991,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[-3.7327374059367657, 5.717877520193506, -7.716014835633088, 8.271326329456837, -3.540310397292104, 6126.25395082707],

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static N_DECANE: FluidData = FluidData {
     name: "n-Decane",
@@ -46,6 +46,8 @@ pub static N_DECANE: FluidData = FluidData {
             hmolar: 113563.69179091476,
             smolar: 199.42067478615897,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 13.9361966549, a2: -10.5265128286 },
             Alpha0Term::LogTau { a: 18.109 },
@@ -267,6 +269,7 @@ pub static N_DECANE: FluidData = FluidData {
             t_min: 243.5,
             t_max: 617.6999999999986,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[4.827666872341155, -3.7319669690993447, 1.9076750287466655, 0.16459343086669795, 1666.7748855066088, -2460.441820959505],

@@ -9,6 +9,8 @@
 pub mod _1_butene;
 #[cfg(feature = "acetone")]
 pub mod acetone;
+#[cfg(feature = "air")]
+pub mod air;
 #[cfg(feature = "ammonia")]
 pub mod ammonia;
 #[cfg(feature = "argon")]
@@ -211,10 +213,20 @@ pub mod r32;
 pub mod r365mfc;
 #[cfg(feature = "r40")]
 pub mod r40;
+#[cfg(feature = "r404a")]
+pub mod r404a;
+#[cfg(feature = "r407c")]
+pub mod r407c;
 #[cfg(feature = "r41")]
 pub mod r41;
+#[cfg(feature = "r410a")]
+pub mod r410a;
+#[cfg(feature = "r507a")]
+pub mod r507a;
 #[cfg(feature = "rc318")]
 pub mod rc318;
+#[cfg(feature = "ses36")]
+pub mod ses36;
 #[cfg(feature = "sulfurdioxide")]
 pub mod sulfurdioxide;
 #[cfg(feature = "sulfurhexafluoride")]
@@ -274,6 +286,8 @@ pub fn all() -> Vec<(&'static str, &'static rustprop_core::fluid::FluidData)> {
     v.push(("1-Butene", &_1_butene::_1_BUTENE));
     #[cfg(feature = "acetone")]
     v.push(("Acetone", &acetone::ACETONE));
+    #[cfg(feature = "air")]
+    v.push(("Air", &air::AIR));
     #[cfg(feature = "ammonia")]
     v.push(("Ammonia", &ammonia::AMMONIA));
     #[cfg(feature = "argon")]
@@ -476,10 +490,20 @@ pub fn all() -> Vec<(&'static str, &'static rustprop_core::fluid::FluidData)> {
     v.push(("R365MFC", &r365mfc::R365MFC));
     #[cfg(feature = "r40")]
     v.push(("R40", &r40::R40));
+    #[cfg(feature = "r404a")]
+    v.push(("R404A", &r404a::R404A));
+    #[cfg(feature = "r407c")]
+    v.push(("R407C", &r407c::R407C));
     #[cfg(feature = "r41")]
     v.push(("R41", &r41::R41));
+    #[cfg(feature = "r410a")]
+    v.push(("R410A", &r410a::R410A));
+    #[cfg(feature = "r507a")]
+    v.push(("R507A", &r507a::R507A));
     #[cfg(feature = "rc318")]
     v.push(("RC318", &rc318::RC318));
+    #[cfg(feature = "ses36")]
+    v.push(("SES36", &ses36::SES36));
     #[cfg(feature = "sulfurdioxide")]
     v.push(("SulfurDioxide", &sulfurdioxide::SULFURDIOXIDE));
     #[cfg(feature = "sulfurhexafluoride")]

@@ -146,6 +146,14 @@ fn heos_route(
     // Multi-output strings ('&'-joined) fail upstream's output parsing with
     // "Output string is invalid" — they fall through to Param::parse below.
     let data = resolve_fluid(fluid)?;
+    // Pseudo-pure fluids (no superancillary) need the classic Maxwell
+    // saturation solvers — data is ported, calculations are not yet.
+    if data.eos.pseudo_pure {
+        return Err(Error::NotImplemented(format!(
+            "pseudo-pure fluid [{}] calculations are not ported yet (data only)",
+            data.name
+        )));
+    }
     let out = Param::parse(output).ok_or_else(|| {
         Error::Value(format!(
             "Output parameter parsing failed; error: Output string is invalid [{output}]"

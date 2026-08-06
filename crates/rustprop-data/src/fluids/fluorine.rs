@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
 
 pub static FLUORINE: FluidData = FluidData {
     name: "Fluorine",
@@ -46,6 +46,8 @@ pub static FLUORINE: FluidData = FluidData {
             hmolar: 6000.14761425246,
             smolar: 46.03991835402585,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Power { n: &[3.0717001e-6, -5.2985762e-5, -16.372517, 3.6884682e-5, 4.3887271], t: &[-4.0, -3.0, 1.0, 2.0, 0.0] },
             Alpha0Term::LogTau { a: 2.5011231 },
@@ -267,6 +269,7 @@ pub static FLUORINE: FluidData = FluidData {
             t_min: 53.481100000000005,
             t_max: 144.41399999999967,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[-2.1267466372809594, 4.293457721465353, 1.136882153895534, -2.83890898830727, 5360.59971312227, -6438.621729396981],

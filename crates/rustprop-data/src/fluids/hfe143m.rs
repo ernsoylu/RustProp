@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static HFE143M: FluidData = FluidData {
     name: "HFE143m",
@@ -46,6 +46,8 @@ pub static HFE143M: FluidData = FluidData {
             hmolar: 45804.72803880913,
             smolar: 172.32579665329965,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -17.97705674077087, a2: 12.92642879298097 },
             Alpha0Term::LogTau { a: -1.0 },
@@ -254,6 +256,7 @@ pub static HFE143M: FluidData = FluidData {
             t_min: 240.0,
             t_max: 377.9209999999992,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.335183935046017, 2.07566462116046, 112192.72531570093, -126522.90717969427, 891195.9272871091, -5911298.633294987],

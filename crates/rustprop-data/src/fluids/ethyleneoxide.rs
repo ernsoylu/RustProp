@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static ETHYLENEOXIDE: FluidData = FluidData {
     name: "EthyleneOxide",
@@ -46,6 +46,8 @@ pub static ETHYLENEOXIDE: FluidData = FluidData {
             hmolar: 29486.068634778116,
             smolar: 70.31438955566233,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -3.90644775, a2: 4.0000956 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -274,6 +276,7 @@ pub static ETHYLENEOXIDE: FluidData = FluidData {
             t_min: 160.65,
             t_max: 468.92,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[2.3014, -0.08549, 2.055, -2.883, 1.686],

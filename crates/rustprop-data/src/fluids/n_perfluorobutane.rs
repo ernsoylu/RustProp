@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static N_PERFLUOROBUTANE: FluidData = FluidData {
     name: "n-Perfluorobutane",
@@ -46,6 +46,8 @@ pub static N_PERFLUOROBUTANE: FluidData = FluidData {
             hmolar: 47815.7784533663,
             smolar: 135.2981154865188,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 7.00619051416, a2: -4.93953188697 },
             Alpha0Term::LogTau { a: 13.0 },
@@ -274,6 +276,7 @@ pub static N_PERFLUOROBUTANE: FluidData = FluidData {
             t_min: 144.0,
             t_max: 386.326,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[7.2166, -18.074, 32.084, -30.238, 12.446],

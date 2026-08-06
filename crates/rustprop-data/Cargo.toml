@@ -14,6 +14,7 @@ rustprop-core.workspace = true
 default = []
 _1_butene = []
 acetone = []
+air = []
 ammonia = []
 argon = []
 benzene = []
@@ -132,8 +133,13 @@ r245fa = []
 r32 = []
 r365mfc = []
 r40 = []
+r404a = []
+r407c = []
 r41 = []
+r410a = []
+r507a = []
 rc318 = []
+ses36 = []
 sulfurdioxide = []
 sulfurhexafluoride = []
 tetrahydrofuran = []
@@ -145,6 +151,7 @@ xenon = []
 all-fluids = [
     "_1_butene",
     "acetone",
+    "air",
     "ammonia",
     "argon",
     "benzene",
@@ -263,8 +270,13 @@ all-fluids = [
     "r32",
     "r365mfc",
     "r40",
+    "r404a",
+    "r407c",
     "r41",
+    "r410a",
+    "r507a",
     "rc318",
+    "ses36",
     "sulfurdioxide",
     "sulfurhexafluoride",
     "tetrahydrofuran",

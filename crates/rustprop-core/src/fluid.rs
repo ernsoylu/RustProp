@@ -443,6 +443,12 @@ pub struct Eos {
     pub sat_min_vapor: StatePoint,
     /// `EOS[0].STATES.hs_anchor`
     pub hs_anchor: StatePoint,
+    /// `EOS[0].STATES.temperature_max_sat` — the saturation-temperature
+    /// maximum of a pseudo-pure fluid (upstream `max_sat_T`); `None` for
+    /// pure fluids.
+    pub max_sat_t: Option<StatePoint>,
+    /// `EOS[0].STATES.pressure_max_sat` (upstream `max_sat_p`).
+    pub max_sat_p: Option<StatePoint>,
     /// `EOS[0].alpha0` — ideal-gas Helmholtz terms, in document order
     pub alpha0: &'static [Alpha0Term],
     /// `EOS[0].alphar` — residual Helmholtz terms, in document order
@@ -733,8 +739,14 @@ pub enum AlpharTerm {
 
 /// `ANCILLARIES` — saturation ancillary equations used to seed solvers.
 pub struct Ancillaries {
-    /// `ANCILLARIES.pS`
+    /// Upstream's `ancillaries.pL` slot: the `pS` curve for a pure fluid
+    /// (upstream loads `pS` into BOTH pL and pV), the bubble-point `pL`
+    /// curve for a pseudo-pure fluid.
     pub p_s: SaturationAncillary,
+    /// Upstream's `ancillaries.pV` slot when it differs from pL — the
+    /// dew-point curve of a pseudo-pure fluid. `None` for pure fluids (the
+    /// slot aliases `p_s`, saving a duplicate static curve).
+    pub p_v_split: Option<SaturationAncillary>,
     /// `ANCILLARIES.rhoL`
     pub rho_l: SaturationAncillary,
     /// `ANCILLARIES.rhoV`

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static VINYLCHLORIDE: FluidData = FluidData {
     name: "VinylChloride",
@@ -46,6 +46,8 @@ pub static VINYLCHLORIDE: FluidData = FluidData {
             hmolar: 26114.412011084252,
             smolar: 68.69667746216955,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -3.438709541259339, a2: 3.603201576636243 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -286,6 +288,7 @@ pub static VINYLCHLORIDE: FluidData = FluidData {
             t_min: 119.31,
             t_max: 425.0,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[1.8041, 5.629, -18.45, 33.235, -66.136, 47.53],

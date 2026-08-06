@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static ACETONE: FluidData = FluidData {
     name: "Acetone",
@@ -46,6 +46,8 @@ pub static ACETONE: FluidData = FluidData {
             hmolar: 39967.71144362836,
             smolar: 87.25073968711048,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -9.4883659997, a2: 7.1422719708 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -277,6 +279,7 @@ pub static ACETONE: FluidData = FluidData {
             t_min: 178.5,
             t_max: 508.0999999999992,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[7.78253597073335, -18.960548358570204, 22.83032556167124, -224.3533942809052, 232.0353784600054, -16.31650346262528],

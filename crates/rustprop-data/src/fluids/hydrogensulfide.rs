@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static HYDROGENSULFIDE: FluidData = FluidData {
     name: "HydrogenSulfide",
@@ -46,6 +46,8 @@ pub static HYDROGENSULFIDE: FluidData = FluidData {
             hmolar: 17978.612588857857,
             smolar: 54.72626070119076,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -4.0740770957, a2: 3.7632137341 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -250,6 +252,7 @@ pub static HYDROGENSULFIDE: FluidData = FluidData {
             t_min: 187.7,
             t_max: 373.09999999999945,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[51.60103369398371, -49.93595719794271, 6.987088261412919, -24.784697586038508, 84.07792676768513, -68.55133880200839],

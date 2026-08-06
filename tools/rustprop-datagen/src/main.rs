@@ -118,6 +118,8 @@ struct EosStatesJson {
     sat_min_liquid: Sp,
     sat_min_vapor: Sp,
     hs_anchor: Sp,
+    temperature_max_sat: Option<Sp>,
+    pressure_max_sat: Option<Sp>,
 }
 
 /// `hmolar`/`smolar` default to NaN: the `sat_min_liquid`/`sat_min_vapor`
@@ -270,8 +272,14 @@ enum AlpharJson {
 
 #[derive(Deserialize)]
 struct AncJson {
+    /// Pure fluids carry a single `pS` curve; pseudo-pure fluids carry
+    /// separate `pL`/`pV` curves (upstream `parse_ancillaries`).
     #[serde(rename = "pS")]
-    p_s: SatAncJson,
+    p_s: Option<SatAncJson>,
+    #[serde(rename = "pL")]
+    p_l: Option<SatAncJson>,
+    #[serde(rename = "pV")]
+    p_v: Option<SatAncJson>,
     #[serde(rename = "rhoL")]
     rho_l: SatAncJson,
     #[serde(rename = "rhoV")]
@@ -461,6 +469,11 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     } else {
         ""
     };
+    let sa = if eos.superancillary.is_some() {
+        ", ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData"
+    } else {
+        ""
+    };
     let melt = match &doc.ancillaries.melting_line {
         Some(ml) if ml.melt_type == "Simon" => ", MeltingLine, MeltingLineKind, SimonMeltPart",
         Some(_) => ", MeltingLine, MeltingLineKind, PolyMeltPart",
@@ -491,7 +504,7 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     }
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData{surf}{melt}{timp}}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States{sa}{surf}{melt}{timp}}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -532,6 +545,17 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
         state_point(&eos.states.hs_anchor, "        ")
     )
     .unwrap();
+    for (field, sp) in [
+        ("max_sat_t", &eos.states.temperature_max_sat),
+        ("max_sat_p", &eos.states.pressure_max_sat),
+    ] {
+        match sp {
+            Some(sp) => {
+                writeln!(w, "        {field}: Some({}),", state_point(sp, "        ")).unwrap()
+            }
+            None => writeln!(w, "        {field}: None,").unwrap(),
+        }
+    }
     writeln!(w, "        alpha0: &[").unwrap();
     for term in &eos.alpha0 {
         match term {
@@ -743,12 +767,25 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     }
     writeln!(w, "    }},").unwrap();
     writeln!(w, "    ancillaries: Ancillaries {{").unwrap();
-    writeln!(
-        w,
-        "        p_s: {},",
-        sat_anc(&doc.ancillaries.p_s, "        ")
-    )
-    .unwrap();
+    // Upstream parse_ancillaries: pL+pV present (pseudo-pure) fill the two
+    // slots; else a single pS fills both. We alias the pure case through
+    // `p_v_split: None` instead of duplicating the curve.
+    let (p_l_slot, p_v_slot) = match (
+        &doc.ancillaries.p_s,
+        &doc.ancillaries.p_l,
+        &doc.ancillaries.p_v,
+    ) {
+        (None, Some(pl), Some(pv)) => (pl, Some(pv)),
+        (Some(ps), None, None) => (ps, None),
+        _ => panic!("Pressure ancillary curves are missing or invalid"),
+    };
+    writeln!(w, "        p_s: {},", sat_anc(p_l_slot, "        ")).unwrap();
+    match p_v_slot {
+        Some(pv) => {
+            writeln!(w, "        p_v_split: Some({}),", sat_anc(pv, "        ")).unwrap();
+        }
+        None => writeln!(w, "        p_v_split: None,").unwrap(),
+    }
     writeln!(
         w,
         "        rho_l: {},",

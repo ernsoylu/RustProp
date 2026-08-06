@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
     name: "SulfurHexafluoride",
@@ -46,6 +46,8 @@ pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
             hmolar: 44157.62051767658,
             smolar: 191.75175408496216,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 11.638611086, a2: -6.392241811 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -248,6 +250,7 @@ pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
             t_min: 223.555,
             t_max: 318.7231999999994,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[-0.09723399675840703, 2.15858946914358, 1.7637219963539608, -1153.263728198288, 3460.272067774808, -16941.095002681574],

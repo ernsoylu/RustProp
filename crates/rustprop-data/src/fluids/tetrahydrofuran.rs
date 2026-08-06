@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static TETRAHYDROFURAN: FluidData = FluidData {
     name: "Tetrahydrofuran",
@@ -46,6 +46,8 @@ pub static TETRAHYDROFURAN: FluidData = FluidData {
             hmolar: 49906.59720574944,
             smolar: 103.58697737006568,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -1.38409803793207, a2: 2.91973647056971 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -277,6 +279,7 @@ pub static TETRAHYDROFURAN: FluidData = FluidData {
             t_min: 164.76,
             t_max: 540.2,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[6.9, -8.7784, 7.87, -5.75, 2.59],

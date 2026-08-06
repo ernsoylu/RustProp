@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static PROPYLENEGLYCOL: FluidData = FluidData {
     name: "PropyleneGlycol",
@@ -46,6 +46,8 @@ pub static PROPYLENEGLYCOL: FluidData = FluidData {
             hmolar: 97228.57112362364,
             smolar: 157.76537827525652,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 1.45359225002898, a2: 2.5839633256032 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -355,6 +357,7 @@ pub static PROPYLENEGLYCOL: FluidData = FluidData {
             t_min: 273.0,
             t_max: 674.0,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.46, 2.06, 0.743, -1.905, 1.536],

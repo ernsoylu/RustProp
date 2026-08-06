@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ETHYLBENZENE: FluidData = FluidData {
     name: "EthylBenzene",
@@ -46,6 +46,8 @@ pub static ETHYLBENZENE: FluidData = FluidData {
             hmolar: 80858.36265120881,
             smolar: 145.89852281875622,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 5.70409, a2: -0.52414353 },
             Alpha0Term::LogTau { a: 4.2557889 },
@@ -283,6 +285,7 @@ pub static ETHYLBENZENE: FluidData = FluidData {
             t_min: 178.2,
             t_max: 617.1199999999991,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[4.915675810263367, -4.4212458698552295, 5.72675775026962, -3.746340117826641, 4.221240347308843, -7.214708107153519],

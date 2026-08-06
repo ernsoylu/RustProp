@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static PROPYNE: FluidData = FluidData {
     name: "Propyne",
@@ -46,6 +46,8 @@ pub static PROPYNE: FluidData = FluidData {
             hmolar: 31492.825356715988,
             smolar: 102.0284806898826,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 0.0, a2: 0.0 },
             Alpha0Term::LogTau { a: -1.0 },
@@ -245,6 +247,7 @@ pub static PROPYNE: FluidData = FluidData {
             t_min: 273.0,
             t_max: 402.37999999999914,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[0.676908949567043, 42.124365852994195, -52.6498660929799, 148.86365466555566, -17709.824791659536, 71543.36247766066],

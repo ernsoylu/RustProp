@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static CYCLOPENTANE: FluidData = FluidData {
     name: "Cyclopentane",
@@ -46,6 +46,8 @@ pub static CYCLOPENTANE: FluidData = FluidData {
             hmolar: 48121.77093228856,
             smolar: 105.1576286452139,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -0.3946233253, a2: 2.4918910143 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -268,6 +270,7 @@ pub static CYCLOPENTANE: FluidData = FluidData {
             t_min: 179.7,
             t_max: 511.719999999999,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[4.175321169438228, -3.397276360824395, 3.265444750596592, -14.140653461920774, 419.1357335784064, -484.6437448434436],

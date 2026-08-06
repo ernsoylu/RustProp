@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static MD3M: FluidData = FluidData {
     name: "MD3M",
@@ -46,6 +46,8 @@ pub static MD3M: FluidData = FluidData {
             hmolar: 175646.61431745678,
             smolar: 292.4912447184694,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 68.11672041661723, a2: -29.80919654255515 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -313,6 +315,7 @@ pub static MD3M: FluidData = FluidData {
             t_min: 192.0,
             t_max: 628.0,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[3.326, 3.889, -2.363, -2.709, 1.325],

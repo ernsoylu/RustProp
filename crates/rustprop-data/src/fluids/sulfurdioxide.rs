@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static SULFURDIOXIDE: FluidData = FluidData {
     name: "SulfurDioxide",
@@ -46,6 +46,8 @@ pub static SULFURDIOXIDE: FluidData = FluidData {
             hmolar: 24379.23466706939,
             smolar: 63.237820397878735,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: -4.5414235721, a2: 4.4732289572 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -257,6 +259,7 @@ pub static SULFURDIOXIDE: FluidData = FluidData {
             t_min: 197.7,
             t_max: 430.6399999999989,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[7.2296, -16.928, 29.832, -27.901, 11.085],

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static TOLUENE: FluidData = FluidData {
     name: "Toluene",
@@ -46,6 +46,8 @@ pub static TOLUENE: FluidData = FluidData {
             hmolar: 66706.55732608886,
             smolar: 126.11884906567128,
         },
+        max_sat_t: None,
+        max_sat_p: None,
         alpha0: &[
             Alpha0Term::Lead { a1: 3.5241174832, a2: 1.1360823464 },
             Alpha0Term::LogTau { a: 3.0 },
@@ -279,6 +281,7 @@ pub static TOLUENE: FluidData = FluidData {
             t_min: 178.0,
             t_max: 591.7499999999987,
         },
+        p_v_split: None,
         rho_l: SaturationAncillary {
             anc_type: "rhoLnoexp",
             n: &[2.731439741297877, -1.4311921172736468, 1.7220225715861872, -1.3959592517619432, 25.019574322670564, -106.28098773992356],

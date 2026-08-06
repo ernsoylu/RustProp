@@ -864,3 +864,16 @@ Append-only; newest last. Seeded entries:
   failed; error: Output string is invalid [T&P]" (the bespoke NotImplemented pre-check
   removed). +33 sub-triple (H,P)/(P,S)/(P,U) goldens (726 total in flash_pairs_extra) +
   message-anchored error asserts, first-run green.
+- 2026-08-06 — pseudo-pure fluids, part 1 (data plumbing): the 6 pseudo-pure documents
+  (Air, R404A, R407C, R410A, R507A, SES36) dumped verbatim from the wheel, datagen-parsed
+  and registry-included (136 fluids total). Upstream `parse_ancillaries` semantics
+  encoded: pure fluids' single `pS` fills BOTH the pL and pV runtime slots — represented
+  as `p_s` + `p_v_split: Option` (None aliases p_s, saving a duplicate static curve);
+  pseudo-pure documents carry separate bubble/dew curves (same functional form as pS).
+  New EOS state points `max_sat_t`/`max_sat_p` (upstream `max_sat_T`/`max_sat_p`,
+  pseudo-pure saturation maxima). Superancillary imports and walker checks became
+  conditional (SUPERANCILLARY absent for pseudo-pure); walker handles the pL/pV split,
+  the max-sat points, and Air's `acentric_note` — all 136 fluids bitwise-walked.
+  `props_si` guards pseudo-pure fluids with a loud NotImplemented until the classic
+  Maxwell solvers land (parts 2-3: saturation_T_pure, ancillary-based phase
+  determination, flashes).
