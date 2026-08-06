@@ -27,6 +27,11 @@ pub struct PtFlash {
     /// `ensure_caloric_superancillaries` — built on first HS use, cached;
     /// `OnceLock` keeps `PtFlash: Sync` for the facade's per-fluid cache).
     pub(crate) hs_calorics_cell: std::sync::OnceLock<crate::flash_hs::CaloricSa>,
+    /// Lazily-built root-enumeration views over the static saturation-density
+    /// branches (liquid, vapor) — upstream `get_all_intersections('D', ...)`
+    /// walks the same monotonic-interval machinery the caloric SAs use.
+    pub(crate) d_approx_cell:
+        std::sync::OnceLock<(crate::chebappr::ChebApprox1d, crate::chebappr::ChebApprox1d)>,
 }
 
 /// Upstream `SolverTPResid`: relative pressure residual with derivatives in
@@ -87,7 +92,36 @@ impl PtFlash {
             sat,
             fluid,
             hs_calorics_cell: std::sync::OnceLock::new(),
+            d_approx_cell: std::sync::OnceLock::new(),
         }
+    }
+
+    /// The (liquid, vapor) saturation-density branches as root-enumerable
+    /// approximations, built once from the static superancillary intervals.
+    pub(crate) fn d_approxes(
+        &self,
+    ) -> &(crate::chebappr::ChebApprox1d, crate::chebappr::ChebApprox1d) {
+        self.d_approx_cell.get_or_init(|| {
+            let own = |intervals: &[rustprop_core::fluid::ChebyshevInterval]| {
+                crate::chebappr::ChebApprox1d::new(
+                    intervals
+                        .iter()
+                        .map(|iv| crate::superancillary::OwnedInterval {
+                            xmin: iv.xmin,
+                            xmax: iv.xmax,
+                            coef: iv.coef.to_vec(),
+                        })
+                        .collect(),
+                )
+            };
+            let sa = self
+                .fluid
+                .eos
+                .superancillary
+                .as_ref()
+                .expect("PT flash requires a superancillary fluid");
+            (own(sa.rho_l), own(sa.rho_v))
+        })
     }
 
     pub fn sat(&self) -> &SaturationSuperAncillary {

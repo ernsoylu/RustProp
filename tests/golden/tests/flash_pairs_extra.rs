@@ -1,8 +1,10 @@
 //! Tier-2 input-pair goldens (PLAN.md 4.6 deferrals): `(Hmolar, T)` and
-//! `(T, Umolar)` — upstream `DHSU_T_flash` — and `(P, Umolar)` — upstream
-//! `HSU_P_flash` — through `props_si`, including the mass-basis variants.
-//! The T-based pairs solve density directly (1e-9); the (P, X) pair runs at
-//! the established 1e-8 policy (upstream resolves T at ~30 bits).
+//! `(T, Umolar)` — upstream `DHSU_T_flash` —, `(P, Umolar)` — upstream
+//! `HSU_P_flash` —, and `(Dmolar, Hmolar/Smolar/Umolar)` — upstream
+//! `HSU_D_flash`'s superancillary happy path — through `props_si`,
+//! including the mass-basis variants. The T-based pairs solve density
+//! directly (1e-9); the (P, X) pair runs at the established 1e-8 policy
+//! (upstream resolves T at ~30 bits).
 
 use rustprop::props_si;
 use rustprop_golden_tests::load_jsonl;
@@ -12,7 +14,7 @@ use std::path::Path;
 fn extra_flash_pairs_match_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/flash_pairs_extra.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 308);
+    assert_eq!(records.len(), 616);
 
     let mut failures = Vec::new();
     for rec in &records {

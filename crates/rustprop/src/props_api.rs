@@ -225,6 +225,9 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
         InputPair::HmassT => (InputPair::HmolarT, v1 * mm, v2),
         InputPair::TUmass => (InputPair::TUmolar, v1, v2 * mm),
         InputPair::PUmass => (InputPair::PUmolar, v1, v2 * mm),
+        InputPair::DmassHmass => (InputPair::DmolarHmolar, v1 / mm, v2 * mm),
+        InputPair::DmassSmass => (InputPair::DmolarSmolar, v1 / mm, v2 * mm),
+        InputPair::DmassUmass => (InputPair::DmolarUmolar, v1 / mm, v2 * mm),
         other => (other, v1, v2),
     };
     match pair {
@@ -263,6 +266,9 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
         InputPair::HmolarT => flash.hmolar_t_state(v1, v2),
         InputPair::TUmolar => flash.umolar_t_state(v2, v1),
         InputPair::PUmolar => flash.p_umolar_state(v1, v2),
+        InputPair::DmolarHmolar => flash.dmolar_hmolar_state(v1, v2),
+        InputPair::DmolarSmolar => flash.dmolar_smolar_state(v1, v2),
+        InputPair::DmolarUmolar => flash.dmolar_umolar_state(v1, v2),
         other => Err(Error::NotImplemented(format!(
             "input pair {} is not ported yet",
             other.short_desc()

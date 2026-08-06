@@ -481,6 +481,212 @@ impl PtFlash {
         self.px_state(p, umolar, CaloricKey::Umolar)
     }
 
+    /// (Dmolar, Hmolar) flash — upstream `HSU_D_flash(iHmolar)`.
+    pub fn dmolar_hmolar_state(&self, rhomolar: f64, hmolar: f64) -> Result<HeosState> {
+        self.hsu_d_state(rhomolar, hmolar, CaloricKey::Hmolar)
+    }
+
+    /// (Dmolar, Smolar) flash — upstream `HSU_D_flash(iSmolar)`.
+    pub fn dmolar_smolar_state(&self, rhomolar: f64, smolar: f64) -> Result<HeosState> {
+        self.hsu_d_state(rhomolar, smolar, CaloricKey::Smolar)
+    }
+
+    /// (Dmolar, Umolar) flash — upstream `HSU_D_flash(iUmolar)`.
+    pub fn dmolar_umolar_state(&self, rhomolar: f64, umolar: f64) -> Result<HeosState> {
+        self.hsu_d_state(rhomolar, umolar, CaloricKey::Umolar)
+    }
+
+    /// Upstream `HSU_D_flash`'s superancillary "happy path" (every bundled
+    /// fluid is pure with a superancillary, so the legacy ancillary "sad
+    /// path" is only its error fallback — unported, loud error instead).
+    ///
+    /// Candidate T-intervals are cut at every intersection of the specified
+    /// density with either saturation branch (`get_all_intersections`),
+    /// classified by dome membership at their midpoint, and solved with the
+    /// matching bracketed residual. The two-phase residual here is the
+    /// full-EOS `Qo - Qd` form (upstream's `use_ca = false` mode): upstream's
+    /// default caloric-superancillary fast path is followed by an EOS polish
+    /// (`HSU_D_TWOPHASE_EOS_POLISH`, on by default) that converges to the
+    /// same EOS root the direct residual finds — the fast path is a seed
+    /// optimization, not a different answer.
+    fn hsu_d_state(&self, rhomolar: f64, value: f64, key: CaloricKey) -> Result<HeosState> {
+        let sa = self
+            .fluid()
+            .eos
+            .superancillary
+            .as_ref()
+            .expect("HSU_D requires a superancillary fluid");
+        let tcrit = sa.t_crit_num;
+        // rhoV and rhoL coalesce at Tcrit and the quality ratio degenerates
+        // to 0/0, so keep two-phase brackets just shy of it.
+        let tcrit_2phase = tcrit - (1e-6f64).max(1e-9 * tcrit);
+        let tmin_sa = sa.rho_l[0].xmin;
+        let tmax_1phase = self.fluid().eos.t_max * 1.5;
+        let tol = 1e-12;
+        // 44 correct bits -> tolerance 2^(1-44) (upstream eps_tolerance<double>(44)).
+        let eps44 = (2.0f64).powi(1 - 44);
+
+        let inside_dome = |t: f64| -> bool {
+            if t >= tcrit {
+                return false;
+            }
+            let rho_v = crate::superancillary::eval_sat(sa, t, 'D', 1);
+            let rho_l = crate::superancillary::eval_sat(sa, t, 'D', 0);
+            rhomolar > rho_v && rhomolar < rho_l
+        };
+        // Bracketed root of `f` on [a, b] with endpoint short-circuits;
+        // 44-bit bisection + midpoint stands in for TOMS748 as established.
+        let bracket_solve =
+            |f: &dyn Fn(f64) -> Result<f64>, a: f64, b: f64| -> Result<Option<f64>> {
+                let fa = f(a)?;
+                if fa.abs() < tol {
+                    return Ok(Some(a));
+                }
+                let fb = f(b)?;
+                if fb.abs() < tol {
+                    return Ok(Some(b));
+                }
+                if fa * fb >= 0.0 {
+                    return Ok(None);
+                }
+                let (mut l, mut r, mut fl) = (a, b, fa);
+                for _ in 0..100 {
+                    if (r - l) <= eps44 * l.abs().max(r.abs()) {
+                        break;
+                    }
+                    let m = 0.5 * (l + r);
+                    let fm = f(m)?;
+                    if fm == 0.0 {
+                        l = m;
+                        r = m;
+                        break;
+                    }
+                    if (fl < 0.0) == (fm < 0.0) {
+                        l = m;
+                        fl = fm;
+                    } else {
+                        r = m;
+                    }
+                }
+                Ok(Some(0.5 * (l + r)))
+            };
+
+        // Single-phase: keyed value at the fixed density, solved over T.
+        let solve_1phase = |a: f64, b: f64| -> Option<HeosState> {
+            let f = |t: f64| -> Result<f64> { Ok(self.px_value(key, t, rhomolar) - value) };
+            let tconv = bracket_solve(&f, a, b).ok().flatten()?;
+            // Reject a converged root inside the dome (metastable); interval
+            // classification should never produce one, but the SA and EOS
+            // saturation curves differ at the ~1e-8 level near the boundary.
+            if inside_dome(tconv) {
+                return None;
+            }
+            let p = self.eos.pressure(tconv, rhomolar);
+            Some(HeosState::SinglePhase {
+                t: tconv,
+                p,
+                rhomolar,
+                phase: self.recalculated_singlephase_phase(tconv, p, rhomolar),
+                // Upstream `finalize_1phase` leaves the _Q = 10000 sentinel.
+                q: 10000.0,
+            })
+        };
+        // Two-phase: Qo - Qd residual with SA saturation densities and
+        // full-EOS caloric values of each phase.
+        let qd_at = |t: f64| -> (f64, f64, f64) {
+            let rho_l = crate::superancillary::eval_sat(sa, t, 'D', 0);
+            let rho_v = crate::superancillary::eval_sat(sa, t, 'D', 1);
+            let qd = (1.0 / rhomolar - 1.0 / rho_l) / (1.0 / rho_v - 1.0 / rho_l);
+            (qd, rho_l, rho_v)
+        };
+        let solve_2phase = |a: f64, b: f64| -> Option<HeosState> {
+            let f = |t: f64| -> Result<f64> {
+                let (qd, rho_l, rho_v) = qd_at(t);
+                let y_l = self.px_value(key, t, rho_l);
+                let y_v = self.px_value(key, t, rho_v);
+                let qo = (value - y_l) / (y_v - y_l);
+                let resid = qo - qd;
+                if !resid.is_finite() {
+                    return Err(Error::Value(format!(
+                        "HSU_D superancillary resid not finite @ T={t} K; Qo={qo}; Qd={qd}"
+                    )));
+                }
+                Ok(resid)
+            };
+            let tsol = bracket_solve(&f, a, b).ok().flatten()?;
+            let (qd_final, _, _) = qd_at(tsol);
+            // Reject a spurious crossing: quality outside [0, 1] means the
+            // specified density is not inside the two-phase band at Tsol.
+            let qeps = 1e-8;
+            if !(-qeps..=1.0 + qeps).contains(&qd_final) {
+                return None;
+            }
+            self.qt_state(tsol, qd_final.clamp(0.0, 1.0)).ok()
+        };
+        // The committed state must reproduce BOTH inputs (upstream
+        // `committed_ok`): a solve can converge on a spurious root.
+        let committed_ok = |state: &HeosState| -> bool {
+            let rho_out = state.rhomolar();
+            if !rho_out.is_finite() || (rho_out / rhomolar - 1.0).abs() > 1e-7 {
+                return false;
+            }
+            let x_out = match state {
+                HeosState::SinglePhase { t, rhomolar, .. } => self.px_value(key, *t, *rhomolar),
+                HeosState::TwoPhase {
+                    t, q, rho_l, rho_v, ..
+                } => {
+                    let y_l = self.px_value(key, *t, *rho_l);
+                    let y_v = self.px_value(key, *t, *rho_v);
+                    q * y_v + (1.0 - q) * y_l
+                }
+            };
+            x_out.is_finite() && (x_out - value).abs() <= 1e-6 * value.abs() + 1e-3
+        };
+
+        // Candidate interval edges: every saturation intersection of the
+        // density (both branches), between Tmin and Tcrit, plus the
+        // supercritical continuation.
+        let (d_l, d_v) = self.d_approxes();
+        let mut tsats = d_l.get_x_for_y(rhomolar, 48, 100, 1e-13);
+        tsats.extend(d_v.get_x_for_y(rhomolar, 48, 100, 1e-13));
+        tsats.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        let mut edges = vec![tmin_sa];
+        for t in &tsats {
+            if *t > tmin_sa && *t < tcrit {
+                edges.push(*t);
+            }
+        }
+        edges.push(tcrit);
+        edges.push(tmax_1phase);
+
+        for w in edges.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            if b - a < 1e-10 {
+                continue;
+            }
+            let mid = 0.5 * (a + b);
+            let solved = if mid < tcrit && inside_dome(mid) {
+                let ub = b.min(tcrit_2phase);
+                if ub > a {
+                    solve_2phase(a, ub)
+                } else {
+                    solve_1phase(a, b)
+                }
+            } else {
+                solve_1phase(a, b)
+            };
+            if let Some(state) = solved {
+                if committed_ok(&state) {
+                    return Ok(state);
+                }
+            }
+        }
+        Err(Error::Value(
+            "HSU_D superancillary: no candidate interval reproduced the inputs (the legacy ancillary path is not ported)"
+                .into(),
+        ))
+    }
+
     fn px_state(&self, p: f64, value: f64, key: CaloricKey) -> Result<HeosState> {
         let pc = self.p_critical();
         let tc = self.t_critical();

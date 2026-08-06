@@ -793,3 +793,19 @@ Append-only; newest last. Seeded entries:
   pairs at 1e-9, (P,U) at the 30-bit 1e-8 policy, and P OUTPUTS of solver-resolved caloric
   states also 1e-8 (rho solved to a 1e-8 residual; the liquid's stiff dp/drho amplifies it
   in P while the absolute error stays ~1e-4 Pa).
+- 2026-08-06 — input pairs (D,H)/(D,S)/(D,U) (tier-2 deferral): `HSU_D_flash`'s
+  superancillary happy path ported (every bundled fluid is pure with a superancillary, so
+  the legacy ancillary sad path is only its error fallback — unported, loud error).
+  Candidate T-intervals cut at every intersection of the density with either saturation
+  branch (`get_all_intersections('D')` = get_x_for_y on both D branches, via runtime
+  ChebApprox1d views over the static intervals, cached per fluid); midpoint dome
+  classification; single-phase = bracketed keyed-value residual over T at fixed rho
+  (44-bit bisection standing in for TOMS748 as established), inside-dome rejection, _Q =
+  10000 sentinel; two-phase = Qo - Qd residual with SA saturation densities and FULL-EOS
+  caloric values (upstream's use_ca fast path + default EOS polish converges to the same
+  EOS root — the caloric-SA read is a seed optimization, not a different answer; logged in
+  code), Qd in [-1e-8, 1+1e-8] spurious-crossing gate, commit via QT; `committed_ok`
+  both-inputs reproduction gate with next-interval fallthrough. Mass variants DmassHmass/
+  DmassSmass/DmassUmass. flash_pairs_extra grew to 616 goldens (T/P/Q outputs across
+  liquid/gas/supercritical/two-phase, 11 fluids), first-run green at 1e-9 (T-based),
+  1e-8 (P-involved).

@@ -797,12 +797,28 @@ def gen_flash_pairs_extra():
             rec(out, "T", T2, "Umolar", u2)
         for out in ["T", "Dmolar", "Q"]:
             rec(out, "P", p2, "Umolar", u2)
+        # (D, H/S/U) — upstream HSU_D_flash's superancillary happy path —
+        # at the same liquid/gas/supercritical/two-phase states.
+        for (T, p_) in [(T_liq, p_liq), (T_gas, p_gas), (T_sc, p_sc)]:
+            d = PropsSI("Dmolar", "T", T, "P", p_, hf)
+            for k in ["Hmolar", "Smolar", "Umolar"]:
+                x = PropsSI(k, "T", T, "P", p_, hf)
+                for out in ["T", "P"]:
+                    rec(out, "Dmolar", d, k, x)
+        d2 = PropsSI("Dmolar", "T", T2, "Q", 0.3, hf)
+        for k in ["Hmolar", "Smolar", "Umolar"]:
+            x = PropsSI(k, "T", T2, "Q", 0.3, hf)
+            for out in ["T", "Q", "P"]:
+                rec(out, "Dmolar", d2, k, x)
         # Mass-basis variants exercise mass_to_molar_inputs.
         hm = PropsSI("Hmass", "T", T_liq, "P", p_liq, hf)
         um = PropsSI("Umass", "T", T_gas, "P", p_gas, hf)
+        dm = PropsSI("Dmass", "T", T_liq, "P", p_liq, hf)
+        sm = PropsSI("Smass", "T", T_liq, "P", p_liq, hf)
         rec("D", "Hmass", hm, "T", T_liq)
         rec("D", "T", T_gas, "Umass", um)
         rec("T", "P", p_gas, "Umass", um)
+        rec("T", "Dmass", dm, "Smass", sm)
     print(f"flash pairs extra: {len(rows)} records, {skipped} rejected")
     return rows
 
