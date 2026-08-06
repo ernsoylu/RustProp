@@ -905,6 +905,52 @@ def gen_melting():
     return rows
 
 
+PSEUDO_PURE = ["Air", "R404A", "R407C", "R410A", "R507A", "SES36"]
+
+
+def gen_pseudo_pure():
+    """Pseudo-pure flash goldens: PT (liquid/gas/supercritical), QT at the
+    only defined qualities (0/1), and PQ across the glide, for all six
+    pseudo-pure fluids."""
+    rows, skipped = [], 0
+    for fluid in PSEUDO_PURE:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        pc = PropsSI("pcrit", "", 0, "", 0, hf)
+
+        def TL(x):
+            return Tt + x * (Tc - Tt)
+
+        def rec(out, n1, v1, n2, v2):
+            nonlocal skipped
+            r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+
+        T_mid = TL(0.5)
+        p_mid = PropsSI("P", "T", T_mid, "Q", 0, hf)
+        # QT at the defined qualities
+        for q in [0.0, 1.0]:
+            for out in ["P", "Dmolar", "Hmolar", "Smolar"]:
+                rec(out, "T", T_mid, "Q", q)
+                rec(out, "T", TL(0.3), "Q", q)
+        # PQ across the glide (fractional quality is defined for PQ)
+        for q in [0.0, 0.4, 1.0]:
+            for out in ["T", "Dmolar", "Hmolar", "Umolar"]:
+                rec(out, "P", p_mid, "Q", q)
+                rec(out, "P", 3.0 * p_mid, "Q", q)
+        # PT: liquid (above 1.02*pL), gas (below 0.98*pV), supercritical
+        pL = PropsSI("P", "T", T_mid, "Q", 0, hf)
+        pV = PropsSI("P", "T", T_mid, "Q", 1, hf)
+        for (T, p_) in [(T_mid, 2.0 * pL), (T_mid, 0.5 * pV),
+                        (1.2 * Tc, 1.5 * pc), (1.2 * Tc, 0.5 * pc),
+                        (TL(0.4), 1.5 * pc)]:
+            for out in ["Dmolar", "Hmolar", "Smolar"]:
+                rec(out, "T", T, "P", p_)
+    print(f"pseudo-pure: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 # The 20 fluids whose viscosity is fully structured (dilute/initial_density/
 # higher_order with typed families only) — the 6.1 structured slice.
 VISCOSITY_STRUCTURED = [
@@ -1087,6 +1133,7 @@ def main():
     write_jsonl("viscosity.jsonl", gen_viscosity())
     write_jsonl("flash_pairs_extra.jsonl", gen_flash_pairs_extra())
     write_jsonl("melting.jsonl", gen_melting())
+    write_jsonl("pseudo_pure.jsonl", gen_pseudo_pure())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

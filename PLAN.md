@@ -890,3 +890,17 @@ Append-only; newest last. Seeded entries:
   temperature glide) and mixes outputs by quality; PT's pseudo-pure arbiter is the
   ancillary guard bands (1.02*pL / 0.98*pV), with the in-band region throwing "Two-phase
   inputs not supported for pseudo-pure for now".
+- 2026-08-06 — pseudo-pure fluids, part 2b — the pseudo-pure item (and with it ALL
+  tier-2 deferrals) is CLOSED for the PropsSI-serviceable surface: QT (Q strictly 0/1;
+  p from the explicit pL/pV ancillary, rho from the guessed PT solve, range guard on
+  [Tmin_sat - 0.1, max_sat_T.T]), PQ (pL/pV inverted per branch — `HeosState::TwoPhase`
+  gained per-branch `t_l`/`t_v` so caloric mixes evaluate each phase at its own
+  temperature across the GLIDE, exactly upstream's SatL/SatV; pure fluids set both = t,
+  zero behavior change), and PT (supercritical classifications + the ancillary arbiter:
+  1.02*pL / 0.98*pV guard bands, raw curves between, in-band throws "Two-phase inputs
+  not supported for pseudo-pure for now"). Remaining pairs route to a loud
+  NotImplemented (upstream serves them through legacy solvers the superancillary made
+  dead for the 130 pure fluids). 330 goldens over all six fluids (PT liquid/gas/
+  supercritical, QT boundaries, PQ across the glide incl. q=0.4 — Air's PQ mid-glide
+  density matches the oracle to the last digit), error parity verbatim (fractional-Q QT,
+  in-band PT), first-run green.

@@ -198,7 +198,9 @@ impl PtFlash {
                 }
             }
         }
-        let phase = if t < 0.9 * self.t_triple() + 0.1 * tc {
+        let phase = if self.fluid.eos.pseudo_pure {
+            self.pseudo_pure_phase_determination(t, p)?
+        } else if t < 0.9 * self.t_triple() + 0.1 * tc {
             self.p_phase_determination_given_t(t, p)?
         } else {
             self.t_phase_determination_given_p(t, p)?
@@ -378,6 +380,45 @@ impl PtFlash {
                     "solver_rho_Tp was unable to find a solution for T={t:10}, p={p:10}, with guess value {rho_guess:10}"
                 )))
             }
+        }
+    }
+
+    /// Pseudo-pure (T, p) phase determination: the supercritical
+    /// classifications first (same shape as the pure paths), then the
+    /// ancillary pressure curves as "the official arbiter of the phase" —
+    /// outside the 1.02*pL / 0.98*pV guard bands the raw curves decide;
+    /// between them upstream throws (`T_phase_determination_pure_or_
+    /// pseudopure`'s pseudo-pure arm).
+    fn pseudo_pure_phase_determination(&self, t: f64, p: f64) -> Result<Phase> {
+        let tc = self.t_critical();
+        let pc = self.p_critical();
+        if t < tc && p > pc {
+            return Ok(Phase::SupercriticalLiquid);
+        }
+        if t > tc {
+            return Ok(if p > pc {
+                Phase::Supercritical
+            } else {
+                Phase::SupercriticalGas
+            });
+        }
+        let anc = &self.fluid.ancillaries;
+        let pl_anc = ancillary::evaluate(&anc.p_s, t);
+        let pv_anc = ancillary::evaluate(anc.p_v_split.as_ref().unwrap_or(&anc.p_s), t);
+        if p < 0.98 * pv_anc {
+            return Ok(Phase::Gas);
+        }
+        if p > 1.02 * pl_anc {
+            return Ok(Phase::Liquid);
+        }
+        if p > pl_anc {
+            Ok(Phase::Liquid)
+        } else if p < pv_anc {
+            Ok(Phase::Gas)
+        } else {
+            Err(Error::Value(
+                "Two-phase inputs not supported for pseudo-pure for now".into(),
+            ))
         }
     }
 

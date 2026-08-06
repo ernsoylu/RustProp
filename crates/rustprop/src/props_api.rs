@@ -146,14 +146,7 @@ fn heos_route(
     // Multi-output strings ('&'-joined) fail upstream's output parsing with
     // "Output string is invalid" — they fall through to Param::parse below.
     let data = resolve_fluid(fluid)?;
-    // Pseudo-pure fluids (no superancillary) need the classic Maxwell
-    // saturation solvers — data is ported, calculations are not yet.
-    if data.eos.pseudo_pure {
-        return Err(Error::NotImplemented(format!(
-            "pseudo-pure fluid [{}] calculations are not ported yet (data only)",
-            data.name
-        )));
-    }
+
     let out = Param::parse(output).ok_or_else(|| {
         Error::Value(format!(
             "Output parameter parsing failed; error: Output string is invalid [{output}]"
@@ -242,6 +235,18 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
         InputPair::DmassUmass => (InputPair::DmolarUmolar, v1 / mm, v2 * mm),
         other => (other, v1, v2),
     };
+    // Pseudo-pure fluids: the ported paths are the ones upstream's
+    // ancillary machinery serves directly (QT at Q in {0,1}, PQ, PT); the
+    // remaining pairs route into superancillary-only machinery and stay
+    // loud errors until their classic legacy solvers are ported.
+    if flash.fluid().eos.pseudo_pure
+        && !matches!(pair, InputPair::PT | InputPair::QT | InputPair::PQ)
+    {
+        return Err(Error::NotImplemented(format!(
+            "input pair {} is not ported yet for pseudo-pure fluids",
+            pair.short_desc()
+        )));
+    }
     match pair {
         InputPair::PT => {
             let (rho, phase) = flash.pt_flash(v2, v1)?;

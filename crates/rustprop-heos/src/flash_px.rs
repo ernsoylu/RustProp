@@ -105,6 +105,12 @@ pub enum HeosState {
         q: f64,
         rho_l: f64,
         rho_v: f64,
+        /// Per-branch saturation temperatures — equal to `t` for pure
+        /// fluids; a pseudo-pure PQ state carries the temperature GLIDE
+        /// (T_bubble != T_dew), and caloric mixes evaluate each branch at
+        /// its own temperature exactly as upstream's SatL/SatV sub-states.
+        t_l: f64,
+        t_v: f64,
     },
 }
 
@@ -153,8 +159,17 @@ impl PtFlash {
         match s {
             HeosState::SinglePhase { t, rhomolar, .. } => self.eos.hmolar(*t, *rhomolar),
             HeosState::TwoPhase {
-                t, q, rho_l, rho_v, ..
-            } => mix_two_phase(*q, self.eos.hmolar(*t, *rho_l), self.eos.hmolar(*t, *rho_v)),
+                q,
+                rho_l,
+                rho_v,
+                t_l,
+                t_v,
+                ..
+            } => mix_two_phase(
+                *q,
+                self.eos.hmolar(*t_l, *rho_l),
+                self.eos.hmolar(*t_v, *rho_v),
+            ),
         }
     }
     /// Molar entropy of a state [J/mol/K].
@@ -162,8 +177,17 @@ impl PtFlash {
         match s {
             HeosState::SinglePhase { t, rhomolar, .. } => self.eos.smolar(*t, *rhomolar),
             HeosState::TwoPhase {
-                t, q, rho_l, rho_v, ..
-            } => mix_two_phase(*q, self.eos.smolar(*t, *rho_l), self.eos.smolar(*t, *rho_v)),
+                q,
+                rho_l,
+                rho_v,
+                t_l,
+                t_v,
+                ..
+            } => mix_two_phase(
+                *q,
+                self.eos.smolar(*t_l, *rho_l),
+                self.eos.smolar(*t_v, *rho_v),
+            ),
         }
     }
     /// Molar internal energy of a state [J/mol].
@@ -171,13 +195,26 @@ impl PtFlash {
         match s {
             HeosState::SinglePhase { t, rhomolar, .. } => self.eos.umolar(*t, *rhomolar),
             HeosState::TwoPhase {
-                t, q, rho_l, rho_v, ..
-            } => mix_two_phase(*q, self.eos.umolar(*t, *rho_l), self.eos.umolar(*t, *rho_v)),
+                q,
+                rho_l,
+                rho_v,
+                t_l,
+                t_v,
+                ..
+            } => mix_two_phase(
+                *q,
+                self.eos.umolar(*t_l, *rho_l),
+                self.eos.umolar(*t_v, *rho_v),
+            ),
         }
     }
 
-    /// General-quality (T,Q) state (superancillary `QT_flash`).
+    /// General-quality (T,Q) state (superancillary `QT_flash`; the
+    /// pseudo-pure branch uses the explicit pL/pV ancillaries).
     pub fn qt_state(&self, t: f64, q: f64) -> Result<HeosState> {
+        if self.fluid().eos.pseudo_pure {
+            return self.qt_state_pseudo_pure(t, q);
+        }
         let sat = self.sat().qt_flash(t, q)?;
         Ok(HeosState::TwoPhase {
             t: sat.t,
@@ -186,11 +223,72 @@ impl PtFlash {
             q,
             rho_l: sat.rho_l,
             rho_v: sat.rho_v,
+
+            t_l: sat.t,
+
+            t_v: sat.t,
         })
     }
 
-    /// General-quality (P,Q) state (superancillary `PQ_flash`).
+    /// Upstream `QT_flash`'s pseudo-pure branch: the range guard on
+    /// [Tmin_sat - 0.1, Tmax_sat], then p straight from the pL (Q=0) or pV
+    /// (Q=1) ancillary and the density from a PT solve seeded by the
+    /// rhoL/rhoV ancillary. Fractional quality is undefined upstream.
+    fn qt_state_pseudo_pure(&self, t: f64, q: f64) -> Result<HeosState> {
+        let fluid = self.fluid();
+        let anc = &fluid.ancillaries;
+        // Upstream `calc_Tmax_sat` (pseudo-pure: max_sat_T.T) and
+        // `calc_Tmin_sat` (max of the two sat-min temperatures).
+        let tmax_sat = fluid
+            .eos
+            .max_sat_t
+            .as_ref()
+            .map_or_else(|| self.t_critical(), |sp| sp.t)
+            + 1e-13;
+        let tmin_sat = fluid.eos.sat_min_liquid.t.max(fluid.eos.sat_min_vapor.t) - 1e-13;
+        if !(tmin_sat - 0.1..=tmax_sat).contains(&t) {
+            return Err(Error::Value(format!(
+                "Temperature to QT_flash [{t:.8} K] must be in range [{:.8} K, {:.8} K]",
+                tmin_sat - 0.1,
+                tmax_sat
+            )));
+        }
+        let (p, rho) = if q.abs() < f64::EPSILON {
+            let p = crate::ancillary::evaluate(&anc.p_s, t);
+            let rho_anc = crate::ancillary::evaluate(&anc.rho_l, t);
+            (p, self.solver_rho_tp_guessed(t, p, rho_anc)?)
+        } else if (q - 1.0).abs() < f64::EPSILON {
+            let pv = anc.p_v_split.as_ref().unwrap_or(&anc.p_s);
+            let p = crate::ancillary::evaluate(pv, t);
+            let rho_anc = crate::ancillary::evaluate(&anc.rho_v, t);
+            (p, self.solver_rho_tp_guessed(t, p, rho_anc)?)
+        } else {
+            return Err(Error::Value(
+                "For pseudo-pure fluid, quality must be equal to 0 or 1.  Two-phase quality is not defined"
+                    .into(),
+            ));
+        };
+        // Upstream commits the solved branch density as the state density;
+        // the other branch is never solved (the exact-0/1 quality zeroes it
+        // out of every mix).
+        Ok(HeosState::TwoPhase {
+            t,
+            p,
+            rhomolar: rho,
+            q,
+            rho_l: rho,
+            rho_v: rho,
+            t_l: t,
+            t_v: t,
+        })
+    }
+
+    /// General-quality (P,Q) state (superancillary `PQ_flash`; the
+    /// pseudo-pure branch inverts the pL/pV ancillaries per branch).
     pub fn pq_state(&self, p: f64, q: f64) -> Result<HeosState> {
+        if self.fluid().eos.pseudo_pure {
+            return self.pq_state_pseudo_pure(p, q);
+        }
         let sat = self.sat().pq_flash(p, q)?;
         Ok(HeosState::TwoPhase {
             t: sat.t,
@@ -199,6 +297,36 @@ impl PtFlash {
             q,
             rho_l: sat.rho_l,
             rho_v: sat.rho_v,
+
+            t_l: sat.t,
+
+            t_v: sat.t,
+        })
+    }
+
+    /// Upstream `PQ_flash`'s pseudo-pure branch: invert pL and pV for the
+    /// bubble/dew temperatures (the GLIDE — T_L != T_V), solve each branch
+    /// density from its own ancillary-seeded PT solve, and quality-mix the
+    /// outputs. The state carries both branch temperatures so caloric mixes
+    /// evaluate each phase at its own T, exactly as upstream's SatL/SatV.
+    fn pq_state_pseudo_pure(&self, p: f64, q: f64) -> Result<HeosState> {
+        let anc = &self.fluid().ancillaries;
+        let pv_anc = anc.p_v_split.as_ref().unwrap_or(&anc.p_s);
+        let t_l = crate::ancillary::invert(&anc.p_s, p)?;
+        let t_v = crate::ancillary::invert(pv_anc, p)?;
+        let rho_l_anc = crate::ancillary::evaluate(&anc.rho_l, t_l);
+        let rho_v_anc = crate::ancillary::evaluate(&anc.rho_v, t_v);
+        let rho_l = self.solver_rho_tp_guessed(t_l, p, rho_l_anc)?;
+        let rho_v = self.solver_rho_tp_guessed(t_v, p, rho_v_anc)?;
+        Ok(HeosState::TwoPhase {
+            t: q * t_v + (1.0 - q) * t_l,
+            p,
+            rhomolar: 1.0 / (q / rho_v + (1.0 - q) / rho_l),
+            q,
+            rho_l,
+            rho_v,
+            t_l,
+            t_v,
         })
     }
 
@@ -252,6 +380,10 @@ impl PtFlash {
                     q,
                     rho_l: sat.rho_l,
                     rho_v: sat.rho_v,
+
+                    t_l: t,
+
+                    t_v: t,
                 })
             }
         } else if t > tc && t > self.t_triple() {
@@ -320,6 +452,10 @@ impl PtFlash {
                     q,
                     rho_l: sat.rho_l,
                     rho_v: sat.rho_v,
+
+                    t_l: t,
+
+                    t_v: t,
                 })
             }
         } else if t > tc && t > self.t_triple() {
@@ -515,6 +651,10 @@ impl PtFlash {
                 q,
                 rho_l: sat.rho_l,
                 rho_v: sat.rho_v,
+
+                t_l: t,
+
+                t_v: t,
             });
         }
         // Fallback: Brent over [Tmin + 0.1, Tc - 0.1] on the density-implied
@@ -545,6 +685,10 @@ impl PtFlash {
             q,
             rho_l: sat.rho_l,
             rho_v: sat.rho_v,
+
+            t_l: t,
+
+            t_v: t,
         })
     }
 
@@ -821,6 +965,10 @@ impl PtFlash {
                     q,
                     rho_l: sat.rho_l,
                     rho_v: sat.rho_v,
+
+                    t_l: sat.t,
+
+                    t_v: sat.t,
                 });
             }
         } else {
@@ -973,6 +1121,10 @@ impl PtFlash {
                     q,
                     rho_l: sat.rho_l,
                     rho_v: sat.rho_v,
+
+                    t_l: sat.t,
+
+                    t_v: sat.t,
                 });
             }
         } else {
