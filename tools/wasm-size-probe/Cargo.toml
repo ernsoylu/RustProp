@@ -1,0 +1,23 @@
+[package]
+name = "rustprop-wasm-size-probe"
+description = "Minimal cdylib whose compiled .wasm size CI reports per feature set"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rustprop.workspace = true
+
+[features]
+default = []
+if97 = ["rustprop/if97"]
+all-backends = ["rustprop/all-backends"]
+
+[lints]
+workspace = true

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/*", "tools/*"]
+members = ["crates/*", "apps/*", "tests/*", "tools/*"]
+exclude = ["tools/golden-gen"] # Python oracle tooling, not a crate
 
 [workspace.package]
 version = "0.1.0"
@@ -21,6 +22,9 @@ rustprop-tabular = { path = "crates/rustprop-tabular", version = "0.1.0" }
 rustprop-svdsbtl = { path = "crates/rustprop-svdsbtl", version = "0.1.0" }
 rustprop-humid-air = { path = "crates/rustprop-humid-air", version = "0.1.0" }
 rustprop = { path = "crates/rustprop", version = "0.1.0" }
+# Test/dev tooling only — JSON parsing must stay out of shipped binaries (PLAN.md).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

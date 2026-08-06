@@ -50,20 +50,20 @@ are not a fidelity target.
       `dev/pseudo-pure/`; also how upstream itself embeds JSON (`dev/generate_headers.py`,
       `dev/package_json.py`) and what `dev/validate_fluid_schemas.py` checks.
       → verify: layout note committed; datagen phases below reference only confirmed paths.
-- [ ] 0.3 Create the oracle venv: `tools/golden-gen/` with pinned `requirements.txt`
+- [x] 0.3 Create the oracle venv: `tools/golden-gen/` with pinned `requirements.txt`
       (`CoolProp==8.0.0`), setup documented in that directory's README.
       → verify: `python -c "import CoolProp; print(CoolProp.__version__)"` prints `8.0.0` and
       `PropsSI("T","P",101325,"Q",0,"Water")` returns ≈ 373.12 K.
-- [ ] 0.4 Define the golden fixture format (JSON Lines: backend, fluid, input pair, inputs,
+- [x] 0.4 Define the golden fixture format (JSON Lines: backend, fluid, input pair, inputs,
       output key, expected value, optional per-record tolerance) plus a manifest recording
       generator script, upstream version, and platform. Write the first generator producing a
       tiny Water PropsSI fixture set.
       → verify: running the generator twice produces byte-identical files (deterministic).
-- [ ] 0.5 Add workspace member `tests/golden` (crate `rustprop-golden-tests`, `publish = false`):
+- [x] 0.5 Add workspace member `tests/golden` (crate `rustprop-golden-tests`, `publish = false`):
       fixture loader + comparison harness applying the tolerance policy.
       → verify: harness self-test — a synthetic fixture with a known-good and a known-bad value
       passes/fails exactly as expected.
-- [ ] 0.6 Add the CI wasm-size report step (facade built per feature set, bytes printed).
+- [x] 0.6 Add the CI wasm-size report step (facade built per feature set, bytes printed).
       → verify: CI log on the next push shows the size table.
 
 **Phase gate 0**: CI green with golden harness wired in. CLAUDE.md updated.
@@ -339,3 +339,16 @@ Append-only; newest last. Seeded entries:
     (a) run upstream's own packaging pipeline in the pinned checkout; (b) dump each fluid's
     final JSON from the oracle wheel via `get_fluid_param_string(fluid, "JSON")` — simpler and
     literally what the reference implementation computes with, but verify completeness first.
+- 2026-08-06 — 0.3/0.4: oracle venv lives at `tools/golden-gen/.venv` (gitignored). First
+  fixture set (12 HEOS::Water records) byte-identical across generator reruns. Probe for the
+  Phase 3 decision: `get_fluid_param_string("Water", "JSON")` works on the wheel — 76.5 KB
+  document with top-level `ANCILLARIES/EOS/INFO/STATES/TRANSPORT`, i.e. the post-injection data.
+  Option (b) looks strong; completeness check still due at Phase 3 start.
+- 2026-08-06 — 0.5: serde/serde_json enter the workspace confined to `rustprop-golden-tests`
+  (`publish = false`). Shipped crates remain dependency-free.
+- 2026-08-06 — 0.6: a real `.wasm` artifact needs a cdylib, so the report builds
+  `tools/wasm-size-probe` (not the rlib-only facade). The probe's exported symbol needs
+  edition-2024 `#[unsafe(no_mangle)]` — crate-level `allow(unsafe_code)` is the one deliberate
+  exception to the workspace `deny(unsafe_code)`. Baseline: 70 bytes for minimal/if97/
+  all-backends alike (empty engines const-fold away); numbers only diverge once `probe()`
+  exercises real engine entry points (first: step 2.6).

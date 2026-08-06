@@ -21,3 +21,15 @@ jobs:
       - run: cargo test --workspace --all-features
       - run: cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown --release
       - run: cargo run -p rustprop-cli
+      - name: wasm size report
+        run: |
+          echo "### wasm size report (rustprop-wasm-size-probe, release)"
+          for feats in "" if97 all-backends; do
+            if [ -n "$feats" ]; then
+              cargo build -q -p rustprop-wasm-size-probe --target wasm32-unknown-unknown --release --features "$feats"
+            else
+              cargo build -q -p rustprop-wasm-size-probe --target wasm32-unknown-unknown --release
+            fi
+            printf '%-14s %10s bytes\n' "${feats:-minimal}" \
+              "$(stat -c %s target/wasm32-unknown-unknown/release/rustprop_wasm_size_probe.wasm)"
+          done

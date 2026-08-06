@@ -1,0 +1,9 @@
+{
+  "generator": "tools/golden-gen/gen_fixtures.py",
+  "coolprop_version": "8.0.0",
+  "upstream_tag": "v8.0.0",
+  "platform": "Linux-x86_64",
+  "files": [
+    "water_propssi_smoke.jsonl"
+  ]
+}

@@ -1,0 +1,12 @@
+{"backend": "HEOS", "fluid": "Water", "out": "T", "name1": "P", "val1": 101325.0, "name2": "Q", "val2": 0.0, "expected": 373.12429584766636}
+{"backend": "HEOS", "fluid": "Water", "out": "P", "name1": "T", "val1": 373.15, "name2": "Q", "val2": 1.0, "expected": 101417.9966600156}
+{"backend": "HEOS", "fluid": "Water", "out": "D", "name1": "T", "val1": 300.0, "name2": "P", "val2": 101325.0, "expected": 996.5569352651672}
+{"backend": "HEOS", "fluid": "Water", "out": "H", "name1": "T", "val1": 300.0, "name2": "P", "val2": 101325.0, "expected": 112654.89965464505}
+{"backend": "HEOS", "fluid": "Water", "out": "S", "name1": "T", "val1": 300.0, "name2": "P", "val2": 101325.0, "expected": 393.0620684404549}
+{"backend": "HEOS", "fluid": "Water", "out": "C", "name1": "T", "val1": 300.0, "name2": "P", "val2": 101325.0, "expected": 4180.635776557353}
+{"backend": "HEOS", "fluid": "Water", "out": "CVMASS", "name1": "T", "val1": 300.0, "name2": "P", "val2": 101325.0, "expected": 4130.174244516154}
+{"backend": "HEOS", "fluid": "Water", "out": "A", "name1": "T", "val1": 300.0, "name2": "P", "val2": 101325.0, "expected": 1501.5226467497253}
+{"backend": "HEOS", "fluid": "Water", "out": "D", "name1": "T", "val1": 400.0, "name2": "P", "val2": 101325.0, "expected": 0.5549439034904987}
+{"backend": "HEOS", "fluid": "Water", "out": "D", "name1": "T", "val1": 700.0, "name2": "P", "val2": 25000000.0, "expected": 125.09198818940907}
+{"backend": "HEOS", "fluid": "Water", "out": "H", "name1": "P", "val1": 1000000.0, "name2": "Q", "val2": 0.5, "expected": 1769811.8369066932}
+{"backend": "HEOS", "fluid": "Water", "out": "S", "name1": "P", "val1": 1000000.0, "name2": "Q", "val2": 0.5, "expected": 4361.5401706635}
