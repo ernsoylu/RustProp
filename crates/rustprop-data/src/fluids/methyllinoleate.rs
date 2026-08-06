@@ -348,4 +348,5 @@ pub static METHYLLINOLEATE: FluidData = FluidData {
             smolar: -185.02726026750383,
         },
     },
+    transport: None,
 };

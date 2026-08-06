@@ -301,4 +301,5 @@ pub static HYDROGENCHLORIDE: FluidData = FluidData {
             smolar: 98.14504176180488,
         },
     },
+    transport: None,
 };

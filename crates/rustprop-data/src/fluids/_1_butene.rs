@@ -348,4 +348,5 @@ pub static _1_BUTENE: FluidData = FluidData {
             smolar: 234.4222253963404,
         },
     },
+    transport: None,
 };

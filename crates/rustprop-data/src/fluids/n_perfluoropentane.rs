@@ -319,4 +319,5 @@ pub static N_PERFLUOROPENTANE: FluidData = FluidData {
             smolar: 67.04949291993879,
         },
     },
+    transport: None,
 };

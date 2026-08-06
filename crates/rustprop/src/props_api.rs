@@ -315,6 +315,26 @@ fn keyed_output(
                 .gibbsmolar(state.t(), single_phase_rho("gibbsmass")?)
                 / mm
         }
+        Param::Viscosity => {
+            // Upstream calc_viscosity evaluates at the state's (T, rhomolar)
+            // regardless of phase (two-phase uses the mixture density).
+            let tr = data.transport.as_ref().ok_or_else(|| {
+                Error::Value("Viscosity model is not available for this fluid".into())
+            })?;
+            let v = tr.viscosity.as_ref().ok_or_else(|| {
+                Error::NotImplemented(
+                    "this fluid's viscosity model class (ECS/Chung/rhosr/hardcoded) is not                      ported yet"
+                        .into(),
+                )
+            })?;
+            rustprop_heos::transport::viscosity(
+                &flash.eos,
+                v,
+                state.t(),
+                state.rhomolar(),
+                state.p(),
+            )?
+        }
         Param::SurfaceTension => {
             // Upstream `calc_surface_tension`: two-phase (or critical-point)
             // states only; NotImplemented when the fluid has no curve.

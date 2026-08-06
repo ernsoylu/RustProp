@@ -322,4 +322,5 @@ pub static ACETONE: FluidData = FluidData {
             smolar: 137.88354166548447,
         },
     },
+    transport: None,
 };

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport};
 
 pub static P_XYLENE: FluidData = FluidData {
     name: "p-Xylene",
@@ -313,4 +313,5 @@ pub static P_XYLENE: FluidData = FluidData {
             smolar: 78.13377271225741,
         },
     },
+    transport: Some(Transport { viscosity: None }),
 };

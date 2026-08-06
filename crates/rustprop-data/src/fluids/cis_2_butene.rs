@@ -321,4 +321,5 @@ pub static CIS_2_BUTENE: FluidData = FluidData {
             smolar: 146.38476198416328,
         },
     },
+    transport: None,
 };

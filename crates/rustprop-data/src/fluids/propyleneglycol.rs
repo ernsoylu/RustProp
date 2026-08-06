@@ -400,4 +400,5 @@ pub static PROPYLENEGLYCOL: FluidData = FluidData {
             smolar: 191.7119158838503,
         },
     },
+    transport: None,
 };

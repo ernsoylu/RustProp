@@ -319,4 +319,5 @@ pub static DIMETHYLCARBONATE: FluidData = FluidData {
             smolar: 95.29854986426196,
         },
     },
+    transport: None,
 };

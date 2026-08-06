@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static ETHANE: FluidData = FluidData {
     name: "Ethane",
@@ -323,4 +323,13 @@ pub static ETHANE: FluidData = FluidData {
             smolar: 148.1500110422111,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 245.0,
+            sigma_eta: 4.3682e-10,
+            dilute: ViscosityDilute::Hardcoded { name: "Ethane" },
+            initial_density: None,
+            higher_order: ViscosityHigherOrder::Hardcoded { name: "Ethane" },
+        }),
+    }),
 };

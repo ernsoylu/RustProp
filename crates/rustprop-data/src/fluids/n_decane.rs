@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static N_DECANE: FluidData = FluidData {
     name: "n-Decane",
@@ -312,4 +312,13 @@ pub static N_DECANE: FluidData = FluidData {
             smolar: 26.36026472871258,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 490.51,
+            sigma_eta: 6.86e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.343267, -0.460514], t: &[0.0, 1.0], c: 2.1357e-8, molar_mass: 0.14228168 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-4.02094e-5, 4.04435e-5, 0.0, -1.42063e-5], d1: &[2.0, 2.0, 3.0, 3.0], t1: &[1.0, 2.0, 1.0, 2.0], gamma: &[0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0], f: &[0.000453387], d2: &[1.0], t2: &[0.0], g: &[2.55105, 1.71465, 0.0], h: &[0.0, -0.5, -1.0], p: &[1.0], q: &[0.0], t_reduce: 617.7, rhomolar_reduce: 1640.0 },
+        }),
+    }),
 };

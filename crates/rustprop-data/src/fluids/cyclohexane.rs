@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static CYCLOHEXANE: FluidData = FluidData {
     name: "CycloHexane",
@@ -298,4 +298,13 @@ pub static CYCLOHEXANE: FluidData = FluidData {
             smolar: 83.1836871742152,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: f64::NAN,
+            sigma_eta: f64::NAN,
+            dilute: ViscosityDilute::Hardcoded { name: "Cyclohexane" },
+            initial_density: Some(ViscosityInitialDensity::Empirical { n: &[5.09643e-9, -3.38721e-6, 0.000337477], d: &[1.0, 1.0, 1.0], t: &[0.0, 1.0, 2.0], t_reducing: 1.0, rhomolar_reducing: 1.0 }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[0.0, 0.000335234, 7.8494803e-6, -0.0006873976, 0.0, 0.0003620868, -1.04793856e-5, 2.5521774e-6, 1.72734993e-5, -5.9372242e-6, -1.06186149e-5, 4.3982781e-6, 2.8894928e-6, -1.3468174e-6, -2.938491e-7, 1.487134e-7], d1: &[2.2, 2.2, 2.5, 2.5, 2.8, 2.8, 10.0, 10.0, 11.0, 11.0, 12.0, 12.0, 13.0, 13.0, 14.0, 14.0], t1: &[0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.0], d2: &[0.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 553.6, rhomolar_reduce: 3224.0 },
+        }),
+    }),
 };

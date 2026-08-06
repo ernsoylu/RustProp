@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static ETHANOL: FluidData = FluidData {
     name: "Ethanol",
@@ -338,4 +338,13 @@ pub static ETHANOL: FluidData = FluidData {
             smolar: 222.34387614119467,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 362.6,
+            sigma_eta: 4.53e-10,
+            dilute: ViscosityDilute::PowersOfT { a: &[-1.03116e-6, 3.48379e-8, -6.50264e-12], t: &[0.0, 1.0, 2.0] },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[0.000131194057, -0.000382240694, -8.05700894e-5, 0.000153811778, -0.000110578307], d1: &[2.0, 2.0, 3.0, 3.0, 3.0], t1: &[0.0, 1.0, 0.0, 1.0, 2.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.0237222995], d2: &[1.0], t2: &[0.0], g: &[-3.38264465, 12.7568864], h: &[0.0, -0.5], p: &[1.0], q: &[0.0], t_reduce: 513.9, rhomolar_reduce: 5991.0 },
+        }),
+    }),
 };

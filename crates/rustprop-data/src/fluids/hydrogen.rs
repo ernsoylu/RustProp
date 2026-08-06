@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static HYDROGEN: FluidData = FluidData {
     name: "Hydrogen",
@@ -292,4 +292,13 @@ pub static HYDROGEN: FluidData = FluidData {
             smolar: 59.34430288729439,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 30.41,
+            sigma_eta: 2.97e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.20963, -0.455274, 0.143602, -0.0335325, 0.00276981], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.1357e-8, molar_mass: 0.00201588 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-0.187, 2.4871, 3.7151, -11.0972, 9.0965, -3.8292, 0.5166], t: &[0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0] }),
+            higher_order: ViscosityHigherOrder::Hardcoded { name: "Hydrogen" },
+        }),
+    }),
 };

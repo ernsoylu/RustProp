@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static CARBONDIOXIDE: FluidData = FluidData {
     name: "CarbonDioxide",
@@ -303,4 +303,13 @@ pub static CARBONDIOXIDE: FluidData = FluidData {
             smolar: 94.13778439068052,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 200.76,
+            sigma_eta: 3.78421e-10,
+            dilute: ViscosityDilute::Hardcoded { name: "CarbonDioxideLaeseckeJPCRD2017" },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.0125, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::Hardcoded { name: "CarbonDioxideLaeseckeJPCRD2017" },
+        }),
+    }),
 };

@@ -290,4 +290,5 @@ pub static PROPYNE: FluidData = FluidData {
             smolar: 112.69388105179546,
         },
     },
+    transport: None,
 };

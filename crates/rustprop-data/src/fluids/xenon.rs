@@ -287,4 +287,5 @@ pub static XENON: FluidData = FluidData {
             smolar: 77.43035073129097,
         },
     },
+    transport: None,
 };

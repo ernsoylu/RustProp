@@ -336,4 +336,5 @@ pub static ISOHEXANE: FluidData = FluidData {
             smolar: 170.0816757073119,
         },
     },
+    transport: None,
 };

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static ARGON: FluidData = FluidData {
     name: "Argon",
@@ -295,4 +295,13 @@ pub static ARGON: FluidData = FluidData {
             smolar: 131.15006869148877,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 143.2,
+            sigma_eta: 3.35e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.431, -0.4623, 0.08406, 0.005341, -0.00331], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.66958e-8, molar_mass: 0.039948 },
+            initial_density: None,
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[1.219e-5, 1.399e-5, 5.027e-9, -1.893e-5, -6.698e-6, -3.827e-6], d1: &[1.0, 2.0, 10.0, 5.0, 1.0, 2.0], t1: &[0.42, 0.0, 0.95, 0.5, 0.9, 0.8], gamma: &[0.0, 0.0, 0.0, -1.0, -1.0, -1.0], l: &[0.0, 0.0, 0.0, 2.0, 4.0, 4.0], f: &[0.0], d2: &[1.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 150.687, rhomolar_reduce: 13407.43 },
+        }),
+    }),
 };

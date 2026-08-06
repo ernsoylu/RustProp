@@ -319,4 +319,5 @@ pub static ETHYLENEOXIDE: FluidData = FluidData {
             smolar: 146.94440442174715,
         },
     },
+    transport: None,
 };

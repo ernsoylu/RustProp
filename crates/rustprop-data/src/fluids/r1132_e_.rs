@@ -298,4 +298,5 @@ pub static R1132_E_: FluidData = FluidData {
             smolar: 127.30245026017886,
         },
     },
+    transport: None,
 };

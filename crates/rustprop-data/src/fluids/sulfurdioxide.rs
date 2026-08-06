@@ -302,4 +302,5 @@ pub static SULFURDIOXIDE: FluidData = FluidData {
             smolar: 118.94692792117712,
         },
     },
+    transport: None,
 };

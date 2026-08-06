@@ -293,4 +293,5 @@ pub static ORTHOHYDROGEN: FluidData = FluidData {
             smolar: 93.62069002963796,
         },
     },
+    transport: None,
 };

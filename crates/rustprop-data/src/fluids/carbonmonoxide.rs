@@ -298,4 +298,5 @@ pub static CARBONMONOXIDE: FluidData = FluidData {
             smolar: 84.49937127741362,
         },
     },
+    transport: None,
 };

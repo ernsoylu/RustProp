@@ -286,4 +286,5 @@ pub static ORTHODEUTERIUM: FluidData = FluidData {
             smolar: 62.41018336406749,
         },
     },
+    transport: None,
 };

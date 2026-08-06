@@ -324,4 +324,5 @@ pub static METHYLPALMITATE: FluidData = FluidData {
             smolar: -150.94582403448956,
         },
     },
+    transport: None,
 };

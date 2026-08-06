@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static R123: FluidData = FluidData {
     name: "R123",
@@ -323,4 +323,13 @@ pub static R123: FluidData = FluidData {
             smolar: 287.2971570016487,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 340.0,
+            sigma_eta: 5.6e-10,
+            dilute: ViscosityDilute::PowersOfT { a: &[-2.273638e-6, 5.099859e-8, -2.402786e-11], t: &[0.0, 1.0, 2.0] },
+            initial_density: None,
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-1.2245673e-5, 1.39463316064215e-5, -5.553966e-5, 1.863975355e-5, -1.47083652375e-5], d1: &[1.0, 1.0, 1.0, 2.0, 3.0], t1: &[0.0, -1.0, 0.0, 0.0, 0.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.000585991090909], d2: &[0.0], t2: &[0.0], g: &[3.32411454545], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 456.831, rhomolar_reduce: 3596.417 },
+        }),
+    }),
 };

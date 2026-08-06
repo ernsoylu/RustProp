@@ -297,4 +297,5 @@ pub static NEOPENTANE: FluidData = FluidData {
             smolar: 79.14668269207665,
         },
     },
+    transport: None,
 };

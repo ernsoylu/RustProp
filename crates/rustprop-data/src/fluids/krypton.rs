@@ -287,4 +287,5 @@ pub static KRYPTON: FluidData = FluidData {
             smolar: 77.00290899983369,
         },
     },
+    transport: None,
 };

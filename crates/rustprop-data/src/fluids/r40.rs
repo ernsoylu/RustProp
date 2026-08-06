@@ -290,4 +290,5 @@ pub static R40: FluidData = FluidData {
             smolar: 91.77420342851488,
         },
     },
+    transport: None,
 };

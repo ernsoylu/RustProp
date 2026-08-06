@@ -319,4 +319,5 @@ pub static DICHLOROETHANE: FluidData = FluidData {
             smolar: 32.00771344200511,
         },
     },
+    transport: None,
 };

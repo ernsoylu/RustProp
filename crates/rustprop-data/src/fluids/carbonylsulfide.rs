@@ -312,4 +312,5 @@ pub static CARBONYLSULFIDE: FluidData = FluidData {
             smolar: 127.85700201640527,
         },
     },
+    transport: None,
 };

@@ -319,4 +319,5 @@ pub static N_PERFLUOROBUTANE: FluidData = FluidData {
             smolar: 75.42351801087236,
         },
     },
+    transport: None,
 };

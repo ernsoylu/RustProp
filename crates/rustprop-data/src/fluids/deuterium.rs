@@ -286,4 +286,5 @@ pub static DEUTERIUM: FluidData = FluidData {
             smolar: 62.41339376470909,
         },
     },
+    transport: None,
 };

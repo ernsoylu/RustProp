@@ -313,4 +313,5 @@ pub static N_PERFLUOROHEXANE: FluidData = FluidData {
             smolar: 31.639725442295255,
         },
     },
+    transport: None,
 };

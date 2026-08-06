@@ -286,4 +286,5 @@ pub static PARADEUTERIUM: FluidData = FluidData {
             smolar: 62.41893957497788,
         },
     },
+    transport: None,
 };

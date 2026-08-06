@@ -78,9 +78,10 @@ real (e2e + doc-tests).
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
 
-Next work: `PLAN.md` 6.1 transport (viscosity/conductivity) — the survey and port order are in
-the Decisions log (structured conductivity trio first, then structured viscosity, hardcoded
-Water, ECS/Chung/rhosr) — or the pseudo-pure/Maxwell step.
+6.1 slice 1 (structured viscosity) is done: all five dilute families + Rainwater-Friend/
+empirical + modified-BH/friction-theory, 160 goldens over 20 fluids at 1e-8, bitwise data
+walks, and the absent-vs-unported error split. Next 6.1 slices: structured conductivity trio
+(Olchowy-Sengers uses this viscosity), hardcoded models (Water IAPWS first), ECS/Chung/rhosr.
 
 ## Toolchain
 

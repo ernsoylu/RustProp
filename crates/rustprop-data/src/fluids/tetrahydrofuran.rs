@@ -322,4 +322,5 @@ pub static TETRAHYDROFURAN: FluidData = FluidData {
             smolar: 156.23879240318513,
         },
     },
+    transport: None,
 };

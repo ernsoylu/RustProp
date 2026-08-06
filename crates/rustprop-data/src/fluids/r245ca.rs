@@ -307,4 +307,5 @@ pub static R245CA: FluidData = FluidData {
             smolar: 255.608032891562,
         },
     },
+    transport: None,
 };

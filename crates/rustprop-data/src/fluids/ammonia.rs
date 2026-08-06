@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static AMMONIA: FluidData = FluidData {
     name: "Ammonia",
@@ -317,4 +317,13 @@ pub static AMMONIA: FluidData = FluidData {
             smolar: 129.70892859897037,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 386.0,
+            sigma_eta: 2.957e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[4.9931822, -0.61122364, 0.0, 0.18535124, -0.11160946], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.1357e-6, molar_mass: 0.01703026 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-1.7999496, 46.692621, -534.60794, 3360.4074, -13019.164, 33414.23, -58711.743, 71426.686, -59834.012, 33652.741, -12027.35, 2434.8205, -208.07957], t: &[-0.0, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -3.5, -4.0, -4.5, -5.0, -5.5, -6.0] }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[4.005040600989671e-6, -1.4107915123955129e-5, 3.4760743039321816e-5, 4.631310990138071e-6, -3.937374461785061e-6, -1.200075068367531e-5, 1.9284977991745303e-6], d1: &[3.0, 3.0, 2.0, 4.0, 4.0, 2.0, 4.0], t1: &[0.0, 1.0, 2.0, 2.0, 3.0, 4.0, 4.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.0], d2: &[1.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 405.4, rhomolar_reduce: 13211.8 },
+        }),
+    }),
 };

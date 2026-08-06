@@ -33,6 +33,10 @@ struct Doc {
     ancillaries: AncJson,
     #[serde(rename = "STATES")]
     states: StatesJson,
+    /// Classified in code: the structured viscosity form parses strictly;
+    /// ECS/Chung/rhosr-CS/fully-hardcoded classes are not yet ported.
+    #[serde(rename = "TRANSPORT")]
+    transport: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -430,9 +434,25 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     } else {
         ""
     };
+    let transport_rendered = emit_transport(doc.transport.as_ref());
+    let mut timp = String::new();
+    for ty in [
+        "Transport",
+        "Viscosity",
+        "ViscosityDilute",
+        "ViscosityInitialDensity",
+        "ViscosityHigherOrder",
+    ] {
+        if transport_rendered.contains(&format!("{ty} {{"))
+            || transport_rendered.contains(&format!("{ty}::"))
+        {
+            timp.push_str(", ");
+            timp.push_str(ty);
+        }
+    }
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData{surf}}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData{surf}{timp}}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -734,7 +754,212 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     )
     .unwrap();
     writeln!(w, "    }},").unwrap();
+    w.push_str(&emit_transport(doc.transport.as_ref()));
     writeln!(w, "}};").unwrap();
+    out
+}
+
+/// Classify + emit `TRANSPORT`. Returns the rendered `transport:` field.
+fn emit_transport(tr: Option<&serde_json::Value>) -> String {
+    let Some(tr) = tr else {
+        return "    transport: None,\n".into();
+    };
+    let visc = tr.get("viscosity");
+    let viscosity = match visc {
+        Some(v) if v.is_object() => {
+            let v = v.as_object().unwrap();
+            // Not-yet-ported classes: ECS/Chung top-level types, rhosr lists
+            // (arrays), and fully-hardcoded models.
+            if v.contains_key("type") || v.contains_key("hardcoded") {
+                None
+            } else {
+                Some(render_viscosity(v))
+            }
+        }
+        _ => None,
+    };
+    match viscosity {
+        Some(body) => format!(
+            "    transport: Some(Transport {{\n        viscosity: Some(Viscosity {{\n{body}        }}),\n    }}),\n"
+        ),
+        // TRANSPORT exists but its viscosity model class (ECS/Chung/rhosr/
+        // fully-hardcoded) is not ported yet: keep the block present with an
+        // empty viscosity so the API can distinguish "unported" from
+        // "no model" (upstream computes for these; we error loudly).
+        None => "    transport: Some(Transport { viscosity: None }),\n".into(),
+    }
+}
+
+fn jnum(v: &serde_json::Value, key: &str) -> f64 {
+    v.get(key)
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or_else(|| panic!("missing/invalid numeric key {key}"))
+}
+
+fn jarr(v: &serde_json::Value, key: &str) -> Vec<f64> {
+    v.get(key)
+        .and_then(serde_json::Value::as_array)
+        .unwrap_or_else(|| panic!("missing array key {key}"))
+        .iter()
+        .map(|x| x.as_f64().unwrap())
+        .collect()
+}
+
+/// Optional array; empty when absent (upstream's empty-vector channels).
+fn jarr_opt(v: &serde_json::Value, key: &str) -> Vec<f64> {
+    match v.get(key) {
+        Some(a) => a
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|x| x.as_f64().unwrap())
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+fn jnum_opt(v: &serde_json::Value, key: &str, default: f64) -> f64 {
+    v.get(key)
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(default)
+}
+
+fn render_viscosity(v: &serde_json::Map<String, serde_json::Value>) -> String {
+    let mut out = String::new();
+    let w = &mut out;
+    let eps = v.get("epsilon_over_k").and_then(serde_json::Value::as_f64);
+    let sig = v.get("sigma_eta").and_then(serde_json::Value::as_f64);
+    writeln!(
+        w,
+        "            epsilon_over_k: {},",
+        eps.map_or("f64::NAN".into(), f)
+    )
+    .unwrap();
+    writeln!(
+        w,
+        "            sigma_eta: {},",
+        sig.map_or("f64::NAN".into(), f)
+    )
+    .unwrap();
+
+    let dil = v.get("dilute").expect("structured viscosity has dilute");
+    let dilute = if let Some(h) = dil.get("hardcoded") {
+        format!(
+            "ViscosityDilute::Hardcoded {{ name: {:?} }}",
+            h.as_str().unwrap()
+        )
+    } else {
+        match dil.get("type").and_then(serde_json::Value::as_str).unwrap() {
+            "kinetic_theory" => "ViscosityDilute::KineticTheory".into(),
+            "collision_integral" => format!(
+                "ViscosityDilute::CollisionIntegral {{ a: {}, t: {}, c: {}, molar_mass: {} }}",
+                slice(&jarr(dil, "a")),
+                slice(&jarr(dil, "t")),
+                f(jnum(dil, "C")),
+                f(jnum(dil, "molar_mass"))
+            ),
+            "powers_of_T" => format!(
+                "ViscosityDilute::PowersOfT {{ a: {}, t: {} }}",
+                slice(&jarr(dil, "a")),
+                slice(&jarr(dil, "t"))
+            ),
+            "powers_of_Tr" => format!(
+                "ViscosityDilute::PowersOfTr {{ a: {}, t: {}, t_reducing: {} }}",
+                slice(&jarr(dil, "a")),
+                slice(&jarr(dil, "t")),
+                f(jnum(dil, "T_reducing"))
+            ),
+            "collision_integral_powers_of_Tstar" => format!(
+                "ViscosityDilute::CollisionIntegralPowersOfTstar {{ a: {}, t: {}, c: {}, t_reducing: {} }}",
+                slice(&jarr(dil, "a")),
+                slice(&jarr(dil, "t")),
+                f(jnum(dil, "C")),
+                f(jnum(dil, "T_reducing"))
+            ),
+            other => panic!("unknown dilute viscosity type {other}"),
+        }
+    };
+    writeln!(w, "            dilute: {dilute},").unwrap();
+
+    match v.get("initial_density") {
+        None => writeln!(w, "            initial_density: None,").unwrap(),
+        Some(id) => {
+            let body = match id.get("type").and_then(serde_json::Value::as_str).unwrap() {
+                "Rainwater-Friend" => format!(
+                    "ViscosityInitialDensity::RainwaterFriend {{ b: {}, t: {} }}",
+                    slice(&jarr(id, "b")),
+                    slice(&jarr(id, "t"))
+                ),
+                "empirical" => format!(
+                    "ViscosityInitialDensity::Empirical {{ n: {}, d: {}, t: {}, t_reducing: {}, rhomolar_reducing: {} }}",
+                    slice(&jarr(id, "n")),
+                    slice(&jarr(id, "d")),
+                    slice(&jarr(id, "t")),
+                    f(jnum(id, "T_reducing")),
+                    f(jnum(id, "rhomolar_reducing"))
+                ),
+                other => panic!("unknown initial_density viscosity type {other}"),
+            };
+            writeln!(w, "            initial_density: Some({body}),").unwrap();
+        }
+    }
+
+    let ho = v
+        .get("higher_order")
+        .expect("structured viscosity has higher_order");
+    let higher = if let Some(h) = ho.get("hardcoded") {
+        format!(
+            "ViscosityHigherOrder::Hardcoded {{ name: {:?} }}",
+            h.as_str().unwrap()
+        )
+    } else {
+        match ho.get("type").and_then(serde_json::Value::as_str).unwrap() {
+            "modified_Batschinski_Hildebrand" => format!(
+                "ViscosityHigherOrder::ModifiedBatschinskiHildebrand {{ a: {}, d1: {}, t1: {}, gamma: {}, l: {}, f: {}, d2: {}, t2: {}, g: {}, h: {}, p: {}, q: {}, t_reduce: {}, rhomolar_reduce: {} }}",
+                slice(&jarr(ho, "a")),
+                slice(&jarr(ho, "d1")),
+                slice(&jarr(ho, "t1")),
+                slice(&jarr(ho, "gamma")),
+                slice(&jarr(ho, "l")),
+                slice(&jarr(ho, "f")),
+                slice(&jarr(ho, "d2")),
+                slice(&jarr(ho, "t2")),
+                slice(&jarr(ho, "g")),
+                slice(&jarr(ho, "h")),
+                slice(&jarr(ho, "p")),
+                slice(&jarr(ho, "q")),
+                f(jnum(ho, "T_reduce")),
+                f(jnum(ho, "rhomolar_reduce"))
+            ),
+            "friction_theory" => {
+                // Upstream: exactly one of Arr/Adrdr; Aii and Arrr/Aaaa optional.
+                format!(
+                    "ViscosityHigherOrder::FrictionTheory {{ ai: {}, aa: {}, ar: {}, aaa: {}, arr: {}, adrdr: {}, aii: {}, arrr: {}, aaaa: {}, na: {}, naa: {}, nr: {}, nrr: {}, nii: {}, nrrr: {}, naaa: {}, c1: {}, c2: {}, t_reduce: {} }}",
+                    slice(&jarr(ho, "Ai")),
+                    slice(&jarr(ho, "Aa")),
+                    slice(&jarr(ho, "Ar")),
+                    slice(&jarr(ho, "Aaa")),
+                    slice(&jarr_opt(ho, "Arr")),
+                    slice(&jarr_opt(ho, "Adrdr")),
+                    slice(&jarr_opt(ho, "Aii")),
+                    slice(&jarr_opt(ho, "Arrr")),
+                    slice(&jarr_opt(ho, "Aaaa")),
+                    f(jnum(ho, "Na")),
+                    f(jnum(ho, "Naa")),
+                    f(jnum(ho, "Nr")),
+                    f(jnum(ho, "Nrr")),
+                    f(jnum_opt(ho, "Nii", 0.0)),
+                    f(jnum_opt(ho, "Nrrr", 0.0)),
+                    f(jnum_opt(ho, "Naaa", 0.0)),
+                    f(jnum(ho, "c1")),
+                    f(jnum(ho, "c2")),
+                    f(jnum(ho, "T_reduce"))
+                )
+            }
+            other => panic!("unknown higher_order viscosity type {other}"),
+        }
+    };
+    writeln!(w, "            higher_order: {higher},").unwrap();
     out
 }
 

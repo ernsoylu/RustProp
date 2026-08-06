@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static BENZENE: FluidData = FluidData {
     name: "Benzene",
@@ -305,4 +305,13 @@ pub static BENZENE: FluidData = FluidData {
             smolar: 92.47172102968436,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 412.0,
+            sigma_eta: 5.4e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.234018, -0.476136, -0.015269], t: &[0.0, 1.0, 3.0], c: 2.1357e-8, molar_mass: 0.07811184 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::Hardcoded { name: "Benzene" },
+        }),
+    }),
 };

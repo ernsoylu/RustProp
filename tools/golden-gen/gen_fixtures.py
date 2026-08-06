@@ -752,6 +752,50 @@ def gen_surface_tension():
     return rows
 
 
+# The 20 fluids whose viscosity is fully structured (dilute/initial_density/
+# higher_order with typed families only) — the 6.1 structured slice.
+VISCOSITY_STRUCTURED = [
+    "Ammonia", "Argon", "DimethylEther", "Ethanol", "HydrogenSulfide",
+    "IsoButane", "Methane", "Nitrogen", "Oxygen", "R123", "R125", "R134a",
+    "SulfurHexafluoride", "n-Butane", "n-Decane", "n-Dodecane", "n-Nonane",
+    "n-Octane", "n-Pentane", "n-Propane",
+]
+
+
+def gen_viscosity():
+    """6.1 structured-viscosity goldens: V at PT liquid/gas/supercritical
+    states and along the saturation curve (incl. a two-phase mixture-density
+    state, which upstream evaluates verbatim)."""
+    rows, skipped = [], 0
+    for fluid in VISCOSITY_STRUCTURED:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        pc = PropsSI("pcrit", "", 0, "", 0, hf)
+
+        def TL(x):
+            return Tt + x * (Tc - Tt)
+
+        def psat(T):
+            return PropsSI("P", "T", T, "Q", 1, hf)
+
+        def rec(out, n1, v1, n2, v2):
+            nonlocal skipped
+            r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+
+        rec("V", "T", TL(0.3), "P", 2.5 * psat(TL(0.3)))
+        rec("V", "T", TL(0.6), "P", 2.0 * psat(TL(0.6)))
+        rec("V", "T", TL(0.8), "P", 0.5 * psat(TL(0.8)))
+        rec("V", "T", 1.1 * Tc, "P", 1.5 * pc)
+        rec("V", "T", TL(0.5), "Q", 0.0)
+        rec("V", "T", TL(0.5), "Q", 1.0)
+        rec("V", "T", TL(0.5), "Q", 0.5)
+        rec("viscosity", "T", TL(0.7), "P", 3.0 * psat(TL(0.7)))
+    print(f"viscosity: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 WRITTEN = []
 
 
@@ -812,6 +856,7 @@ def main():
     write_jsonl("fluid_resolution.jsonl", gen_fluid_resolution())
     write_jsonl("props_si.jsonl", gen_props_si())
     write_jsonl("surface_tension.jsonl", gen_surface_tension())
+    write_jsonl("viscosity.jsonl", gen_viscosity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

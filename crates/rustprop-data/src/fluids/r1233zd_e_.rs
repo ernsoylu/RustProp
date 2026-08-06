@@ -322,4 +322,5 @@ pub static R1233ZD_E_: FluidData = FluidData {
             smolar: 261.44580746049974,
         },
     },
+    transport: None,
 };

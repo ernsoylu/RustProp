@@ -311,4 +311,5 @@ pub static CHLORINE: FluidData = FluidData {
             smolar: 110.8165,
         },
     },
+    transport: None,
 };

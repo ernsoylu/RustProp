@@ -317,4 +317,5 @@ pub static ETHYLENE: FluidData = FluidData {
             smolar: 120.03058885995084,
         },
     },
+    transport: None,
 };

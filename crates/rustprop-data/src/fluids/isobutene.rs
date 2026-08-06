@@ -318,4 +318,5 @@ pub static ISOBUTENE: FluidData = FluidData {
             smolar: 136.54144888139493,
         },
     },
+    transport: None,
 };

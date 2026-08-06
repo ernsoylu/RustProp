@@ -96,6 +96,7 @@
     "phases.jsonl",
     "props_si.jsonl",
     "surface_tension.jsonl",
+    "viscosity.jsonl",
     "water_propssi_smoke.jsonl"
   ]
 }

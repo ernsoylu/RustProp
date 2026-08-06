@@ -328,4 +328,5 @@ pub static NOVEC649: FluidData = FluidData {
             smolar: 393.7760464015246,
         },
     },
+    transport: None,
 };

@@ -23,6 +23,189 @@ pub struct FluidData {
     pub ancillaries: Ancillaries,
     /// `STATES`
     pub states: States,
+    /// `TRANSPORT` — the ported viscosity models; None when the document has
+    /// no TRANSPORT block or only not-yet-ported model classes
+    pub transport: Option<Transport>,
+}
+
+/// `TRANSPORT` (ported subset; conductivity joins with its slice).
+pub struct Transport {
+    /// `TRANSPORT.viscosity` in the structured dilute/initial_density/
+    /// higher_order form (ECS/Chung/rhosr-CS and fully-hardcoded models are
+    /// not yet ported and leave this None)
+    pub viscosity: Option<Viscosity>,
+}
+
+/// `TRANSPORT.viscosity` (structured form).
+pub struct Viscosity {
+    /// `.epsilon_over_k` [K] (NaN when the document omits it)
+    pub epsilon_over_k: f64,
+    /// `.sigma_eta` [m] (NaN when the document omits it)
+    pub sigma_eta: f64,
+    /// `.dilute`
+    pub dilute: ViscosityDilute,
+    /// `.initial_density` — absent for many fluids
+    pub initial_density: Option<ViscosityInitialDensity>,
+    /// `.higher_order`
+    pub higher_order: ViscosityHigherOrder,
+}
+
+/// `TRANSPORT.viscosity.dilute`, tagged by `type` (or `hardcoded`).
+pub enum ViscosityDilute {
+    /// `kinetic_theory` — Neufeld Omega22 from the top-level
+    /// epsilon_over_k/sigma_eta
+    KineticTheory,
+    /// `collision_integral` — note `.molar_mass` is the block's own value,
+    /// not the EOS's
+    CollisionIntegral {
+        /// `.a`
+        a: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.C`
+        c: f64,
+        /// `.molar_mass` [kg/mol]
+        molar_mass: f64,
+    },
+    /// `powers_of_T`
+    PowersOfT {
+        /// `.a`
+        a: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+    },
+    /// `powers_of_Tr`
+    PowersOfTr {
+        /// `.a`
+        a: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.T_reducing` [K]
+        t_reducing: f64,
+    },
+    /// `collision_integral_powers_of_Tstar`
+    CollisionIntegralPowersOfTstar {
+        /// `.a`
+        a: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.C`
+        c: f64,
+        /// `.T_reducing` [K]
+        t_reducing: f64,
+    },
+    /// `.hardcoded` — evaluation ports with the hardcoded slice
+    Hardcoded {
+        /// the `.hardcoded` tag
+        name: &'static str,
+    },
+}
+
+/// `TRANSPORT.viscosity.initial_density`, tagged by `type`.
+pub enum ViscosityInitialDensity {
+    /// `Rainwater-Friend` — returns B_eta [m^3/mol]; the contribution is
+    /// `eta_dilute * B_eta * rhomolar`
+    RainwaterFriend {
+        /// `.b`
+        b: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+    },
+    /// `empirical`
+    Empirical {
+        /// `.n`
+        n: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.T_reducing` [K]
+        t_reducing: f64,
+        /// `.rhomolar_reducing` [mol/m^3]
+        rhomolar_reducing: f64,
+    },
+}
+
+/// `TRANSPORT.viscosity.higher_order`, tagged by `type` (or `hardcoded`).
+pub enum ViscosityHigherOrder {
+    /// `modified_Batschinski_Hildebrand`
+    ModifiedBatschinskiHildebrand {
+        /// `.a`
+        a: &'static [f64],
+        /// `.d1`
+        d1: &'static [f64],
+        /// `.t1`
+        t1: &'static [f64],
+        /// `.gamma`
+        gamma: &'static [f64],
+        /// `.l`
+        l: &'static [f64],
+        /// `.f`
+        f: &'static [f64],
+        /// `.d2`
+        d2: &'static [f64],
+        /// `.t2`
+        t2: &'static [f64],
+        /// `.g`
+        g: &'static [f64],
+        /// `.h`
+        h: &'static [f64],
+        /// `.p`
+        p: &'static [f64],
+        /// `.q`
+        q: &'static [f64],
+        /// `.T_reduce` [K]
+        t_reduce: f64,
+        /// `.rhomolar_reduce` [mol/m^3]
+        rhomolar_reduce: f64,
+    },
+    /// `friction_theory` (optional channels carry empty slices / zero
+    /// exponents exactly as upstream's empty vectors)
+    FrictionTheory {
+        /// `.Ai`
+        ai: &'static [f64],
+        /// `.Aa`
+        aa: &'static [f64],
+        /// `.Ar`
+        ar: &'static [f64],
+        /// `.Aaa`
+        aaa: &'static [f64],
+        /// `.Arr` (empty when `.Adrdr` is given)
+        arr: &'static [f64],
+        /// `.Adrdr` (empty when `.Arr` is given)
+        adrdr: &'static [f64],
+        /// `.Aii` (optional)
+        aii: &'static [f64],
+        /// `.Arrr` (optional, with `.Aaaa`)
+        arrr: &'static [f64],
+        /// `.Aaaa` (optional, with `.Arrr`)
+        aaaa: &'static [f64],
+        /// `.Na`
+        na: f64,
+        /// `.Naa`
+        naa: f64,
+        /// `.Nr`
+        nr: f64,
+        /// `.Nrr`
+        nrr: f64,
+        /// `.Nii` (0 when absent)
+        nii: f64,
+        /// `.Nrrr` (0 when absent)
+        nrrr: f64,
+        /// `.Naaa` (0 when absent)
+        naaa: f64,
+        /// `.c1`
+        c1: f64,
+        /// `.c2`
+        c2: f64,
+        /// `.T_reduce` [K]
+        t_reduce: f64,
+    },
+    /// `.hardcoded` — evaluation ports with the hardcoded slice
+    Hardcoded {
+        /// the `.hardcoded` tag
+        name: &'static str,
+    },
 }
 
 /// `EOS[0]` — multiparameter Helmholtz EOS definition.

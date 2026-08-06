@@ -692,3 +692,22 @@ Append-only; newest last. Seeded entries:
   untyped blocks (CO2/Ethane/CycloHexane dilute, Ammonia critical, R123) need per-fluid
   reading. Slicing: structured conductivity trio -> structured viscosity -> hardcoded Water
   -> remaining variants -> ECS/Chung/rhosr.
+- 2026-08-06 — 6.1 slice 1 (structured viscosity) complete: the five dilute families
+  (kinetic_theory via Neufeld Omega22, collision_integral — whose molar_mass is the BLOCK's
+  own value, not the EOS's —, powers_of_T, powers_of_Tr, collision_integral_powers_of_Tstar),
+  both initial-density forms (Rainwater-Friend eta_dilute*B_eta*rho with
+  B_eta = N_A*sigma^3*B_eta_star, and the empirical Tariq form), and both higher-order forms
+  (modified_Batschinski_Hildebrand; friction_theory with its optional Arr-XOR-Adrdr /
+  Aii / Arrr+Aaaa channels as empty-slice sentinels and dp/dT|rho from the alpha derivs).
+  Assembly = dilute + initial_density + residual, evaluated at the state's (T, rhomolar, p) —
+  two-phase states use the mixture density verbatim, as upstream. Datagen classifies:
+  structured blocks parse strictly (section-hardcoded tags carried as Hardcoded markers that
+  error loudly); ECS/Chung/rhosr-lists/fully-hardcoded emit `Transport { viscosity: None }`
+  so the API distinguishes "class not ported" (NotImplemented) from "no model"
+  (upstream's ValueError) — 69 fluids have no TRANSPORT at all. The fidelity walker
+  bitwise-checks every structured field incl. the optional-channel presence rules. 160
+  goldens over the 20 fully-structured fluids (PT liquid/gas/supercritical, sat Q=0/1, a
+  two-phase Q=0.5 mixture-density state, plus the long-name "viscosity" alias) pass at 1e-8
+  on the first run; error conditions asserted (Acetone absent-model, Water/CO2 unported
+  classes). Remaining for 6.1: structured conductivity trio (needs this viscosity for
+  Olchowy-Sengers), hardcoded/section-hardcoded models, ECS, Chung, rhosr-CS.

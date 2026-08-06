@@ -312,4 +312,5 @@ pub static FLUORINE: FluidData = FluidData {
             smolar: 115.35996826635748,
         },
     },
+    transport: None,
 };

@@ -316,4 +316,5 @@ pub static N_UNDECANE: FluidData = FluidData {
             smolar: 7.688695917711005,
         },
     },
+    transport: None,
 };

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static R134A: FluidData = FluidData {
     name: "R134a",
@@ -312,4 +312,13 @@ pub static R134A: FluidData = FluidData {
             smolar: 200.38162100644377,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 299.363,
+            sigma_eta: 4.68932e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.355404, -0.464337, 0.0257353], t: &[0.0, 1.0, 2.0], c: 2.1357e-8, molar_mass: 0.102031 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-2.06900719e-5, 3.56029549e-7, 2.11101816e-6, 1.39601415e-5, -4.5643502e-6, -3.51593275e-6], d1: &[1.0, 2.0, 2.0, 2.0, 2.0, 3.0], t1: &[0.0, 6.0, 2.0, 0.5, -2.0, 0.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.00021476332], d2: &[0.0], t2: &[0.0], g: &[3.163695636], h: &[0.0], p: &[1.0, -0.0890173375, 0.100035295], q: &[0.0, -1.0, -2.0], t_reduce: 374.21, rhomolar_reduce: 5017.053 },
+        }),
+    }),
 };

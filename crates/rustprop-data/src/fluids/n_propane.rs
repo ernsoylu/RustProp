@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static N_PROPANE: FluidData = FluidData {
     name: "n-Propane",
@@ -334,4 +334,13 @@ pub static N_PROPANE: FluidData = FluidData {
             smolar: 228.67092565026863,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 263.88,
+            sigma_eta: 4.9748e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.25104574, -0.47271238, 0.060836515], t: &[0.0, 1.0, 3.0], c: 2.1357e-8, molar_mass: 0.0440956 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[3.59873030195e-5, -0.000180512188564, 8.77124888223e-5, -0.000105773052525, 0.000205319740877, -0.00012921093261, 5.89491587759e-5, -0.0001297400331, 7.66280419971e-5, -9.59407868475e-6, 2.10726986598e-5, -1.43971968187e-5], d1: &[2.0, 2.0, 2.0, 3.0, 3.0, 3.0, 4.0, 4.0, 4.0, 5.0, 5.0, 5.0], t1: &[0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.00161688405374], d2: &[1.0], t2: &[0.0], g: &[2.50053938863, 2.1517543007382995], h: &[0.0, -0.5], p: &[1.0], q: &[0.0], t_reduce: 369.825, rhomolar_reduce: 5000.0 },
+        }),
+    }),
 };

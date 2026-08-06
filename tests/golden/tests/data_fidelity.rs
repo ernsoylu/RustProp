@@ -10,7 +10,10 @@
 //! nothing gets dropped silently.
 
 use rustprop_core::fluid::ChebyshevInterval;
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, FluidData, SaturationAncillary, StatePoint};
+use rustprop_core::fluid::{
+    Alpha0Term, AlpharTerm, FluidData, SaturationAncillary, StatePoint, ViscosityDilute,
+    ViscosityHigherOrder, ViscosityInitialDensity,
+};
 use serde_json::Value;
 use std::path::Path;
 
@@ -697,12 +700,287 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         "STATES.triple_vapor",
     );
 
+    // TRANSPORT (6.1, viscosity slice): mirror datagen's classification.
+    check_transport(&mut w, fluid, doc.get("TRANSPORT"));
+
     assert!(
         w.mismatches.is_empty(),
         "{} fidelity mismatches:\n{}",
         w.mismatches.len(),
         w.mismatches.join("\n")
     );
+}
+
+/// Mirror of datagen's TRANSPORT classification: absent block -> rust None;
+/// present block with an unported viscosity class (ECS/Chung/rhosr list/
+/// fully-hardcoded) -> `Some(Transport {{ viscosity: None }})`; structured
+/// viscosity -> full field comparison. Conductivity is skipped until its
+/// slice.
+fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
+    let Some(tr) = json else {
+        if fluid.transport.is_some() {
+            w.mismatches
+                .push("TRANSPORT: absent in JSON but rust Some".into());
+        }
+        return;
+    };
+    let Some(rust_tr) = &fluid.transport else {
+        w.mismatches
+            .push("TRANSPORT: present in JSON but rust None".into());
+        return;
+    };
+    let visc = tr.get("viscosity");
+    let structured = matches!(visc, Some(v) if v.is_object()
+        && !v.as_object().unwrap().contains_key("type")
+        && !v.as_object().unwrap().contains_key("hardcoded"));
+    match (&rust_tr.viscosity, structured) {
+        (None, false) => {}
+        (Some(rv), true) => {
+            let v = visc.unwrap();
+            let path = "TRANSPORT.viscosity";
+            // epsilon_over_k / sigma_eta: NaN encodes "absent".
+            for (val, key) in [
+                (rv.epsilon_over_k, "epsilon_over_k"),
+                (rv.sigma_eta, "sigma_eta"),
+            ] {
+                match v.get(key) {
+                    Some(j) => w.num(val, j, &format!("{path}.{key}")),
+                    None if val.is_nan() => {}
+                    None => w
+                        .mismatches
+                        .push(format!("{path}.{key}: absent in JSON but rust {val:?}")),
+                }
+            }
+            check_viscosity_dilute(w, &rv.dilute, &v["dilute"], &format!("{path}.dilute"));
+            match (&rv.initial_density, v.get("initial_density")) {
+                (None, None) => {}
+                (Some(id), Some(j)) => {
+                    check_viscosity_initial(w, id, j, &format!("{path}.initial_density"));
+                }
+                (rust, json) => w.mismatches.push(format!(
+                    "{path}.initial_density: rust present={} json present={}",
+                    rust.is_some(),
+                    json.is_some()
+                )),
+            }
+            check_viscosity_higher(
+                w,
+                &rv.higher_order,
+                &v["higher_order"],
+                &format!("{path}.higher_order"),
+            );
+        }
+        (rust, _) => w.mismatches.push(format!(
+            "TRANSPORT.viscosity: rust structured={} json structured={structured}",
+            rust.is_some()
+        )),
+    }
+}
+
+fn check_viscosity_dilute(w: &mut Walker, rust: &ViscosityDilute, json: &Value, path: &str) {
+    match rust {
+        ViscosityDilute::KineticTheory => {
+            w.string("kinetic_theory", &json["type"], &format!("{path}.type"));
+        }
+        ViscosityDilute::CollisionIntegral {
+            a,
+            t,
+            c,
+            molar_mass,
+        } => {
+            w.string("collision_integral", &json["type"], &format!("{path}.type"));
+            w.nums(a, &json["a"], &format!("{path}.a"));
+            w.nums(t, &json["t"], &format!("{path}.t"));
+            w.num(*c, &json["C"], &format!("{path}.C"));
+            w.num(
+                *molar_mass,
+                &json["molar_mass"],
+                &format!("{path}.molar_mass"),
+            );
+        }
+        ViscosityDilute::PowersOfT { a, t } => {
+            w.string("powers_of_T", &json["type"], &format!("{path}.type"));
+            w.nums(a, &json["a"], &format!("{path}.a"));
+            w.nums(t, &json["t"], &format!("{path}.t"));
+        }
+        ViscosityDilute::PowersOfTr { a, t, t_reducing } => {
+            w.string("powers_of_Tr", &json["type"], &format!("{path}.type"));
+            w.nums(a, &json["a"], &format!("{path}.a"));
+            w.nums(t, &json["t"], &format!("{path}.t"));
+            w.num(
+                *t_reducing,
+                &json["T_reducing"],
+                &format!("{path}.T_reducing"),
+            );
+        }
+        ViscosityDilute::CollisionIntegralPowersOfTstar {
+            a,
+            t,
+            c,
+            t_reducing,
+        } => {
+            w.string(
+                "collision_integral_powers_of_Tstar",
+                &json["type"],
+                &format!("{path}.type"),
+            );
+            w.nums(a, &json["a"], &format!("{path}.a"));
+            w.nums(t, &json["t"], &format!("{path}.t"));
+            w.num(*c, &json["C"], &format!("{path}.C"));
+            w.num(
+                *t_reducing,
+                &json["T_reducing"],
+                &format!("{path}.T_reducing"),
+            );
+        }
+        ViscosityDilute::Hardcoded { name } => {
+            w.string(name, &json["hardcoded"], &format!("{path}.hardcoded"));
+        }
+    }
+}
+
+fn check_viscosity_initial(
+    w: &mut Walker,
+    rust: &ViscosityInitialDensity,
+    json: &Value,
+    path: &str,
+) {
+    match rust {
+        ViscosityInitialDensity::RainwaterFriend { b, t } => {
+            w.string("Rainwater-Friend", &json["type"], &format!("{path}.type"));
+            w.nums(b, &json["b"], &format!("{path}.b"));
+            w.nums(t, &json["t"], &format!("{path}.t"));
+        }
+        ViscosityInitialDensity::Empirical {
+            n,
+            d,
+            t,
+            t_reducing,
+            rhomolar_reducing,
+        } => {
+            w.string("empirical", &json["type"], &format!("{path}.type"));
+            w.nums(n, &json["n"], &format!("{path}.n"));
+            w.nums(d, &json["d"], &format!("{path}.d"));
+            w.nums(t, &json["t"], &format!("{path}.t"));
+            w.num(
+                *t_reducing,
+                &json["T_reducing"],
+                &format!("{path}.T_reducing"),
+            );
+            w.num(
+                *rhomolar_reducing,
+                &json["rhomolar_reducing"],
+                &format!("{path}.rhomolar_reducing"),
+            );
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn check_viscosity_higher(w: &mut Walker, rust: &ViscosityHigherOrder, json: &Value, path: &str) {
+    match rust {
+        ViscosityHigherOrder::ModifiedBatschinskiHildebrand {
+            a,
+            d1,
+            t1,
+            gamma,
+            l,
+            f,
+            d2,
+            t2,
+            g,
+            h,
+            p,
+            q,
+            t_reduce,
+            rhomolar_reduce,
+        } => {
+            w.string(
+                "modified_Batschinski_Hildebrand",
+                &json["type"],
+                &format!("{path}.type"),
+            );
+            w.nums(a, &json["a"], &format!("{path}.a"));
+            w.nums(d1, &json["d1"], &format!("{path}.d1"));
+            w.nums(t1, &json["t1"], &format!("{path}.t1"));
+            w.nums(gamma, &json["gamma"], &format!("{path}.gamma"));
+            w.nums(l, &json["l"], &format!("{path}.l"));
+            w.nums(f, &json["f"], &format!("{path}.f"));
+            w.nums(d2, &json["d2"], &format!("{path}.d2"));
+            w.nums(t2, &json["t2"], &format!("{path}.t2"));
+            w.nums(g, &json["g"], &format!("{path}.g"));
+            w.nums(h, &json["h"], &format!("{path}.h"));
+            w.nums(p, &json["p"], &format!("{path}.p"));
+            w.nums(q, &json["q"], &format!("{path}.q"));
+            w.num(*t_reduce, &json["T_reduce"], &format!("{path}.T_reduce"));
+            w.num(
+                *rhomolar_reduce,
+                &json["rhomolar_reduce"],
+                &format!("{path}.rhomolar_reduce"),
+            );
+        }
+        ViscosityHigherOrder::FrictionTheory {
+            ai,
+            aa,
+            ar,
+            aaa,
+            arr,
+            adrdr,
+            aii,
+            arrr,
+            aaaa,
+            na,
+            naa,
+            nr,
+            nrr,
+            nii,
+            nrrr,
+            naaa,
+            c1,
+            c2,
+            t_reduce,
+        } => {
+            w.string("friction_theory", &json["type"], &format!("{path}.type"));
+            w.nums(ai, &json["Ai"], &format!("{path}.Ai"));
+            w.nums(aa, &json["Aa"], &format!("{path}.Aa"));
+            w.nums(ar, &json["Ar"], &format!("{path}.Ar"));
+            w.nums(aaa, &json["Aaa"], &format!("{path}.Aaa"));
+            for (vals, key) in [
+                (arr, "Arr"),
+                (adrdr, "Adrdr"),
+                (aii, "Aii"),
+                (arrr, "Arrr"),
+                (aaaa, "Aaaa"),
+            ] {
+                match json.get(key) {
+                    Some(j) => w.nums(vals, j, &format!("{path}.{key}")),
+                    None if vals.is_empty() => {}
+                    None => w
+                        .mismatches
+                        .push(format!("{path}.{key}: absent in JSON but rust non-empty")),
+                }
+            }
+            w.num(*na, &json["Na"], &format!("{path}.Na"));
+            w.num(*naa, &json["Naa"], &format!("{path}.Naa"));
+            w.num(*nr, &json["Nr"], &format!("{path}.Nr"));
+            w.num(*nrr, &json["Nrr"], &format!("{path}.Nrr"));
+            for (val, key) in [(*nii, "Nii"), (*nrrr, "Nrrr"), (*naaa, "Naaa")] {
+                match json.get(key) {
+                    Some(j) => w.num(val, j, &format!("{path}.{key}")),
+                    None if val == 0.0 => {}
+                    None => w
+                        .mismatches
+                        .push(format!("{path}.{key}: absent in JSON but rust {val:?}")),
+                }
+            }
+            w.num(*c1, &json["c1"], &format!("{path}.c1"));
+            w.num(*c2, &json["c2"], &format!("{path}.c2"));
+            w.num(*t_reduce, &json["T_reduce"], &format!("{path}.T_reduce"));
+        }
+        ViscosityHigherOrder::Hardcoded { name } => {
+            w.string(name, &json["hardcoded"], &format!("{path}.hardcoded"));
+        }
+    }
 }
 
 #[test]

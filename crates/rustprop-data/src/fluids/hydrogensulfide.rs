@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static HYDROGENSULFIDE: FluidData = FluidData {
     name: "HydrogenSulfide",
@@ -295,4 +295,13 @@ pub static HYDROGENSULFIDE: FluidData = FluidData {
             smolar: 95.81473758279512,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 355.8,
+            sigma_eta: 3.565e-10,
+            dilute: ViscosityDilute::CollisionIntegralPowersOfTstar { a: &[0.53242, 0.93715, -0.69339, 1.16432, -0.84306, 0.20534], t: &[0.0, -1.0, -2.0, -3.0, -4.0, -5.0], c: 8.7721e-7, t_reducing: 276.0 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::FrictionTheory { ai: &[0.0, 0.0, 0.0], aa: &[6.89659e-8, -2.20494e-8, -4.26126e-8], ar: &[1.53406e-7, 8.45198e-9, -1.13967e-7], aaa: &[7.8238e-13, -6.4717e-13, 1.39066e-12], arr: &[-9.75792e-12, -3.19303e-12, 1.24263e-11], adrdr: &[], aii: &[], arrr: &[], aaaa: &[], na: 1.0, naa: 1.0, nr: 1.0, nrr: 1.0, nii: 0.0, nrrr: 0.0, naaa: 0.0, c1: 0.0, c2: 0.0, t_reduce: 373.1 },
+        }),
+    }),
 };

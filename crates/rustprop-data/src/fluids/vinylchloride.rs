@@ -331,4 +331,5 @@ pub static VINYLCHLORIDE: FluidData = FluidData {
             smolar: 177.8528751143582,
         },
     },
+    transport: None,
 };

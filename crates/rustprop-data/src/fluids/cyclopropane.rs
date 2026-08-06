@@ -289,4 +289,5 @@ pub static CYCLOPROPANE: FluidData = FluidData {
             smolar: 110.2112485574898,
         },
     },
+    transport: None,
 };

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
     name: "SulfurHexafluoride",
@@ -293,4 +293,13 @@ pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
             smolar: 191.66565711532024,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 215.0,
+            sigma_eta: 5.205e-10,
+            dilute: ViscosityDilute::PowersOfT { a: &[0.000118561, -8.948633138369e-5, 2.332561400439528e-5, -2.191287992665495e-6, 7.69887476029357e-8], t: &[0.0, 0.25, 0.5, 0.75, 1.0] },
+            initial_density: None,
+            higher_order: ViscosityHigherOrder::FrictionTheory { ai: &[5.38783e-8, 1.63805e-9, -2.0816e-8], aa: &[-6.87811e-7, 8.22661e-7, -3.54867e-7], ar: &[1.72737e-7, -2.02448e-7, 1.95952e-7], aaa: &[9.99563e-11, -9.64167e-12, -7.54196e-12], arr: &[], adrdr: &[-8.98256e-11, -8.49428e-11, 0.0], aii: &[-8.53432e-9, 1.14404e-8, -5.65762e-9], arrr: &[0.0, 0.0, 2.2798e-14], aaaa: &[0.0, -5.69402e-14, 2.9219e-14], na: 1.0, naa: 3.0, nr: 1.0, nrr: 3.0, nii: 3.0, nrrr: 1.0, naaa: 1.0, c1: 1.0, c2: 1.0, t_reduce: 318.7232 },
+        }),
+    }),
 };

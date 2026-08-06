@@ -292,4 +292,5 @@ pub static DIETHYLETHER: FluidData = FluidData {
             smolar: 84.62566485148992,
         },
     },
+    transport: None,
 };

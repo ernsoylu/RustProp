@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static OXYGEN: FluidData = FluidData {
     name: "Oxygen",
@@ -310,4 +310,13 @@ pub static OXYGEN: FluidData = FluidData {
             smolar: 209.82060672241755,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 118.5,
+            sigma_eta: 3.428e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.431, -0.4623, 0.08406, 0.005341, -0.00331], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.66958e-8, molar_mass: 0.0319988 },
+            initial_density: None,
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[1.767e-5, 4.042e-7, 1.077e-10, 3.51e-7, -1.367e-5], d1: &[1.0, 5.0, 12.0, 8.0, 1.0], t1: &[0.05, 0.0, 2.1, 0.0, 0.5], gamma: &[0.0, 0.0, 0.0, -1.0, -1.0], l: &[0.0, 0.0, 0.0, 1.0, 2.0], f: &[0.0], d2: &[1.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 154.581, rhomolar_reduce: 13630.0 },
+        }),
+    }),
 };

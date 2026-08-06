@@ -294,4 +294,5 @@ pub static NITROUSOXIDE: FluidData = FluidData {
             smolar: 90.01671990669541,
         },
     },
+    transport: None,
 };

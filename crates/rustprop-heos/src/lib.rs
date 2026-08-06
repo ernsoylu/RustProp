@@ -14,6 +14,7 @@ pub mod props;
 pub mod saturation;
 mod solvers;
 pub mod superancillary;
+pub mod transport;
 
 pub use alpha::{HelmholtzDerivs, HelmholtzEos};
 pub use rustprop_core::UPSTREAM_VERSION;

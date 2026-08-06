@@ -299,4 +299,5 @@ pub static HFE143M: FluidData = FluidData {
             smolar: 174.4121138623234,
         },
     },
+    transport: None,
 };

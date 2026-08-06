@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder};
 
 pub static N_DODECANE: FluidData = FluidData {
     name: "n-Dodecane",
@@ -328,4 +328,13 @@ pub static N_DODECANE: FluidData = FluidData {
             smolar: -13.010941653604602,
         },
     },
+    transport: Some(Transport {
+        viscosity: Some(Viscosity {
+            epsilon_over_k: 522.592,
+            sigma_eta: 7.35639e-10,
+            dilute: ViscosityDilute::CollisionIntegral { a: &[0.382987, -0.56105, 0.0313962], t: &[0.0, 1.0, 2.0], c: 2.1357e-8, molar_mass: 0.17033 },
+            initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-4.71703e-5, 2.98429e-5, 8.27816e-6, -1.34156e-5], d1: &[2.0, 2.0, 3.0, 3.0], t1: &[1.0, 2.0, 1.0, 2.0], gamma: &[0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0], f: &[0.000503109], d2: &[1.0], t2: &[0.0], g: &[2.32661, 2.23089], h: &[0.0, -0.5], p: &[1.0], q: &[0.0], t_reduce: 658.1, rhomolar_reduce: 1330.0 },
+        }),
+    }),
 };

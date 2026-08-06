@@ -319,4 +319,5 @@ pub static D6: FluidData = FluidData {
             smolar: -228.7310343365697,
         },
     },
+    transport: None,
 };

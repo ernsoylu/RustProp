@@ -312,4 +312,5 @@ pub static TRANS_2_BUTENE: FluidData = FluidData {
             smolar: 108.2855822208261,
         },
     },
+    transport: None,
 };
