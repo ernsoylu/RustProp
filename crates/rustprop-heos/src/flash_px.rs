@@ -824,9 +824,10 @@ impl PtFlash {
                 });
             }
         } else {
-            return Err(Error::NotImplemented(
-                "(p,X) flash below the triple-point pressure is not ported yet".into(),
-            ));
+            // Below the triple-point pressure no saturation exists — the
+            // state is gas (upstream's determination; liquid-like inputs
+            // fail in the gas-bracket solve exactly as upstream).
+            Phase::Gas
         };
 
         // Single-phase: bracket in T per upstream `HSU_P_flash`, then solve.

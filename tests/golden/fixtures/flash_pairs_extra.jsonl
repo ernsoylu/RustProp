@@ -61,6 +61,9 @@
 {"backend": "HEOS", "fluid": "Nitrogen", "out": "T", "name1": "Dmass", "val1": 720.0804160870294, "name2": "Q", "val2": 0.0, "expected": 94.6714999997928}
 {"backend": "HEOS", "fluid": "Nitrogen", "out": "T", "name1": "P", "val1": 623727.2508175733, "name2": "Umass", "val2": 72606.22585934271, "expected": 107.27969999970986}
 {"backend": "HEOS", "fluid": "Nitrogen", "out": "T", "name1": "Dmass", "val1": 754.5669913736817, "name2": "Smass", "val2": 3105.909431828402, "expected": 88.36739999983428}
+{"backend": "HEOS", "fluid": "Nitrogen", "out": "T", "name1": "Hmolar", "val1": 1912.8327755034775, "name2": "P", "val2": 8137.859264801136, "expected": 66.30855000000118}
+{"backend": "HEOS", "fluid": "Nitrogen", "out": "T", "name1": "P", "val1": 8137.859264801136, "name2": "Smolar", "val2": 168.62535256391038, "expected": 66.30855000116628}
+{"backend": "HEOS", "fluid": "Nitrogen", "out": "T", "name1": "P", "val1": 8137.859264801136, "name2": "Umolar", "val2": 1364.392265134385, "expected": 66.30855000001912}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Dmolar", "name1": "Hmolar", "val1": 6641.0282296819105, "name2": "T", "val2": 251.6064800011923, "expected": 23784.551851609882}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "Dmolar", "name1": "T", "val1": 251.6064800011923, "name2": "Umolar", "val2": 6483.151083951524, "expected": 23784.551851609715}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "P", "name1": "Hmolar", "val1": 6641.0282296819105, "name2": "T", "val2": 251.6064800011923, "expected": 3755037.1588108595}
@@ -124,6 +127,9 @@
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "Dmass", "val1": 997.0928049204765, "name2": "Q", "val2": 0.0, "expected": 260.36010000149037}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "P", "val1": 1970414.0664676623, "name2": "Umass", "val2": 420344.1283821324, "expected": 277.8673400020988}
 {"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "Dmass", "val1": 1046.7533700789784, "name2": "Smass", "val2": 811.9568718986689, "expected": 251.60648000119357}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "Hmolar", "val1": 19526.79173174091, "name2": "P", "val2": 336676.8232410218, "expected": 227.42160000000013}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "P", "val1": 336676.8232410218, "name2": "Smolar", "val2": 100.14276033919005, "expected": 227.42160000003233}
+{"backend": "HEOS", "fluid": "CarbonDioxide", "out": "T", "name1": "P", "val1": 336676.8232410218, "name2": "Umolar", "val2": 17716.135644907383, "expected": 227.4216000000001}
 {"backend": "HEOS", "fluid": "R134a", "out": "Dmolar", "name1": "Hmolar", "val1": 17515.243182857288, "name2": "T", "val2": 251.59478663398053, "expected": 12851.323056147765}
 {"backend": "HEOS", "fluid": "R134a", "out": "Dmolar", "name1": "T", "val1": 251.59478663398053, "name2": "Umolar", "val2": 17496.67612216417, "expected": 13362.216258032595}
 {"backend": "HEOS", "fluid": "R134a", "out": "P", "name1": "Hmolar", "val1": 17515.243182857288, "name2": "T", "val2": 251.59478663398053, "expected": 124048.54012832185}
@@ -187,6 +193,9 @@
 {"backend": "HEOS", "fluid": "R134a", "out": "T", "name1": "Dmass", "val1": 1298.464650470996, "name2": "Q", "val2": 0.0, "expected": 272.03098329247564}
 {"backend": "HEOS", "fluid": "R134a", "out": "T", "name1": "P", "val1": 504942.875752157, "name2": "Umass", "val2": 407127.76013386965, "expected": 312.9033766095511}
 {"backend": "HEOS", "fluid": "R134a", "out": "T", "name1": "Dmass", "val1": 1363.3736492395767, "name2": "Smass", "val2": 892.0980243346452, "expected": 251.59478663398028}
+{"backend": "HEOS", "fluid": "R134a", "out": "T", "name1": "Hmolar", "val1": 34691.3815203528, "name2": "P", "val2": 253.21646256529323, "expected": 178.34249999999997}
+{"backend": "HEOS", "fluid": "R134a", "out": "T", "name1": "P", "val1": 253.21646256529323, "name2": "Smolar", "val2": 206.92847869242496, "expected": 178.3425000000002}
+{"backend": "HEOS", "fluid": "R134a", "out": "T", "name1": "P", "val1": 253.21646256529323, "name2": "Umolar", "val2": 33209.22514000029, "expected": 178.34249999999986}
 {"backend": "HEOS", "fluid": "n-Propane", "out": "Dmolar", "name1": "Hmolar", "val1": 1367.022504185212, "name2": "T", "val2": 199.27100358038538, "expected": 13271.279957843797}
 {"backend": "HEOS", "fluid": "n-Propane", "out": "Dmolar", "name1": "T", "val1": 199.27100358038538, "name2": "Umolar", "val2": 1364.2593747871892, "expected": 13974.655923010067}
 {"backend": "HEOS", "fluid": "n-Propane", "out": "P", "name1": "Hmolar", "val1": 1367.022504185212, "name2": "T", "val2": 199.27100358038538, "expected": 19306.89130679211}
@@ -250,6 +259,9 @@
 {"backend": "HEOS", "fluid": "n-Propane", "out": "T", "name1": "Dmass", "val1": 584.7103942594637, "name2": "Q", "val2": 0.0, "expected": 227.7075044754818}
 {"backend": "HEOS", "fluid": "n-Propane", "out": "T", "name1": "P", "val1": 331383.2226485547, "name2": "Umass", "val2": 549882.2736723846, "expected": 284.58050626567467}
 {"backend": "HEOS", "fluid": "n-Propane", "out": "T", "name1": "Dmass", "val1": 616.2211172118039, "name2": "Smass", "val2": 284.81432400727675, "expected": 199.27100358038723}
+{"backend": "HEOS", "fluid": "n-Propane", "out": "T", "name1": "Hmolar", "val1": 16317.718469381849, "name2": "P", "val2": 0.00011170146526050598, "expected": 89.80124999999987}
+{"backend": "HEOS", "fluid": "n-Propane", "out": "T", "name1": "P", "val1": 0.00011170146526050598, "name2": "Smolar", "val2": 234.1718474433903, "expected": 89.80124999999987}
+{"backend": "HEOS", "fluid": "n-Propane", "out": "T", "name1": "P", "val1": 0.00011170146526050598, "name2": "Umolar", "val2": 15571.068491286025, "expected": 89.80125}
 {"backend": "HEOS", "fluid": "Ammonia", "out": "Dmolar", "name1": "Hmolar", "val1": 6395.80582995487, "name2": "T", "val2": 279.52099998930544, "expected": 35632.264719383165}
 {"backend": "HEOS", "fluid": "Ammonia", "out": "Dmolar", "name1": "T", "val1": 279.52099998930544, "name2": "Umolar", "val2": 6366.546366832512, "expected": 37009.0035919786}
 {"backend": "HEOS", "fluid": "Ammonia", "out": "P", "name1": "Hmolar", "val1": 6395.80582995487, "name2": "T", "val2": 279.52099998930544, "expected": 541431.7878966135}
@@ -313,6 +325,9 @@
 {"backend": "HEOS", "fluid": "Ammonia", "out": "T", "name1": "Dmass", "val1": 599.3700582322458, "name2": "Q", "val2": 0.0, "expected": 300.5274999866318}
 {"backend": "HEOS", "fluid": "Ammonia", "out": "T", "name1": "P", "val1": 1633179.318335607, "name2": "Umass", "val2": 1574967.75408496, "expected": 342.5404999858207}
 {"backend": "HEOS", "fluid": "Ammonia", "out": "T", "name1": "Dmass", "val1": 630.2825758528805, "name2": "Smass", "val2": 1587.877295276469, "expected": 279.5209999893051}
+{"backend": "HEOS", "fluid": "Ammonia", "out": "T", "name1": "Hmolar", "val1": 25704.1282512061, "name2": "P", "val2": 3936.278823446424, "expected": 205.26974999998737}
+{"backend": "HEOS", "fluid": "Ammonia", "out": "T", "name1": "P", "val1": 3936.278823446424, "name2": "Smolar", "val2": 135.00918744794538, "expected": 205.26975000000013}
+{"backend": "HEOS", "fluid": "Ammonia", "out": "T", "name1": "P", "val1": 3936.278823446424, "name2": "Umolar", "val2": 24001.22152463992, "expected": 205.26975000000002}
 {"backend": "HEOS", "fluid": "Methanol", "out": "Dmolar", "name1": "Hmolar", "val1": -2344.697439629936, "name2": "T", "val2": 310.7178050892232, "expected": 23192.8348096686}
 {"backend": "HEOS", "fluid": "Methanol", "out": "Dmolar", "name1": "T", "val1": 310.7178050892232, "name2": "Umolar", "val2": -2347.319206884192, "expected": 24169.35486867593}
 {"backend": "HEOS", "fluid": "Methanol", "out": "P", "name1": "Hmolar", "val1": -2344.697439629936, "name2": "T", "val2": 310.7178050892232, "expected": 31683.21157555697}
@@ -376,6 +391,9 @@
 {"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "Dmass", "val1": 741.4694067018492, "name2": "Q", "val2": 0.0, "expected": 344.4947563615289}
 {"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "P", "val1": 530130.0990446204, "name2": "Umass", "val2": 1118189.0139894872, "expected": 412.0486589116636}
 {"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "Dmass", "val1": 774.438335798916, "name2": "Smass", "val2": -225.58328113452683, "expected": 310.7178050892221}
+{"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "Hmolar", "val1": 30026.804015413567, "name2": "P", "val2": 0.12112766880595988, "expected": 184.39050000000003}
+{"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "P", "val1": 0.12112766880595988, "name2": "Smolar", "val2": 195.8319394178328, "expected": 184.3905000000079}
+{"backend": "HEOS", "fluid": "Methanol", "out": "T", "name1": "P", "val1": 0.12112766880595988, "name2": "Umolar", "val2": 28493.707869412592, "expected": 184.39050000000006}
 {"backend": "HEOS", "fluid": "R125", "out": "Dmolar", "name1": "Hmolar", "val1": 19128.352591299044, "name2": "T", "val2": 239.18291298244193, "expected": 11745.822947577873}
 {"backend": "HEOS", "fluid": "R125", "out": "Dmolar", "name1": "T", "val1": 239.18291298244193, "name2": "Umolar", "val2": 19096.630993007344, "expected": 12182.507352751274}
 {"backend": "HEOS", "fluid": "R125", "out": "P", "name1": "Hmolar", "val1": 19128.352591299044, "name2": "T", "val2": 239.18291298244193, "expected": 193224.3022148013}
@@ -439,6 +457,9 @@
 {"backend": "HEOS", "fluid": "R125", "out": "T", "name1": "Dmass", "val1": 1395.3782657791223, "name2": "Q", "val2": 0.0, "expected": 255.8486412280524}
 {"backend": "HEOS", "fluid": "R125", "out": "T", "name1": "P", "val1": 540003.8341548133, "name2": "Umass", "val2": 330993.78902914206, "expected": 289.1800977188112}
 {"backend": "HEOS", "fluid": "R125", "out": "T", "name1": "Dmass", "val1": 1462.1615879874994, "name2": "Smass", "val2": 842.1313414237213, "expected": 239.1829129824422}
+{"backend": "HEOS", "fluid": "R125", "out": "T", "name1": "Hmolar", "val1": 33895.78132455754, "name2": "P", "val2": 1894.129906016053, "expected": 181.14600000000002}
+{"backend": "HEOS", "fluid": "R125", "out": "T", "name1": "P", "val1": 1894.129906016053, "name2": "Smolar", "val2": 198.18441680726363, "expected": 181.14600000000007}
+{"backend": "HEOS", "fluid": "R125", "out": "T", "name1": "P", "val1": 1894.129906016053, "name2": "Umolar", "val2": 32392.263532732777, "expected": 181.146}
 {"backend": "HEOS", "fluid": "RC318", "out": "Dmolar", "name1": "Hmolar", "val1": 44817.79700791335, "name2": "T", "val2": 295.35840897707936, "expected": 7384.004686987626}
 {"backend": "HEOS", "fluid": "RC318", "out": "Dmolar", "name1": "T", "val1": 295.35840897707936, "name2": "Umolar", "val2": 44742.21379061848, "expected": 7555.963319358943}
 {"backend": "HEOS", "fluid": "RC318", "out": "P", "name1": "Hmolar", "val1": 44817.79700791335, "name2": "T", "val2": 295.35840897707936, "expected": 285552.00871984323}
@@ -502,6 +523,9 @@
 {"backend": "HEOS", "fluid": "RC318", "out": "T", "name1": "Dmass", "val1": 1445.130050679769, "name2": "Q", "val2": 0.0, "expected": 310.8605112213492}
 {"backend": "HEOS", "fluid": "RC318", "out": "T", "name1": "P", "val1": 518552.0719522943, "name2": "Umass", "val2": 353371.5073428392, "expected": 341.86471570967535}
 {"backend": "HEOS", "fluid": "RC318", "out": "T", "name1": "Dmass", "val1": 1511.428409928292, "name2": "Smass", "val2": 1083.6377754504695, "expected": 295.35840897707925}
+{"backend": "HEOS", "fluid": "RC318", "out": "T", "name1": "Hmolar", "val1": 59227.14517729504, "name2": "P", "val2": 12649.686452892449, "expected": 245.01750000000004}
+{"backend": "HEOS", "fluid": "RC318", "out": "T", "name1": "P", "val1": 12649.686452892449, "name2": "Smolar", "val2": 288.51210039797996, "expected": 245.0175}
+{"backend": "HEOS", "fluid": "RC318", "out": "T", "name1": "P", "val1": 12649.686452892449, "name2": "Umolar", "val2": 57203.93374790586, "expected": 245.0175000000001}
 {"backend": "HEOS", "fluid": "R22", "out": "Dmolar", "name1": "Hmolar", "val1": 11896.645401148293, "name2": "T", "val2": 217.15600000321098, "expected": 16016.838566556555}
 {"backend": "HEOS", "fluid": "R22", "out": "Dmolar", "name1": "T", "val1": 217.15600000321098, "name2": "Umolar", "val2": 11891.0571276004, "expected": 16799.211242750374}
 {"backend": "HEOS", "fluid": "R22", "out": "P", "name1": "Hmolar", "val1": 11896.645401148293, "name2": "T", "val2": 217.15600000321098, "expected": 46939.293893696035}
@@ -565,6 +589,9 @@
 {"backend": "HEOS", "fluid": "R22", "out": "T", "name1": "Dmass", "val1": 1379.0915905944541, "name2": "Q", "val2": 0.0, "expected": 242.5125000040137}
 {"backend": "HEOS", "fluid": "R22", "out": "T", "name1": "P", "val1": 455970.0119690793, "name2": "Umass", "val2": 394287.1107001843, "expected": 293.22550000563126}
 {"backend": "HEOS", "fluid": "R22", "out": "T", "name1": "Dmass", "val1": 1452.5941977383518, "name2": "Smass", "val2": 745.8968961641028, "expected": 217.15600000322695}
+{"backend": "HEOS", "fluid": "R22", "out": "T", "name1": "Hmolar", "val1": 28983.16486106119, "name2": "P", "val2": 0.24665857592823576, "expected": 121.51649999999995}
+{"backend": "HEOS", "fluid": "R22", "out": "T", "name1": "P", "val1": 0.24665857592823576, "name2": "Smolar", "val2": 238.4397476975374, "expected": 121.51650000000018}
+{"backend": "HEOS", "fluid": "R22", "out": "T", "name1": "P", "val1": 0.24665857592823576, "name2": "Umolar", "val2": 27972.81562893541, "expected": 121.51650000000022}
 {"backend": "HEOS", "fluid": "n-Heptane", "out": "Dmolar", "name1": "Hmolar", "val1": -11190.809184029673, "name2": "T", "val2": 326.02036603572503, "expected": 6271.901997633172}
 {"backend": "HEOS", "fluid": "n-Heptane", "out": "Dmolar", "name1": "T", "val1": 326.02036603572503, "name2": "Umolar", "val2": -11197.293297772385, "expected": 6542.834525894553}
 {"backend": "HEOS", "fluid": "n-Heptane", "out": "P", "name1": "Hmolar", "val1": -11190.809184029673, "name2": "T", "val2": 326.02036603572503, "expected": 21212.24163285089}
@@ -628,6 +655,9 @@
 {"backend": "HEOS", "fluid": "n-Heptane", "out": "T", "name1": "Dmass", "val1": 623.2984832547594, "name2": "Q", "val2": 0.0, "expected": 361.8879575446563}
 {"backend": "HEOS", "fluid": "n-Heptane", "out": "T", "name1": "P", "val1": 233139.54436554367, "name2": "Umass", "val2": 411533.23040470365, "expected": 433.6231405625225}
 {"backend": "HEOS", "fluid": "n-Heptane", "out": "T", "name1": "Dmass", "val1": 655.6051051636857, "name2": "Smass", "val2": -320.1089423708489, "expected": 326.02036603572515}
+{"backend": "HEOS", "fluid": "n-Heptane", "out": "T", "name1": "Hmolar", "val1": 3711.843485867157, "name2": "P", "val2": 0.1140686883908484, "expected": 191.6775}
+{"backend": "HEOS", "fluid": "n-Heptane", "out": "T", "name1": "P", "val1": 0.1140686883908484, "name2": "Smolar", "val2": 97.78037855641159, "expected": 191.6775}
+{"backend": "HEOS", "fluid": "n-Heptane", "out": "T", "name1": "P", "val1": 0.1140686883908484, "name2": "Umolar", "val2": 2118.1402987904657, "expected": 191.6775}
 {"backend": "HEOS", "fluid": "Fluorine", "out": "Dmolar", "name1": "Hmolar", "val1": 281.5746204112006, "name2": "T", "val2": 89.85443101942869, "expected": 36421.469215672565}
 {"backend": "HEOS", "fluid": "Fluorine", "out": "Dmolar", "name1": "T", "val1": 89.85443101942869, "name2": "Umolar", "val2": 272.7515890894984, "expected": 38632.229929794004}
 {"backend": "HEOS", "fluid": "Fluorine", "out": "P", "name1": "Hmolar", "val1": 281.5746204112006, "name2": "T", "val2": 89.85443101942869, "expected": 170426.687350439}
@@ -691,3 +721,6 @@
 {"backend": "HEOS", "fluid": "Fluorine", "out": "T", "name1": "Dmass", "val1": 1398.3673665481253, "name2": "Q", "val2": 0.0, "expected": 98.94776377428587}
 {"backend": "HEOS", "fluid": "Fluorine", "out": "T", "name1": "P", "val1": 693499.6519085586, "name2": "Umass", "val2": 170501.7759945133, "expected": 117.13442928400023}
 {"backend": "HEOS", "fluid": "Fluorine", "out": "T", "name1": "Dmass", "val1": 1467.9015005190233, "name2": "Smass", "val2": 82.91630007284864, "expected": 89.85443101942944}
+{"backend": "HEOS", "fluid": "Fluorine", "out": "T", "name1": "Hmolar", "val1": 5863.728425433099, "name2": "P", "val2": 155.22671585666632, "expected": 56.155155000514725}
+{"backend": "HEOS", "fluid": "Fluorine", "out": "T", "name1": "P", "val1": 155.22671585666632, "name2": "Smolar", "val2": 120.36486959983375, "expected": 56.15515500000052}
+{"backend": "HEOS", "fluid": "Fluorine", "out": "T", "name1": "P", "val1": 155.22671585666632, "name2": "Umolar", "val2": 5396.921269633769, "expected": 56.155154999999766}

@@ -856,3 +856,11 @@ Append-only; newest last. Seeded entries:
   HS suites gained 8 melting-corner records per melting fluid (T = Tmelt(p)*1.002 at
   3*pc/8*pc; Water/Nitrogen/CO2/n-Propane/Fluorine 56, Methanol 52, n-Heptane 40 after
   the oracle's own rejections), first-run green — leg-4 T matches the oracle at ~1e-14.
+- 2026-08-06 — small-item deferrals closed: (P,X) below the triple-point pressure is the
+  GAS phase (no saturation exists there; upstream's gas bracket [Ttriple, 1.5*Tmax]
+  already handled it — the NotImplemented guard removed, liquid-like caloric inputs fail
+  in the bracket exactly as upstream's HSU_P Brent failure); multi-output '&' strings now
+  fall through to output parsing and produce upstream's exact "Output parameter parsing
+  failed; error: Output string is invalid [T&P]" (the bespoke NotImplemented pre-check
+  removed). +33 sub-triple (H,P)/(P,S)/(P,U) goldens (726 total in flash_pairs_extra) +
+  message-anchored error asserts, first-run green.

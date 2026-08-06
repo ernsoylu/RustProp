@@ -74,8 +74,11 @@ fn if97_route(
             "IF97 backend supports only Water, got [{fluid}]"
         )));
     }
-    let out = Param::parse(output)
-        .ok_or_else(|| Error::Value(format!("Output parameter parsing failed: [{output}]")))?;
+    let out = Param::parse(output).ok_or_else(|| {
+        Error::Value(format!(
+            "Output parameter parsing failed; error: Output string is invalid [{output}]"
+        ))
+    })?;
     let n1 = Param::parse(name1)
         .ok_or_else(|| Error::Value(format!("Input pair parsing failed for Name1: \"{name1}\"")))?;
     let n2 = Param::parse(name2)
@@ -140,14 +143,14 @@ fn heos_route(
     prop2: f64,
     fluid: &str,
 ) -> Result<f64> {
-    if output.contains('&') {
-        return Err(Error::NotImplemented(
-            "multi-output requests are not ported".into(),
-        ));
-    }
+    // Multi-output strings ('&'-joined) fail upstream's output parsing with
+    // "Output string is invalid" — they fall through to Param::parse below.
     let data = resolve_fluid(fluid)?;
-    let out = Param::parse(output)
-        .ok_or_else(|| Error::Value(format!("Output parameter parsing failed: [{output}]")))?;
+    let out = Param::parse(output).ok_or_else(|| {
+        Error::Value(format!(
+            "Output parameter parsing failed; error: Output string is invalid [{output}]"
+        ))
+    })?;
 
     // Upstream: the pair stays INVALID when either NAME fails to parse (the
     // trivial route stays reachable); a pair of VALID params that is not a

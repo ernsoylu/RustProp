@@ -846,6 +846,18 @@ def gen_flash_pairs_extra():
         sm = PropsSI("Smass", "T", T_liq, "P", p_liq, hf)
         rec("T", "P", p_gas, "Umass", um)
         rec("T", "Dmass", dm, "Smass", sm)
+        # (P, X) below the triple-point pressure: gas states (no saturation).
+        p_sub = 0.65 * PropsSI("ptriple", "", 0, "", 0, hf)
+        T_sub = 1.05 * Tt
+        try:
+            h_sub = PropsSI("Hmolar", "T", T_sub, "P", p_sub, hf)
+            s_sub = PropsSI("Smolar", "T", T_sub, "P", p_sub, hf)
+            u_sub = PropsSI("Umolar", "T", T_sub, "P", p_sub, hf)
+            rec("T", "Hmolar", h_sub, "P", p_sub)
+            rec("T", "P", p_sub, "Smolar", s_sub)
+            rec("T", "P", p_sub, "Umolar", u_sub)
+        except ValueError:
+            skipped += 3
     print(f"flash pairs extra: {len(rows)} records, {skipped} rejected")
     return rows
 

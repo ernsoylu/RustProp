@@ -16,7 +16,7 @@ use std::path::Path;
 fn extra_flash_pairs_match_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/flash_pairs_extra.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 693);
+    assert_eq!(records.len(), 726);
 
     let mut failures = Vec::new();
     for rec in &records {
@@ -113,4 +113,15 @@ fn input_pair_error_conditions() {
         Error::OutOfRange(msg) => assert!(msg.contains("no T-root"), "unexpected message: {msg}"),
         other => panic!("expected OutOfRange error, got {other:?}"),
     }
+    // Multi-output '&' strings fail upstream's output parsing.
+    match props_si("T&P", "Hmolar", 3e4, "P", 1e5, "HEOS::Water").unwrap_err() {
+        Error::Value(msg) => assert!(
+            msg.contains("Output string is invalid"),
+            "unexpected message: {msg}"
+        ),
+        other => panic!("expected Value error, got {other:?}"),
+    }
+    // Sub-triple-pressure (P, X) with a liquid-like caloric value: the gas
+    // bracket cannot reach it (upstream's HSU_P Brent failure).
+    assert!(props_si("T", "Hmolar", 2000.0, "P", 400.0, "HEOS::Water").is_err());
 }
