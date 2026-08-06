@@ -72,7 +72,7 @@ fn water_helmholtz_terms_match_upstream() {
             continue;
         }
         let rel = ((actual - rec.expected) / rec.expected).abs();
-        if !(rel <= 1e-13) {
+        if rel > 1e-13 || rel.is_nan() {
             failures.push(format!(
                 "{}(T={}, rhomolar={}): actual {actual:e}, expected {:e}, rel {rel:e}",
                 rec.out, rec.t, rec.rhomolar, rec.expected
