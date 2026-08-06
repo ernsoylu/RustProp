@@ -199,6 +199,7 @@ fn get_x_for_y(
 }
 
 /// Upstream `detail::get_LU_matrices` — only the L matrix (values -> coeffs).
+#[allow(clippy::needless_range_loop)] // symmetric fill writes l[j][k] and l[k][j]
 fn l_matrix(n: usize) -> Vec<Vec<f64>> {
     let nf = n as f64;
     let mut l = vec![vec![0.0; n + 1]; n + 1];
