@@ -124,7 +124,8 @@ impl GenExp {
         self.delta_li_in_u = true;
     }
 
-    /// Upstream `add_Gaussian`.
+    /// Upstream `add_Gaussian` (argument list mirrors the upstream signature).
+    #[allow(clippy::too_many_arguments)]
     fn add_gaussian(
         &mut self,
         n: &[f64],
