@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static NITROGEN: FluidData = FluidData {
     name: "Nitrogen",
@@ -303,17 +303,17 @@ pub static NITROGEN: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Model(Viscosity {
+        viscosity: TransportModel::Model(ViscosityModel::Structured(Viscosity {
             epsilon_over_k: 98.94,
             sigma_eta: 3.656e-10,
             dilute: ViscosityDilute::CollisionIntegral { a: &[0.431, -0.4623, 0.08406, 0.005341, -0.00331], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.66958e-8, molar_mass: 0.02801348 },
             initial_density: None,
             higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[1.072e-5, 3.989e-8, 1.208e-9, -7.402e-6, 4.62e-6], d1: &[2.0, 10.0, 12.0, 2.0, 1.0], t1: &[0.1, 0.25, 3.2, 0.9, 0.3], gamma: &[0.0, -1.0, -1.0, -1.0, -1.0], l: &[0.0, 1.0, 1.0, 2.0, 3.0], f: &[0.0], d2: &[1.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 126.192, rhomolar_reduce: 11183.9 },
-        }),
-        conductivity: TransportModel::Model(Conductivity {
+        })),
+        conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::Eta0AndPoly { a: &[0.001511, 0.002117, -0.003332], t: &[0.0, -1.0, -0.7] },
             residual: ConductivityResidual::PolynomialAndExponential { a: &[0.008862, 0.03111, -0.07313, 0.02003, -0.0007096, 0.0002672], t: &[0.0, 0.03, 0.2, 0.8, 0.6, 1.9], d: &[1.0, 2.0, 3.0, 4.0, 8.0, 10.0], gamma: &[0.0, 0.0, 1.0, 1.0, 1.0, 1.0], l: &[0.0, 0.0, 1.0, 2.0, 2.0, 2.0] },
             critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.01, gamma: 1.2415, nu: 0.63, big_gamma: 0.055, zeta0: 1.7e-10, qd: 2500000000.0, t_ref: 252.384 }),
-        }),
+        })),
     }),
 };

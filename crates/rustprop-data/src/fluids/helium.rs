@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static HELIUM: FluidData = FluidData {
     name: "Helium",
@@ -293,7 +293,7 @@ pub static HELIUM: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Unported,
-        conductivity: TransportModel::Unported,
+        viscosity: TransportModel::Model(ViscosityModel::Hardcoded { name: "Helium" }),
+        conductivity: TransportModel::Model(ConductivityModel::Hardcoded { name: "Helium" }),
     }),
 };

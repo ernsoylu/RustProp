@@ -12,8 +12,9 @@
 use rustprop_core::fluid::ChebyshevInterval;
 use rustprop_core::fluid::{
     Alpha0Term, AlpharTerm, Conductivity, ConductivityCritical, ConductivityDilute,
-    ConductivityResidual, FluidData, SaturationAncillary, StatePoint, TransportModel, Viscosity,
-    ViscosityDilute, ViscosityHigherOrder, ViscosityInitialDensity,
+    ConductivityModel, ConductivityResidual, FluidData, SaturationAncillary, StatePoint,
+    TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, ViscosityInitialDensity,
+    ViscosityModel,
 };
 use serde_json::Value;
 use std::path::Path;
@@ -733,14 +734,24 @@ fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
         &rust_tr.viscosity,
         tr.get("viscosity"),
         "TRANSPORT.viscosity",
-        &check_viscosity,
+        &|w, m, v, path| match m {
+            ViscosityModel::Structured(rv) => check_viscosity(w, rv, v, path),
+            ViscosityModel::Hardcoded { name } => {
+                w.string(name, &v["hardcoded"], &format!("{path}.hardcoded"));
+            }
+        },
     );
     check_slot(
         w,
         &rust_tr.conductivity,
         tr.get("conductivity"),
         "TRANSPORT.conductivity",
-        &check_conductivity,
+        &|w, m, c, path| match m {
+            ConductivityModel::Structured(rc) => check_conductivity(w, rc, c, path),
+            ConductivityModel::Hardcoded { name } => {
+                w.string(name, &c["hardcoded"], &format!("{path}.hardcoded"));
+            }
+        },
     );
 }
 
@@ -756,17 +767,19 @@ fn check_slot<T>(
         None => "absent",
         Some(v) if v.is_object() => {
             let o = v.as_object().unwrap();
-            if o.contains_key("type") || o.contains_key("hardcoded") {
-                "unported"
+            if o.contains_key("hardcoded") {
+                "model" // fully-hardcoded per-fluid formulation
+            } else if o.contains_key("type") {
+                "unported" // ECS / Chung
             } else {
-                "structured"
+                "model" // structured
             }
         }
         Some(_) => "unported", // rhosr-CS lists
     };
     match (rust, class) {
         (TransportModel::Absent, "absent") | (TransportModel::Unported, "unported") => {}
-        (TransportModel::Model(m), "structured") => check(w, m, json.unwrap(), path),
+        (TransportModel::Model(m), "model") => check(w, m, json.unwrap(), path),
         (rust, class) => {
             let rust_class = match rust {
                 TransportModel::Absent => "absent",

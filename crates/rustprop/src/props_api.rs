@@ -339,8 +339,7 @@ fn keyed_output(
                 }
                 rustprop_core::fluid::TransportModel::Unported => {
                     return Err(Error::NotImplemented(
-                        "this fluid's conductivity model class (ECS/hardcoded) is not ported yet"
-                            .into(),
+                        "this fluid's conductivity model class (ECS) is not ported yet".into(),
                     ));
                 }
                 rustprop_core::fluid::TransportModel::Model(c) => c,
@@ -360,9 +359,9 @@ fn keyed_output(
             };
             rustprop_heos::transport::conductivity(
                 &flash.eos,
+                data,
                 c,
                 v,
-                data.eos.reducing.p,
                 state.t(),
                 state.rhomolar(),
                 state.p(),
@@ -399,7 +398,9 @@ fn keyed_output(
 /// Resolve the fluid's ported viscosity model (upstream
 /// `viscosity_model_provided` + the per-class dispatch).
 #[cfg(feature = "heos")]
-fn viscosity_model(data: &'static FluidData) -> Result<&'static rustprop_core::fluid::Viscosity> {
+fn viscosity_model(
+    data: &'static FluidData,
+) -> Result<&'static rustprop_core::fluid::ViscosityModel> {
     let tr = data
         .transport
         .as_ref()
@@ -409,8 +410,7 @@ fn viscosity_model(data: &'static FluidData) -> Result<&'static rustprop_core::f
             "Viscosity model is not available for this fluid".into(),
         )),
         rustprop_core::fluid::TransportModel::Unported => Err(Error::NotImplemented(
-            "this fluid's viscosity model class (ECS/Chung/rhosr/hardcoded) is not ported yet"
-                .into(),
+            "this fluid's viscosity model class (ECS/Chung/rhosr) is not ported yet".into(),
         )),
         rustprop_core::fluid::TransportModel::Model(v) => Ok(v),
     }

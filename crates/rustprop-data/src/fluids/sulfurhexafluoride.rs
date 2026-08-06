@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
     name: "SulfurHexafluoride",
@@ -294,17 +294,17 @@ pub static SULFURHEXAFLUORIDE: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Model(Viscosity {
+        viscosity: TransportModel::Model(ViscosityModel::Structured(Viscosity {
             epsilon_over_k: 215.0,
             sigma_eta: 5.205e-10,
             dilute: ViscosityDilute::PowersOfT { a: &[0.000118561, -8.948633138369e-5, 2.332561400439528e-5, -2.191287992665495e-6, 7.69887476029357e-8], t: &[0.0, 0.25, 0.5, 0.75, 1.0] },
             initial_density: None,
             higher_order: ViscosityHigherOrder::FrictionTheory { ai: &[5.38783e-8, 1.63805e-9, -2.0816e-8], aa: &[-6.87811e-7, 8.22661e-7, -3.54867e-7], ar: &[1.72737e-7, -2.02448e-7, 1.95952e-7], aaa: &[9.99563e-11, -9.64167e-12, -7.54196e-12], arr: &[], adrdr: &[-8.98256e-11, -8.49428e-11, 0.0], aii: &[-8.53432e-9, 1.14404e-8, -5.65762e-9], arrr: &[0.0, 0.0, 2.2798e-14], aaaa: &[0.0, -5.69402e-14, 2.9219e-14], na: 1.0, naa: 3.0, nr: 1.0, nrr: 3.0, nii: 3.0, nrrr: 1.0, naaa: 1.0, c1: 1.0, c2: 1.0, t_reduce: 318.7232 },
-        }),
-        conductivity: TransportModel::Model(Conductivity {
+        })),
+        conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[1461.86, -18.5394, 0.0777891, 2.41059e-5], n: &[0.0, 1.0, 2.0, 3.0], b: &[29661.7, 505.67, 1.0], m: &[0.0, 1.0, 2.0], t_reducing: 1.0 },
             residual: ConductivityResidual::Polynomial { b: &[-0.0283746, 0.0352768, 0.0207472, -0.0433053, -0.0055718, 0.0512084, 0.0053289, -0.0290262, -0.00161688, 0.00598438], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 318.7232, rhomass_reducing: 742.297 },
             critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.01, gamma: 1.2415, nu: 0.63, big_gamma: 0.052, zeta0: 1.9e-10, qd: 2857000000.0, t_ref: f64::NAN }),
-        }),
+        })),
     }),
 };

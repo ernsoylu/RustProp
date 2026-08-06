@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static M_XYLENE: FluidData = FluidData {
     name: "m-Xylene",
@@ -330,11 +330,11 @@ pub static M_XYLENE: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Unported,
-        conductivity: TransportModel::Model(Conductivity {
+        viscosity: TransportModel::Model(ViscosityModel::Hardcoded { name: "m-Xylene" }),
+        conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[0.000242107, 0.013522, -0.123168, 0.296882, -0.107973, 0.018686, -0.0012916700000000002], n: &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0], b: &[-0.850118, 3.11646, 0.0001], m: &[0.0, 1.0, 2.0], t_reducing: 616.89 },
             residual: ConductivityResidual::Polynomial { b: &[-0.0679314, 0.0592537, 0.225778, -0.162626, -0.185693, 0.133036, 0.0619006, -0.0449051, -0.0071166400000000005, 0.0056186], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 616.89, rhomass_reducing: 282.9297 },
             critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.03, gamma: 1.239, nu: 0.63, big_gamma: 0.057, zeta0: 2.35e-10, qd: 1402524544.179523, t_ref: f64::NAN }),
-        }),
+        })),
     }),
 };

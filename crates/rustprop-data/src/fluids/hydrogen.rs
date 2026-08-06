@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static HYDROGEN: FluidData = FluidData {
     name: "Hydrogen",
@@ -293,17 +293,17 @@ pub static HYDROGEN: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Model(Viscosity {
+        viscosity: TransportModel::Model(ViscosityModel::Structured(Viscosity {
             epsilon_over_k: 30.41,
             sigma_eta: 2.97e-10,
             dilute: ViscosityDilute::CollisionIntegral { a: &[0.20963, -0.455274, 0.143602, -0.0335325, 0.00276981], t: &[0.0, 1.0, 2.0, 3.0, 4.0], c: 2.1357e-8, molar_mass: 0.00201588 },
             initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-0.187, 2.4871, 3.7151, -11.0972, 9.0965, -3.8292, 0.5166], t: &[0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0] }),
             higher_order: ViscosityHigherOrder::Hardcoded { name: "Hydrogen" },
-        }),
-        conductivity: TransportModel::Model(Conductivity {
+        })),
+        conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.340976, 4.5882, -1.4508, 0.326394, 0.00316939, 0.000190592, -1.139e-6], n: &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0], b: &[138.497, -22.1878, 4.57151, 1.0], m: &[0.0, 1.0, 2.0, 3.0], t_reducing: 33.145 },
             residual: ConductivityResidual::Polynomial { b: &[0.0363081, 0.0018337, -0.0207629, -0.00886716, 0.031481, 0.015826, -0.0143097, -0.0106283, 0.0017498, 0.00280673], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 33.145, rhomass_reducing: 31.262 },
             critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.01, gamma: 1.2415, nu: 0.63, big_gamma: 0.052, zeta0: 1.5e-10, qd: 2500000000.0, t_ref: f64::NAN }),
-        }),
+        })),
     }),
 };

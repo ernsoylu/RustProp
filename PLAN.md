@@ -731,3 +731,19 @@ Append-only; newest last. Seeded entries:
   blocked-by-unported-viscosity, two-phase n-Propane). Conductivity data for ALL 35
   structured fluids is ported and bitwise-walked; the 20 with unported viscosity classes
   activate automatically as those slices land.
+- 2026-08-06 — 6.1 slice 3 (hardcoded transport models) complete, all first-run green:
+  fully-hardcoded viscosity (Water IAPWS-2008 with its deliberate mass-rhobar-into-molar-
+  derivative-slot mixing ported literally, HeavyWater, Helium Arp/NIST-1334 with its
+  two-regime T split, R23, Methanol Xiang/Laesecke with hard-sphere crossover, the three
+  Cao/Balogun xylenes) and conductivity (Water IAPWS-2011 incl. its critical enhancement
+  consuming the water viscosity, HeavyWater IAPWS-2021, Helium Hands/Arp with the
+  K_T-crossover and REFPROP's "magical" 3.4685233e-17*3.726229668 coefficients, R23,
+  Methane Friend-1989 with its OWN internal viscosity, the classic rhoV ancillary for
+  delta_sigma_star, and the three-branch CHI_T_star critical region); section-hardcoded
+  viscosity dilute (Ethane, Cyclohexane, CO2 Laesecke-2017) and higher-order (Ethane,
+  Benzene, Hydrogen, Toluene, n-Hexane, n-Heptane, CO2 Laesecke residual), conductivity
+  dilute (CO2 Huber-2016, Ethane — needing the fluid's dilute viscosity) and critical
+  (Ammonia Tufeu-1984, R123). Model slots became ViscosityModel/ConductivityModel enums
+  (Structured|Hardcoded) under the tri-state; the walker verifies hardcoded tags bitwise.
+  Viscosity now evaluates for 37 fluids (296 goldens), conductivity for 34 (306 goldens),
+  both at 1e-8. Remaining transport classes: ECS (15/18), Chung (2), rhosr-CS (7).

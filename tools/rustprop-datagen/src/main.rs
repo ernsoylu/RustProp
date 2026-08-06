@@ -439,6 +439,8 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     for ty in [
         "Transport",
         "TransportModel",
+        "ViscosityModel",
+        "ConductivityModel",
         "Viscosity",
         "ViscosityDilute",
         "ViscosityInitialDensity",
@@ -773,35 +775,39 @@ fn emit_transport(tr: Option<&serde_json::Value>) -> String {
         return "    transport: None,\n".into();
     };
     let slot = |key: &str,
-                render: &dyn Fn(&serde_json::Map<String, serde_json::Value>) -> Option<String>|
+                model: &str,
+                render: &dyn Fn(&serde_json::Map<String, serde_json::Value>) -> String|
      -> String {
         match tr.get(key) {
             None => "TransportModel::Absent".into(),
             Some(v) if v.is_object() => {
                 let v = v.as_object().unwrap();
-                if v.contains_key("type") || v.contains_key("hardcoded") {
-                    "TransportModel::Unported".into()
+                if let Some(h) = v.get("hardcoded") {
+                    // Fully-hardcoded per-fluid formulation.
+                    format!(
+                        "TransportModel::Model({model}::Hardcoded {{ name: {:?} }})",
+                        h.as_str().unwrap()
+                    )
+                } else if v.contains_key("type") {
+                    "TransportModel::Unported".into() // ECS / Chung
                 } else {
-                    match render(v) {
-                        Some(body) => body,
-                        None => "TransportModel::Unported".into(),
-                    }
+                    render(v)
                 }
             }
             Some(_) => "TransportModel::Unported".into(), // rhosr-CS lists
         }
     };
-    let visc = slot("viscosity", &|v| {
-        Some(format!(
-            "TransportModel::Model(Viscosity {{\n{}        }})",
+    let visc = slot("viscosity", "ViscosityModel", &|v| {
+        format!(
+            "TransportModel::Model(ViscosityModel::Structured(Viscosity {{\n{}        }}))",
             render_viscosity(v)
-        ))
+        )
     });
-    let cond = slot("conductivity", &|c| {
-        Some(format!(
-            "TransportModel::Model(Conductivity {{\n{}        }})",
+    let cond = slot("conductivity", "ConductivityModel", &|c| {
+        format!(
+            "TransportModel::Model(ConductivityModel::Structured(Conductivity {{\n{}        }}))",
             render_conductivity(c)
-        ))
+        )
     });
     format!(
         "    transport: Some(Transport {{\n        viscosity: {visc},\n        conductivity: {cond},\n    }}),\n"

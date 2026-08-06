@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static N_DECANE: FluidData = FluidData {
     name: "n-Decane",
@@ -313,17 +313,17 @@ pub static N_DECANE: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Model(Viscosity {
+        viscosity: TransportModel::Model(ViscosityModel::Structured(Viscosity {
             epsilon_over_k: 490.51,
             sigma_eta: 6.86e-10,
             dilute: ViscosityDilute::CollisionIntegral { a: &[0.343267, -0.460514], t: &[0.0, 1.0], c: 2.1357e-8, molar_mass: 0.14228168 },
             initial_density: Some(ViscosityInitialDensity::RainwaterFriend { b: &[-19.572881, 219.73999, -1015.3226, 2471.01251, -3375.1717, 2491.6597, -787.26086, 14.085455, -0.34664158], t: &[0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5, -2.5, -5.5] }),
             higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-4.02094e-5, 4.04435e-5, 0.0, -1.42063e-5], d1: &[2.0, 2.0, 3.0, 3.0], t1: &[1.0, 2.0, 1.0, 2.0], gamma: &[0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0], f: &[0.000453387], d2: &[1.0], t2: &[0.0], g: &[2.55105, 1.71465, 0.0], h: &[0.0, -0.5, -1.0], p: &[1.0], q: &[0.0], t_reduce: 617.7, rhomolar_reduce: 1640.0 },
-        }),
-        conductivity: TransportModel::Model(Conductivity {
+        })),
+        conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[0.010554268, -0.051453009, 0.118978971, -0.0372442104], n: &[0.0, 1.0, 2.0, 3.0], b: &[1.0], m: &[0.0], t_reducing: 617.7 },
             residual: ConductivityResidual::Polynomial { b: &[-0.0294394112, 0.0499245356, -0.0142700394, 0.00150827597, 0.0150509474, 0.0, -0.0138857133, 0.00433326339], t: &[0.0, 0.0, 0.0, 0.0, -1.0, -1.0, -1.0, -1.0], d: &[1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0], t_reducing: 617.7, rhomass_reducing: 233.34 },
             critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.03, gamma: 1.239, nu: 0.63, big_gamma: 0.0496, zeta0: 1.94e-10, qd: 1411155860.0, t_ref: f64::NAN }),
-        }),
+        })),
     }),
 };

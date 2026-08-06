@@ -30,9 +30,37 @@ pub struct FluidData {
 /// `TRANSPORT` (ported subset).
 pub struct Transport {
     /// `TRANSPORT.viscosity`
-    pub viscosity: TransportModel<Viscosity>,
+    pub viscosity: TransportModel<ViscosityModel>,
     /// `TRANSPORT.conductivity`
-    pub conductivity: TransportModel<Conductivity>,
+    pub conductivity: TransportModel<ConductivityModel>,
+}
+
+/// A viscosity model: the structured dilute/initial/higher form, or one of
+/// upstream's fully-hardcoded per-fluid formulations.
+// One static instance per fluid document; the variant size spread is
+// irrelevant for rodata and boxing would break const construction.
+#[allow(clippy::large_enum_variant)]
+pub enum ViscosityModel {
+    /// Structured sections
+    Structured(Viscosity),
+    /// top-level `.hardcoded` tag (Water, HeavyWater, Helium, R23,
+    /// Methanol, the xylenes)
+    Hardcoded {
+        /// the `.hardcoded` tag
+        name: &'static str,
+    },
+}
+
+/// A conductivity model: structured trio or fully-hardcoded.
+#[allow(clippy::large_enum_variant)] // see ViscosityModel
+pub enum ConductivityModel {
+    /// Structured sections
+    Structured(Conductivity),
+    /// top-level `.hardcoded` tag (Water, HeavyWater, Helium, R23, Methane)
+    Hardcoded {
+        /// the `.hardcoded` tag
+        name: &'static str,
+    },
 }
 
 /// Per-property model slot: upstream distinguishes "no model provided"

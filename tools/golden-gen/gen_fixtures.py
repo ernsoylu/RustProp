@@ -759,6 +759,12 @@ VISCOSITY_STRUCTURED = [
     "IsoButane", "Methane", "Nitrogen", "Oxygen", "R123", "R125", "R134a",
     "SulfurHexafluoride", "n-Butane", "n-Decane", "n-Dodecane", "n-Nonane",
     "n-Octane", "n-Pentane", "n-Propane",
+    # fully-hardcoded models (slice 3):
+    "Water", "HeavyWater", "Helium", "R23", "Methanol", "m-Xylene",
+    "o-Xylene", "p-Xylene",
+    # section-hardcoded parts (slice 3):
+    "CarbonDioxide", "Ethane", "CycloHexane", "Benzene", "Hydrogen",
+    "ParaHydrogen", "Toluene", "n-Hexane", "n-Heptane",
 ]
 
 
@@ -802,6 +808,12 @@ CONDUCTIVITY_STRUCTURED = [
     "Argon", "Ethanol", "IsoButane", "Nitrogen", "Oxygen", "R125", "R134a",
     "SulfurHexafluoride", "n-Butane", "n-Decane", "n-Dodecane", "n-Nonane",
     "n-Octane", "n-Pentane", "n-Propane",
+    # fully-hardcoded models (slice 3):
+    "Water", "HeavyWater", "Helium", "R23", "Methane",
+    # structured fluids unlocked by slice-3 viscosity / hardcoded sections:
+    "Ammonia", "R123", "CarbonDioxide", "Ethane", "Benzene", "Methanol",
+    "Hydrogen", "ParaHydrogen", "Toluene", "m-Xylene", "o-Xylene",
+    "p-Xylene", "n-Hexane", "n-Heptane",
 ]
 
 

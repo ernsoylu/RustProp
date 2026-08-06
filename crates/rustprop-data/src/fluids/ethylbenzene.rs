@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ETHYLBENZENE: FluidData = FluidData {
     name: "EthylBenzene",
@@ -330,10 +330,10 @@ pub static ETHYLBENZENE: FluidData = FluidData {
     },
     transport: Some(Transport {
         viscosity: TransportModel::Unported,
-        conductivity: TransportModel::Model(Conductivity {
+        conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.00110708, 0.0108026, -0.0289015, 0.0419227, 0.0209133, -0.00401492], n: &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], b: &[0.259475, -0.343879, 1.0], m: &[0.0, 1.0, 2.0], t_reducing: 617.12 },
             residual: ConductivityResidual::Polynomial { b: &[-0.0497837, 0.0663073, 0.106739, -0.146279, -0.0685137, 0.121439, 0.0226133, -0.0462245, -0.00279455, 0.00658554], t: &[0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0, 0.0, -1.0], d: &[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 5.0, 5.0], t_reducing: 617.12, rhomass_reducing: 291.0 },
             critical: Some(ConductivityCritical::SimplifiedOlchowySengers { k: 1.3806488e-23, r0: 1.03, gamma: 1.239, nu: 0.63, big_gamma: 0.056, zeta0: 2.35e-10, qd: 1416430594.9008498, t_ref: f64::NAN }),
-        }),
+        })),
     }),
 };
