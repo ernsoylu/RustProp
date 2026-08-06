@@ -14,3 +14,12 @@
 pub extern "C" fn probe() -> usize {
     rustprop::UPSTREAM_VERSION.len()
 }
+
+/// Exercises the full IF97 dispatch so the linker keeps the engine
+/// (PLAN.md 2.6 size baseline). Runtime arguments prevent const-folding.
+#[cfg(feature = "if97")]
+#[unsafe(no_mangle)]
+pub extern "C" fn probe_if97(t: f64, p: f64) -> f64 {
+    use rustprop_core::Param;
+    rustprop::if97_api::props(Param::Hmass, Param::T, t, Param::P, p).unwrap_or(f64::NAN)
+}

@@ -5,8 +5,20 @@
 //! design — applications opt into exactly the engines (and, via
 //! `rustprop-data`, the fluids) a calculation needs, keeping compiled WASM
 //! minimal.
+//!
+//! # Example: IF97 steam properties (feature `if97`)
+//!
+//! ```
+//! # #[cfg(feature = "if97")] {
+//! use rustprop::Param;
+//! // Equivalent to PropsSI("H", "T", 300, "P", 101325, "IF97::Water").
+//! let h = rustprop::if97_api::props(Param::Hmass, Param::T, 300.0, Param::P, 101325.0).unwrap();
+//! // Golden value from the CoolProp 8.0.0 oracle:
+//! assert!(((h - 112665.04341853978) / h).abs() < 1e-11);
+//! # }
+//! ```
 
-pub use rustprop_core::UPSTREAM_VERSION;
+pub use rustprop_core::{Error, InputPair, Param, Result, UPSTREAM_VERSION};
 
 #[cfg(feature = "cubics")]
 pub use rustprop_cubics as cubics;
@@ -14,6 +26,8 @@ pub use rustprop_cubics as cubics;
 pub use rustprop_heos as heos;
 #[cfg(feature = "humid-air")]
 pub use rustprop_humid_air as humid_air;
+#[cfg(feature = "if97")]
+pub mod if97_api;
 #[cfg(feature = "if97")]
 pub use rustprop_if97 as if97;
 #[cfg(feature = "incompressible")]

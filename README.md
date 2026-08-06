@@ -40,7 +40,14 @@ cargo build -p rustprop --features all-backends \
 
 ## Status
 
-Scaffold only — no algorithms ported yet. The porting plan, fidelity rules, and upstream mapping live in `CLAUDE.md`.
+The IF97 steam engine is ported and golden-verified against CoolProp 8.0.0 (356 oracle records at rtol 1e-11; all IAPWS published check tables pass):
+
+```bash
+$ cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water
+373.12430000048056
+```
+
+The HEOS fluid engines are next. The porting plan, fidelity rules, and upstream mapping live in `CLAUDE.md` and `PLAN.md`.
 
 ## License
 

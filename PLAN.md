@@ -98,18 +98,18 @@ that needs no fluid data files.
       implemented there.
       → verify: unit tests reproduce the IAPWS-R7-97 published check tables (the numeric tables
       in the standard) to their printed precision.
-- [ ] 2.3 Port forward properties (T,p)→{v,h,s,u,cp,cv,w}, saturation line psat(T)/Tsat(p), and
+- [x] 2.3 Port forward properties (T,p)→{v,h,s,u,cp,cv,w}, saturation line psat(T)/Tsat(p), and
       the backward/(p,h),(p,s) paths that upstream's IF97 backend exposes.
       → verify: golden fixtures vs upstream `PropsSI(..., "IF97::Water")` over a grid spanning
       all regions; IAPWS backward-equation check tables where the standard provides them.
-- [ ] 2.4 Wire `rustprop-if97` into the facade behind the `if97` feature with a small typed API.
+- [x] 2.4 Wire `rustprop-if97` into the facade behind the `if97` feature with a small typed API.
       → verify: doc-test on the facade computes h(300 K, 101325 Pa) and matches the golden value.
-- [ ] 2.5 Implement the first real CLI command:
+- [x] 2.5 Implement the first real CLI command:
       `rustprop-cli props <OUT> <IN1> <val1> <IN2> <val2> IF97::Water` printing the value to
       stdout (PropsSI argument order).
       → verify: integration test executes the binary and asserts stdout equals the golden value
       within tolerance.
-- [ ] 2.6 Record the wasm size baseline for `--features if97`.
+- [x] 2.6 Record the wasm size baseline for `--features if97`.
       → verify: size appears in the CI report; number noted in the Decisions log.
 
 **Phase gate 2**: a user can compute real steam properties from the CLI and from wasm.
@@ -385,3 +385,21 @@ Append-only; newest last. Seeded entries:
   literals (incl. upstream's own `16.529164252604481` vs `...605` P23MIN inconsistency and
   the truncated `PI = 3.141592654` in the Gibbs-region lambda2), literal comparison chains
   with deliberately identical arms.
+- 2026-08-06 — 2.3: 356 IF97::Water golden records (PT, PQ, QT, HmassP, PSmass, HmassSmass,
+  trivials) all pass at rtol 1e-11 — 352 of them at 1e-12; max observed deviation 5.6e-12
+  (surface tension, libm pow). The goldens exposed three CoolProp-backend conventions that raw
+  IF97 does not have, now encoded in the facade with comments (confirmed by reading
+  IF97Backend.h): Q = -1 outside the dome (raw `Q_pX` clamps to 0/1); PMIN reported as the
+  triple pressure 611.657 Pa (not IF97's 611.213 Pa Pmin); two-phase density from (p,h)/(p,s)
+  is inverse-phase-weighted mixing of the saturation-curve densities (`calc_Flash`), not
+  `Y_pX`'s backward-T round trip — the latter differs by ~1e-5 and failed the goldens.
+- 2026-08-06 — 2.4: facade gains `if97_api::props` (typed PropsSI-style dispatch via
+  `generate_update_pair`) and re-exports the core types (`Param`, `Error`, ...) as its API
+  surface. Doc-test computes h(300 K, 101325 Pa) against the golden value.
+- 2026-08-06 — 2.5: CLI `props <OUT> <N1> <v1> <N2> <v2> IF97::Water` in PropsSI argument
+  order; f64 Display (shortest round-trip) makes stdout match the oracle digit-for-digit.
+  Four e2e tests including clean failures for unknown fluid/parameter.
+- 2026-08-06 — 2.6: wasm size baselines (release, fat LTO, panic=abort, pre-wasm-opt):
+  minimal 70 B; `if97` 112,862 B; `all-backends` identical to `if97` while the other engines
+  are empty. ~113 KB for the complete IF97 engine + dispatch is the first real data point for
+  the size budget.

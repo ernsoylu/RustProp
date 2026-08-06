@@ -13,11 +13,12 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 rustprop.workspace = true
+rustprop-core.workspace = true
 
 [features]
 default = []
 if97 = ["rustprop/if97"]
-all-backends = ["rustprop/all-backends"]
+all-backends = ["if97", "rustprop/all-backends"]
 
 [lints]
 workspace = true

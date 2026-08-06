@@ -80,6 +80,7 @@ version = "0.1.0"
 name = "rustprop-golden-tests"
 version = "0.1.0"
 dependencies = [
+ "rustprop",
  "rustprop-core",
  "serde",
  "serde_json",
@@ -139,6 +140,7 @@ name = "rustprop-wasm-size-probe"
 version = "0.1.0"
 dependencies = [
  "rustprop",
+ "rustprop-core",
 ]
 
 [[package]]
