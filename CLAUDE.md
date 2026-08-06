@@ -20,6 +20,11 @@ The defining constraint is **modularity for WASM binary size**: all CoolProp dat
 4. Releases published both as source code and as prebuilt binaries for consumption by other WASM applications.
 5. CI/CD pipelines covering build, lint, the full test suite, and release packaging — GitHub Actions. `.github/workflows/ci.yml` exists; the release pipeline (prebuilt wasm artifacts) is still to come.
 
+## Implementation rules
+
+- The roadmap is **`PLAN.md`** — phased, checkbox-tracked, every step carrying a `→ verify:` clause. Work the phases in order; tick boxes and append to its Decisions log in the same commit as the work; update the Status section below at phase gates.
+- Follow `.claude/skills/karpathy-guidelines/SKILL.md` for all code: surface assumptions before coding; write the minimum code that solves the step (nothing speculative); make surgical diffs; frame every task as a verifiable goal and loop until its check passes.
+
 ## Status (as of 2026-08)
 
 Workspace scaffolded — **no algorithms ported yet**. Everything compiles with zero external dependencies; `cargo test` runs a placeholder version test; the wasm facade builds. The crate map is in README.md. Architecture rules the scaffold encodes:
@@ -29,7 +34,7 @@ Workspace scaffolded — **no algorithms ported yet**. Everything compiles with 
 - `rustprop-data` contents come only from `tools/rustprop-datagen` codegen, never hand edits; JSON parsing must stay out of shipped binaries.
 - Workspace lints deny `unsafe_code`; release profile uses fat LTO, `panic = "abort"`, symbol stripping.
 
-Natural next steps: implement `rustprop-datagen` against an upstream v8.0.0 checkout; port the first engine (IF97 is self-contained — no per-fluid JSON data needed); add a `rustprop-wasm` bindings crate and the release pipeline.
+Next work: `PLAN.md` Phase 0 (verification infrastructure — pinned upstream checkout, golden-fixture oracle, test harness).
 
 ## Toolchain
 
