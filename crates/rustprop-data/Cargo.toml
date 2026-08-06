@@ -13,6 +13,11 @@ rustprop-core.workspace = true
 [features]
 default = []
 water = []
+nitrogen = []
+carbondioxide = []
+r134a = []
+n_propane = []
+ammonia = []
 
 [lints]
 workspace = true

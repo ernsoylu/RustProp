@@ -139,6 +139,36 @@ pub enum Alpha0Term {
         /// `.t`
         t: &'static [f64],
     },
+    /// `IdealGasHelmholtzPlanckEinsteinFunctionT` — Planck-Einstein terms
+    /// with frequencies in temperature units; upstream maps
+    /// `theta = -v/Tcrit` and merges into the generalized Planck-Einstein
+    /// container at parse time.
+    PlanckEinsteinFunctionT {
+        /// `.n`
+        n: &'static [f64],
+        /// `.v`
+        v: &'static [f64],
+        /// `.Tcrit`
+        tcrit: f64,
+    },
+    /// `IdealGasHelmholtzEnthalpyEntropyOffset` — `a1 + a2*tau`, the
+    /// document's built-in reference-state offset (upstream slot
+    /// `EnthalpyEntropyOffsetCore`).
+    EnthalpyEntropyOffset {
+        /// `.a1`
+        a1: f64,
+        /// `.a2`
+        a2: f64,
+        /// `.reference`
+        reference: &'static str,
+    },
+    /// `IdealGasHelmholtzPower` — `sum n_k * tau^t_k`
+    Power {
+        /// `.n`
+        n: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+    },
 }
 
 /// `EOS[0].alphar[i]`, tagged by `type`.
@@ -192,6 +222,27 @@ pub enum AlpharTerm {
         big_c: &'static [f64],
         /// `.D`
         big_d: &'static [f64],
+    },
+    /// `ResidualHelmholtzGaoB` (Gao et al. modified-Gaussian terms) —
+    /// `sum n_k * tau^t_k * delta^d_k
+    ///  * exp(eta_k*(delta-epsilon_k)^2 + 1/(beta_k*(tau-gamma_k)^2 + b_k))`
+    GaoB {
+        /// `.n`
+        n: &'static [f64],
+        /// `.t`
+        t: &'static [f64],
+        /// `.d`
+        d: &'static [f64],
+        /// `.eta`
+        eta: &'static [f64],
+        /// `.beta`
+        beta: &'static [f64],
+        /// `.gamma`
+        gamma: &'static [f64],
+        /// `.epsilon`
+        epsilon: &'static [f64],
+        /// `.b`
+        b: &'static [f64],
     },
 }
 

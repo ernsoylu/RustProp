@@ -330,8 +330,192 @@ def gen_heos_water_flash():
     return rows
 
 
+# ---------------------------------------------------------------------------
+# Parameterized HEOS suites (PLAN 4.7): the water suites above stay verbatim
+# so their fixtures remain byte-identical; every further fluid runs the same
+# six suites on grids derived from its own characteristic points (reduced
+# coordinates), queried from the pinned oracle wheel — still deterministic.
+# ---------------------------------------------------------------------------
+
+HEOS_FLUIDS = ["Nitrogen", "CarbonDioxide", "R134a", "n-Propane", "Ammonia"]
+
+TERM_ACCESSORS = [
+    "alphar", "dalphar_dDelta", "dalphar_dTau", "d2alphar_dDelta2",
+    "d2alphar_dDelta_dTau", "d2alphar_dTau2", "d3alphar_dDelta3",
+    "d3alphar_dDelta2_dTau", "d3alphar_dDelta_dTau2", "d3alphar_dTau3",
+    "alpha0", "dalpha0_dDelta", "dalpha0_dTau", "d2alpha0_dDelta2",
+    "d2alpha0_dDelta_dTau", "d2alpha0_dTau2", "d3alpha0_dDelta3",
+    "d3alpha0_dDelta2_dTau", "d3alpha0_dDelta_dTau2", "d3alpha0_dTau3",
+]
+
+PROP_ACCESSORS = ["p", "hmolar", "smolar", "umolar", "cvmolar", "cpmolar",
+                  "speed_sound", "gibbsmolar"]
+
+
+def module_name(fluid):
+    """Mirror of rustprop-datagen's module_name: `n-Propane` -> `n_propane`."""
+    s = "".join(c.lower() if c.isalnum() else "_" for c in fluid)
+    return ("_" + s) if s[0].isdigit() else s
+
+
+def gen_heos_fluid_suites(fluid):
+    """All six HEOS suites for one fluid; returns {suite: rows}."""
+    hf = f"HEOS::{fluid}"
+    Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+    Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+    pc = PropsSI("pcrit", "", 0, "", 0, hf)
+    pt = PropsSI("ptriple", "", 0, "", 0, hf)
+    rhoc = PropsSI("rhomolar_critical", "", 0, "", 0, hf)
+
+    def TL(x):
+        return Tt + x * (Tc - Tt)
+
+    def psat(T):
+        return PropsSI("P", "T", T, "Q", 1, hf)
+
+    def rhoL(T):
+        return PropsSI("Dmolar", "T", T, "Q", 0, hf)
+
+    def rhoV(T):
+        return PropsSI("Dmolar", "T", T, "Q", 1, hf)
+
+    def rho_mix(T, q):
+        # Backend two-phase density: inverse-volume mixing of the sat curves.
+        return 1.0 / (q / rhoV(T) + (1.0 - q) / rhoL(T))
+
+    def prop(out, n1, v1, n2, v2):
+        return PropsSI(out, n1, v1, n2, v2, hf)
+
+    suites = {}
+
+    # -- terms + props: shared single-phase (T, rhomolar) grid ---------------
+    grid = ([(TL(x), 1.02 * rhoL(TL(x))) for x in (0.1, 0.3, 0.5, 0.98)]
+            + [(TL(x), 0.98 * rhoV(TL(x))) for x in (0.3, 0.5, 0.7, 0.85, 0.98)]
+            + [(1.05 * Tc, 1.05 * rhoc), (1.02 * Tc, 0.9 * rhoc),
+               (1.2 * Tc, 2.0 * rhoc), (1.5 * Tc, 0.3 * rhoc)])
+    state = CP.AbstractState("HEOS", fluid)
+    term_rows, prop_rows = [], []
+    for (t, rho) in grid:
+        state.update(CP.DmolarT_INPUTS, rho, t)
+        for name in TERM_ACCESSORS:
+            term_rows.append({"fluid": fluid, "t": t, "rhomolar": rho,
+                              "out": name, "expected": getattr(state, name)()})
+        for name in PROP_ACCESSORS:
+            prop_rows.append({"fluid": fluid, "t": t, "rhomolar": rho,
+                              "out": name, "expected": getattr(state, name)()})
+    suites["terms"] = term_rows
+    suites["props"] = prop_rows
+
+    # -- classic ancillaries -------------------------------------------------
+    anc_rows = []
+    for x in (0.02, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98):
+        t = TL(x)
+        for (out, q) in [("P", 1), ("Dmolar", 0), ("Dmolar", 1)]:
+            anc_rows.append({"fluid": fluid, "t": t, "out": out, "q": q,
+                             "expected": CP.saturation_ancillary(fluid, out, q, "T", t)})
+    suites["ancillary"] = anc_rows
+
+    # -- saturation (QT / PQ at Q = 0/1) -------------------------------------
+    rows, skipped = [], 0
+    for x in (0.01, 0.1, 0.25, 0.4, 0.55, 0.7, 0.8, 0.9, 0.95, 0.98, 0.995, 0.999):
+        for q in [0.0, 1.0]:
+            for out in ["P", "Dmolar", "Hmolar", "Smolar", "Umolar", "Cpmolar", "A"]:
+                r = try_record(out, "T", TL(x), "Q", q, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+    for y in (0.05, 0.2, 0.4, 0.6, 0.75, 0.85, 0.92, 0.97, 0.99, 0.995):
+        p_ = pt * (pc / pt) ** y
+        for q in [0.0, 1.0]:
+            for out in ["T", "Dmolar", "Hmolar", "Smolar", "Umolar"]:
+                r = try_record(out, "P", p_, "Q", q, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+    print(f"{fluid} sat: {len(rows)} records, {skipped} rejected")
+    suites["sat"] = rows
+
+    # -- PT flashes ----------------------------------------------------------
+    pts = ([(TL(x), 2.5 * psat(TL(x))) for x in (0.1, 0.3, 0.5, 0.7, 0.9)]
+           + [(TL(x), 0.5 * psat(TL(x))) for x in (0.15, 0.35, 0.55, 0.75, 0.9)]
+           + [(TL(0.5), 1.2 * pt)]
+           + [(1.05 * Tc, 1.5 * pc), (1.02 * Tc, 1.02 * pc),
+              (1.2 * Tc, 0.5 * pc), (1.5 * Tc, 0.9 * pc),
+              (0.995 * Tc, 2.0 * pc), (TL(0.3), 1.5 * pc), (TL(0.6), 3.0 * pc)])
+    rows, skipped = [], 0
+    for (t, p_) in pts:
+        for out in ["Dmolar", "Hmolar", "Smolar", "Cpmolar", "A"]:
+            r = try_record(out, "T", t, "P", p_, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    print(f"{fluid} pt: {len(rows)} records, {skipped} rejected")
+    suites["pt"] = rows
+
+    # -- flash pairs ---------------------------------------------------------
+    rows, skipped = [], 0
+    for x in (0.15, 0.4, 0.65, 0.85, 0.95):
+        for q in [0.25, 0.5, 0.75]:
+            for out in ["P", "Dmolar", "Hmolar", "Smolar", "Umolar"]:
+                r = try_record(out, "T", TL(x), "Q", q, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+    for y in (0.2, 0.5, 0.75, 0.9, 0.97):
+        p_ = pt * (pc / pt) ** y
+        for q in [0.3, 0.7]:
+            for out in ["T", "Dmolar", "Hmolar", "Smolar", "Umolar"]:
+                r = try_record(out, "P", p_, "Q", q, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+    dt_points = [(1.03 * rhoL(TL(0.2)), TL(0.2)), (0.5 * rhoV(TL(0.5)), TL(0.5)),
+                 (1.5 * rhoc, 1.1 * Tc), (rho_mix(TL(0.5), 0.5), TL(0.5)),
+                 (rho_mix(TL(0.85), 0.2), TL(0.85)), (0.3 * rhoc, 1.05 * Tc),
+                 (rhoc, TL(0.98)), (0.8 * rhoc, 1.3 * Tc)]
+    for (rho, t) in dt_points:
+        for out in ["P", "Hmolar", "Smolar", "Q"]:
+            r = try_record(out, "Dmolar", rho, "T", t, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    T_liq, T_gas, T_mid = TL(0.2), TL(0.9), TL(0.6)
+    p_liq, p_gas, p_mid = 2.5 * psat(T_liq), 0.5 * psat(T_gas), 2.0 * psat(T_mid)
+    p_2ph_mid, p_2ph_hi = psat(TL(0.5)), psat(TL(0.9))
+    xp_pairs = [
+        (("T", T_liq, "P", p_liq), p_liq),
+        (("P", p_2ph_mid, "Q", 0.4), p_2ph_mid),
+        (("P", p_2ph_hi, "Q", 0.7), p_2ph_hi),
+        (("T", T_gas, "P", p_gas), p_gas),
+        (("T", 1.2 * Tc, "P", 1.5 * pc), 1.5 * pc),
+        (("T", 0.995 * Tc, "P", 2.0 * pc), 2.0 * pc),
+        (("T", 1.3 * Tc, "P", 0.5 * pc), 0.5 * pc),
+        (("T", T_mid, "P", p_mid), p_mid),
+    ]
+    for (src, p_) in xp_pairs:
+        h = prop("Hmolar", *src)
+        for out in ["T", "Dmolar", "Smolar", "Q"]:
+            r = try_record(out, "Hmolar", h, "P", p_, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    for (src, p_) in xp_pairs:
+        s_ = prop("Smolar", *src)
+        for out in ["T", "Dmolar", "Hmolar", "Q"]:
+            r = try_record(out, "P", p_, "Smolar", s_, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    dp_pairs = [
+        (1.03 * rhoL(TL(0.2)), 2.5 * psat(TL(0.2))),
+        (rho_mix(TL(0.5), 0.5), psat(TL(0.5))),
+        (rho_mix(TL(0.9), 0.3), psat(TL(0.9))),
+        (0.5 * rhoV(TL(0.5)), 0.45 * psat(TL(0.5))),
+        (1.5 * rhoc, 2.0 * pc),
+        (0.3 * rhoc, 0.6 * pc),
+        (1.05 * rhoc, 1.05 * pc),
+        (2.0 * rhoc, 1.5 * pc),
+    ]
+    for (rho, p_) in dp_pairs:
+        for out in ["T", "Hmolar", "Smolar", "Q"]:
+            r = try_record(out, "Dmolar", rho, "P", p_, "HEOS", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+    print(f"{fluid} flash: {len(rows)} records, {skipped} rejected")
+    suites["flash"] = rows
+
+    return suites
+
+
+WRITTEN = []
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
+    WRITTEN.append(name)
     print(f"wrote {len(rows):4d} records -> {name}")
 
 # Tiny HEOS::Water smoke set proving generator + harness plumbing (PLAN 0.4).
@@ -376,6 +560,10 @@ def main():
     write_jsonl("heos_water_sat.jsonl", gen_heos_water_sat())
     write_jsonl("heos_water_pt.jsonl", gen_heos_water_pt())
     write_jsonl("heos_water_flash.jsonl", gen_heos_water_flash())
+    for fluid in HEOS_FLUIDS:
+        module = module_name(fluid)
+        for suite, rows in gen_heos_fluid_suites(fluid).items():
+            write_jsonl(f"heos_{module}_{suite}.jsonl", rows)
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
@@ -386,19 +574,7 @@ def main():
         "coolprop_version": CoolProp.__version__,
         "upstream_tag": "v8.0.0",
         "platform": f"{platform.system()}-{platform.machine()}",
-        "files": [
-            "heos_water_ancillary.jsonl",
-            "heos_water_flash.jsonl",
-            "heos_water_props.jsonl",
-            "heos_water_pt.jsonl",
-            "heos_water_sat.jsonl",
-            "heos_water_terms.jsonl",
-            "if97_water.jsonl",
-            "param_aliases.jsonl",
-            "parameters.jsonl",
-            "phases.jsonl",
-            "water_propssi_smoke.jsonl",
-        ],
+        "files": sorted(WRITTEN),
     }
     (FIXTURES / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 

@@ -131,6 +131,17 @@ enum Alpha0Json {
     LogTau { a: f64 },
     #[serde(rename = "IdealGasHelmholtzPlanckEinstein")]
     PlanckEinstein { n: Vec<f64>, t: Vec<f64> },
+    #[serde(rename = "IdealGasHelmholtzPlanckEinsteinFunctionT")]
+    PlanckEinsteinFunctionT {
+        n: Vec<f64>,
+        v: Vec<f64>,
+        #[serde(rename = "Tcrit")]
+        tcrit: f64,
+    },
+    #[serde(rename = "IdealGasHelmholtzEnthalpyEntropyOffset")]
+    EnthalpyEntropyOffset { a1: f64, a2: f64, reference: String },
+    #[serde(rename = "IdealGasHelmholtzPower")]
+    Power { n: Vec<f64>, t: Vec<f64> },
 }
 
 #[derive(Deserialize)]
@@ -167,6 +178,17 @@ enum AlpharJson {
         big_c: Vec<f64>,
         #[serde(rename = "D")]
         big_d: Vec<f64>,
+    },
+    #[serde(rename = "ResidualHelmholtzGaoB")]
+    GaoB {
+        n: Vec<f64>,
+        t: Vec<f64>,
+        d: Vec<f64>,
+        eta: Vec<f64>,
+        beta: Vec<f64>,
+        gamma: Vec<f64>,
+        epsilon: Vec<f64>,
+        b: Vec<f64>,
     },
 }
 
@@ -381,6 +403,35 @@ fn emit(doc: &Doc, source_file: &str) -> String {
                 )
                 .unwrap();
             }
+            Alpha0Json::PlanckEinsteinFunctionT { n, v, tcrit } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::PlanckEinsteinFunctionT {{ n: {}, v: {}, tcrit: {} }},",
+                    slice(n),
+                    slice(v),
+                    f(*tcrit)
+                )
+                .unwrap();
+            }
+            Alpha0Json::EnthalpyEntropyOffset { a1, a2, reference } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::EnthalpyEntropyOffset {{ a1: {}, a2: {}, reference: {:?} }},",
+                    f(*a1),
+                    f(*a2),
+                    reference
+                )
+                .unwrap();
+            }
+            Alpha0Json::Power { n, t } => {
+                writeln!(
+                    w,
+                    "            Alpha0Term::Power {{ n: {}, t: {} }},",
+                    slice(n),
+                    slice(t)
+                )
+                .unwrap();
+            }
         }
     }
     writeln!(w, "        ],").unwrap();
@@ -428,6 +479,23 @@ fn emit(doc: &Doc, source_file: &str) -> String {
                     w,
                     "            AlpharTerm::NonAnalytic {{ n: {}, a: {}, b: {}, beta: {}, big_a: {}, big_b: {}, big_c: {}, big_d: {} }},",
                     slice(n), slice(a), slice(b), slice(beta), slice(big_a), slice(big_b), slice(big_c), slice(big_d)
+                )
+                .unwrap();
+            }
+            AlpharJson::GaoB {
+                n,
+                t,
+                d,
+                eta,
+                beta,
+                gamma,
+                epsilon,
+                b,
+            } => {
+                writeln!(
+                    w,
+                    "            AlpharTerm::GaoB {{ n: {}, t: {}, d: {}, eta: {}, beta: {}, gamma: {}, epsilon: {}, b: {} }},",
+                    slice(n), slice(t), slice(d), slice(eta), slice(beta), slice(gamma), slice(epsilon), slice(b)
                 )
                 .unwrap();
             }

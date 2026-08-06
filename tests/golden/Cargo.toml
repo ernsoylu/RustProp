@@ -11,7 +11,14 @@ repository.workspace = true
 [dependencies]
 rustprop = { workspace = true, features = ["if97"] }
 rustprop-core.workspace = true
-rustprop-data = { workspace = true, features = ["water"] }
+rustprop-data = { workspace = true, features = [
+    "water",
+    "nitrogen",
+    "carbondioxide",
+    "r134a",
+    "n_propane",
+    "ammonia",
+] }
 rustprop-heos.workspace = true
 serde.workspace = true
 serde_json.workspace = true

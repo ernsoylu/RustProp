@@ -1,18 +1,25 @@
-//! Helmholtz-energy term evaluation (PLAN.md 4.1) — port of the term
+//! Helmholtz-energy term evaluation (PLAN.md 4.1/4.7) — port of the term
 //! machinery in `include/CoolProp/fluids/Helmholtz.h` + `src/Helmholtz.cpp`
-//! @ v8.0.0 for the families Water uses:
+//! @ v8.0.0 for the families the ported fluids use:
 //!
 //! - residual: `ResidualHelmholtzGeneralizedExponential` (Power and Gaussian
 //!   JSON terms convert into it exactly as upstream `add_Power`/`add_Gaussian`
-//!   do) and `ResidualHelmholtzNonAnalytic`;
-//! - ideal-gas: `IdealHelmholtzLead`, `IdealHelmholtzLogTau`, and
-//!   `IdealHelmholtzPlanckEinsteinGeneralized` (JSON `PlanckEinstein` maps
-//!   with `theta = -t`, `c = 1`, `d = -1`, as in upstream FluidLibrary.h).
+//!   do), `ResidualHelmholtzNonAnalytic`, and `ResidualHelmholtzGaoB`;
+//! - ideal-gas: `IdealHelmholtzLead`, `IdealHelmholtzEnthalpyEntropyOffset`
+//!   (the document's `EnthalpyEntropyOffsetCore` slot), `IdealHelmholtzLogTau`,
+//!   `IdealHelmholtzPower`, and `IdealHelmholtzPlanckEinsteinGeneralized`
+//!   (JSON `PlanckEinstein` maps with `theta = -t`, `c = 1`, `d = -1`; JSON
+//!   `PlanckEinsteinFunctionT` with `theta = -v/Tcrit`, `c = 1`, `d = -1`,
+//!   as in upstream FluidLibrary.h; both extend one merged container).
 //!
-//! Evaluation order mirrors `ResidualHelmholtzContainer::all`: GenExp writes
-//! into a fresh accumulator and applies its trailing 1/delta, 1/tau scalings
-//! while only its own sums are present; NonAnalytic then adds its
-//! already-scaled contributions. Floating-point operation order is kept
+//! Evaluation order mirrors the upstream containers: GenExp writes into a
+//! fresh accumulator and applies its trailing 1/delta, 1/tau scalings while
+//! only its own sums are present; NonAnalytic then GaoB add their
+//! already-scaled contributions (`ResidualHelmholtzContainer::all` order).
+//! Ideal terms evaluate in the container's fixed member order — Lead,
+//! EnthalpyEntropyOffsetCore, LogTau, Power, PlanckEinstein — NOT JSON
+//! document order; the sums share accumulator fields, so term order is part
+//! of the floating-point result. Floating-point operation order is kept
 //! line-for-line, including upstream's sequential-multiply `powInt`.
 
 use rustprop_core::fluid::{Alpha0Term, AlpharTerm};
@@ -645,69 +652,317 @@ fn non_analytic_all(
 }
 
 // ---------------------------------------------------------------------------
+// Residual: GaoB (Gao et al. modified-Gaussian terms)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy)]
+struct GaoBElement {
+    n: f64,
+    t: f64,
+    d: f64,
+    eta: f64,
+    beta: f64,
+    gamma: f64,
+    epsilon: f64,
+    b: f64,
+}
+
+/// Upstream `ResidualHelmholtzGaoB::all`, ported line-for-line (the tau/delta
+/// factor derivatives `tau^k d^k F_tau/d tau^k` etc. keep upstream's exact
+/// expression trees, `pow` maps to `powf`, `POWn` macros to the `pown`
+/// helpers).
+#[allow(clippy::too_many_lines)]
+fn gaob_all(elements: &[GaoBElement], tau: f64, delta: f64, derivs: &mut HelmholtzDerivs) {
+    for el in elements {
+        let (n, t, d, eta, beta, gamma, epsilon, b) = (
+            el.n, el.t, el.d, el.eta, el.beta, el.gamma, el.epsilon, el.b,
+        );
+
+        let ftau = tau.powf(t) * (1.0 / (b + beta * (-gamma + tau).powf(2.0))).exp();
+        let fdelta = delta.powf(d) * (eta * (delta - epsilon).powf(2.0)).exp();
+        let taudftaudtau = (2.0 * beta * tau.powf(t + 1.0) * (gamma - tau)
+            + t * tau.powf(t) * (b + beta * (gamma - tau).powf(2.0)).powf(2.0))
+            * (1.0 / (b + beta * (gamma - tau).powf(2.0))).exp()
+            / (b + beta * (gamma - tau).powf(2.0)).powf(2.0);
+        let tau2d2ftaudtau2 = tau.powf(t)
+            * (4.0
+                * beta
+                * t
+                * tau
+                * (b + beta * (gamma - tau).powf(2.0)).powf(2.0)
+                * (gamma - tau)
+                + 2.0
+                    * beta
+                    * tau.powf(2.0)
+                    * (4.0
+                        * beta
+                        * (b + beta * (gamma - tau).powf(2.0))
+                        * (gamma - tau).powf(2.0)
+                        + 2.0 * beta * (gamma - tau).powf(2.0)
+                        - (b + beta * (gamma - tau).powf(2.0)).powf(2.0))
+                + t * (b + beta * (gamma - tau).powf(2.0)).powf(4.0) * (t - 1.0))
+            * (1.0 / (b + beta * (gamma - tau).powf(2.0))).exp()
+            / (b + beta * (gamma - tau).powf(2.0)).powf(4.0);
+        let tau3d3ftaudtau3 = tau.powf(t)
+            * (4.0
+                * beta.powf(2.0)
+                * tau.powf(3.0)
+                * (gamma - tau)
+                * (12.0 * beta * (b + beta * (gamma - tau).powf(2.0)) * (gamma - tau).powf(2.0)
+                    + 2.0 * beta * (gamma - tau).powf(2.0)
+                    - 6.0 * (b + beta * (gamma - tau).powf(2.0)).powf(3.0)
+                    + (b + beta * (gamma - tau).powf(2.0)).powf(2.0)
+                        * (12.0 * beta * (gamma - tau).powf(2.0) - 3.0))
+                + 6.0
+                    * beta
+                    * t
+                    * tau.powf(2.0)
+                    * (b + beta * (gamma - tau).powf(2.0)).powf(2.0)
+                    * (4.0
+                        * beta
+                        * (b + beta * (gamma - tau).powf(2.0))
+                        * (gamma - tau).powf(2.0)
+                        + 2.0 * beta * (gamma - tau).powf(2.0)
+                        - (b + beta * (gamma - tau).powf(2.0)).powf(2.0))
+                + 6.0
+                    * beta
+                    * t
+                    * tau
+                    * (b + beta * (gamma - tau).powf(2.0)).powf(4.0)
+                    * (gamma - tau)
+                    * (t - 1.0)
+                + t * (b + beta * (gamma - tau).powf(2.0)).powf(6.0)
+                    * (t.powf(2.0) - 3.0 * t + 2.0))
+            * (1.0 / (b + beta * (gamma - tau).powf(2.0))).exp()
+            / (b + beta * (gamma - tau).powf(2.0)).powf(6.0);
+        let tau4d4ftaudtau4 = tau.powf(t)
+            * (16.0
+                * beta.powf(2.0)
+                * t
+                * tau.powf(3.0)
+                * (b + beta * (gamma - tau).powf(2.0)).powf(2.0)
+                * (gamma - tau)
+                * (12.0 * beta * (b + beta * (gamma - tau).powf(2.0)) * (gamma - tau).powf(2.0)
+                    + 2.0 * beta * (gamma - tau).powf(2.0)
+                    - 6.0 * (b + beta * (gamma - tau).powf(2.0)).powf(3.0)
+                    + (b + beta * (gamma - tau).powf(2.0)).powf(2.0)
+                        * (12.0 * beta * (gamma - tau).powf(2.0) - 3.0))
+                + beta.powf(2.0)
+                    * tau.powf(4.0)
+                    * (beta.powf(2.0)
+                        * (192.0 * b + 192.0 * beta * (gamma - tau).powf(2.0))
+                        * (gamma - tau).powf(4.0)
+                        + 16.0 * beta.powf(2.0) * (gamma - tau).powf(4.0)
+                        + 96.0
+                            * beta
+                            * (b + beta * (gamma - tau).powf(2.0)).powf(3.0)
+                            * (gamma - tau).powf(2.0)
+                            * (4.0 * beta * (gamma - tau).powf(2.0) - 3.0)
+                        + 48.0
+                            * beta
+                            * (b + beta * (gamma - tau).powf(2.0)).powf(2.0)
+                            * (gamma - tau).powf(2.0)
+                            * (12.0 * beta * (gamma - tau).powf(2.0) - 1.0)
+                        + 24.0 * (b + beta * (gamma - tau).powf(2.0)).powf(5.0)
+                        + (b + beta * (gamma - tau).powf(2.0)).powf(4.0)
+                            * (-288.0 * beta * (gamma - tau).powf(2.0) + 12.0))
+                + 12.0
+                    * beta
+                    * t
+                    * tau.powf(2.0)
+                    * (b + beta * (gamma - tau).powf(2.0)).powf(4.0)
+                    * (t - 1.0)
+                    * (4.0
+                        * beta
+                        * (b + beta * (gamma - tau).powf(2.0))
+                        * (gamma - tau).powf(2.0)
+                        + 2.0 * beta * (gamma - tau).powf(2.0)
+                        - (b + beta * (gamma - tau).powf(2.0)).powf(2.0))
+                + 8.0
+                    * beta
+                    * t
+                    * tau
+                    * (b + beta * (gamma - tau).powf(2.0)).powf(6.0)
+                    * (gamma - tau)
+                    * (t.powf(2.0) - 3.0 * t + 2.0)
+                + t * (b + beta * (gamma - tau).powf(2.0)).powf(8.0)
+                    * (t.powf(3.0) - 6.0 * t.powf(2.0) + 11.0 * t - 6.0))
+            * (1.0 / (b + beta * (gamma - tau).powf(2.0))).exp()
+            / (b + beta * (gamma - tau).powf(2.0)).powf(8.0);
+        let deltadfdeltaddelta = (d * delta.powf(d)
+            + 2.0 * delta.powf(d + 1.0) * eta * (delta - epsilon))
+            * (eta * (delta - epsilon).powf(2.0)).exp();
+        let delta2d2fdeltaddelta2 = delta.powf(d)
+            * (4.0 * d * delta * eta * (delta - epsilon)
+                + d * (d - 1.0)
+                + 2.0 * delta.powf(2.0) * eta * (2.0 * eta * (delta - epsilon).powf(2.0) + 1.0))
+            * (eta * (delta - epsilon).powf(2.0)).exp();
+        let delta3d3fdeltaddelta3 = delta.powf(d)
+            * (6.0 * d * delta.powf(2.0) * eta * (2.0 * eta * (delta - epsilon).powf(2.0) + 1.0)
+                + 6.0 * d * delta * eta * (d - 1.0) * (delta - epsilon)
+                + d * (d.powf(2.0) - 3.0 * d + 2.0)
+                + 4.0
+                    * delta.powf(3.0)
+                    * eta.powf(2.0)
+                    * (delta - epsilon)
+                    * (2.0 * eta * (delta - epsilon).powf(2.0) + 3.0))
+            * (eta * (delta - epsilon).powf(2.0)).exp();
+        let delta4d4fdeltaddelta4 = delta.powf(d)
+            * (16.0
+                * d
+                * delta.powf(3.0)
+                * eta.powf(2.0)
+                * (delta - epsilon)
+                * (2.0 * eta * (delta - epsilon).powf(2.0) + 3.0)
+                + 12.0
+                    * d
+                    * delta.powf(2.0)
+                    * eta
+                    * (d - 1.0)
+                    * (2.0 * eta * (delta - epsilon).powf(2.0) + 1.0)
+                + 8.0 * d * delta * eta * (delta - epsilon) * (d.powf(2.0) - 3.0 * d + 2.0)
+                + d * (d.powf(3.0) - 6.0 * d.powf(2.0) + 11.0 * d - 6.0)
+                + delta.powf(4.0)
+                    * eta.powf(2.0)
+                    * (16.0 * eta.powf(2.0) * (delta - epsilon).powf(4.0)
+                        + 48.0 * eta * (delta - epsilon).powf(2.0)
+                        + 12.0))
+            * (eta * (delta - epsilon).powf(2.0)).exp();
+
+        derivs.d00 += n * ftau * fdelta;
+
+        derivs.d10 += n * ftau * deltadfdeltaddelta / delta;
+        derivs.d01 += n * fdelta * taudftaudtau / tau;
+
+        derivs.d20 += n * ftau * delta2d2fdeltaddelta2 / pow2(delta);
+        derivs.d11 += n * taudftaudtau * deltadfdeltaddelta / tau / delta;
+        derivs.d02 += n * fdelta * tau2d2ftaudtau2 / pow2(tau);
+
+        derivs.d30 += n * ftau * delta3d3fdeltaddelta3 / pow3(delta);
+        derivs.d21 += n * taudftaudtau * delta2d2fdeltaddelta2 / pow2(delta) / tau;
+        derivs.d12 += n * tau2d2ftaudtau2 * deltadfdeltaddelta / pow2(tau) / delta;
+        derivs.d03 += n * fdelta * tau3d3ftaudtau3 / pow3(tau);
+
+        derivs.d40 += n * ftau * delta4d4fdeltaddelta4 / pow4(delta);
+        derivs.d31 += n * taudftaudtau * delta3d3fdeltaddelta3 / pow3(delta) / tau;
+        derivs.d22 += n * tau2d2ftaudtau2 * delta2d2fdeltaddelta2 / pow2(delta) / pow2(tau);
+        derivs.d13 += n * tau3d3ftaudtau3 * deltadfdeltaddelta / pow3(tau) / delta;
+        derivs.d04 += n * fdelta * tau4d4ftaudtau4 / pow4(tau);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Ideal-gas terms
 // ---------------------------------------------------------------------------
 
-enum IdealTerm {
-    /// `IdealHelmholtzLead`: `a1 + a2*tau + ln(delta)`
-    Lead { a1: f64, a2: f64 },
-    /// `IdealHelmholtzLogTau`: `a1*ln(tau)`
-    LogTau { a1: f64 },
-    /// `IdealHelmholtzPlanckEinsteinGeneralized`:
-    /// `sum n_i*ln(c_i + d_i*exp(theta_i*tau))`
-    PlanckEinsteinGeneralized {
-        n: Vec<f64>,
-        theta: Vec<f64>,
-        c: Vec<f64>,
-        d: Vec<f64>,
-    },
+/// Contents of the single merged `IdealHelmholtzPlanckEinsteinGeneralized`
+/// slot; both `PlanckEinstein` and `PlanckEinsteinFunctionT` JSON terms land
+/// here in document order, as upstream's parse-time `extend`.
+#[derive(Default)]
+struct PlanckEinsteinGen {
+    n: Vec<f64>,
+    theta: Vec<f64>,
+    c: Vec<f64>,
+    d: Vec<f64>,
 }
 
-fn ideal_all(terms: &[IdealTerm], tau: f64, delta: f64, derivs: &mut HelmholtzDerivs) {
-    for term in terms {
-        match term {
-            IdealTerm::Lead { a1, a2 } => {
-                derivs.d00 += delta.ln() + a1 + a2 * tau;
-                derivs.d10 += 1.0 / delta;
-                derivs.d01 += *a2;
-                derivs.d20 += -1.0 / delta / delta;
-                derivs.d30 += 2.0 / delta / delta / delta;
-                derivs.d40 += -6.0 / pow4(delta);
+/// Upstream `IdealHelmholtzContainer`, restricted to the slots the ported
+/// fluids use. `all()` evaluates in the container's fixed member order (see
+/// module docs) — sums share accumulator fields, so this order is part of
+/// the floating-point result.
+#[derive(Default)]
+struct IdealContainer {
+    /// `IdealHelmholtzLead`: `a1 + a2*tau + ln(delta)`
+    lead: Option<(f64, f64)>,
+    /// `IdealHelmholtzEnthalpyEntropyOffset` (the Core slot): `a1 + a2*tau`
+    offset_core: Option<(f64, f64)>,
+    /// `IdealHelmholtzLogTau`: `a1*ln(tau)`
+    log_tau: Option<f64>,
+    /// `IdealHelmholtzPower`: `sum n_i*tau^t_i` — `(n, t)`
+    power: Option<(Vec<f64>, Vec<f64>)>,
+    /// `IdealHelmholtzPlanckEinsteinGeneralized`:
+    /// `sum n_i*ln(c_i + d_i*exp(theta_i*tau))`
+    planck_einstein: Option<PlanckEinsteinGen>,
+}
+
+impl IdealContainer {
+    fn all(&self, tau: f64, delta: f64, derivs: &mut HelmholtzDerivs) {
+        if let Some((a1, a2)) = self.lead {
+            derivs.d00 += delta.ln() + a1 + a2 * tau;
+            derivs.d10 += 1.0 / delta;
+            derivs.d01 += a2;
+            derivs.d20 += -1.0 / delta / delta;
+            derivs.d30 += 2.0 / delta / delta / delta;
+            derivs.d40 += -6.0 / pow4(delta);
+        }
+        if let Some((a1, a2)) = self.offset_core {
+            derivs.d00 += a1 + a2 * tau;
+            derivs.d01 += a2;
+        }
+        if let Some(a1) = self.log_tau {
+            derivs.d00 += a1 * tau.ln();
+            derivs.d01 += a1 / tau;
+            derivs.d02 += -a1 / tau / tau;
+            derivs.d03 += 2.0 * a1 / tau / tau / tau;
+            derivs.d04 += -6.0 * a1 / pow4(tau);
+        }
+        if let Some((n, t)) = &self.power {
+            // Upstream `IdealHelmholtzPower::all`: one fresh sum per
+            // derivative order.
+            let mut s = 0.0;
+            for i in 0..n.len() {
+                s += n[i] * tau.powf(t[i]);
             }
-            IdealTerm::LogTau { a1 } => {
-                derivs.d00 += a1 * tau.ln();
-                derivs.d01 += a1 / tau;
-                derivs.d02 += -a1 / tau / tau;
-                derivs.d03 += 2.0 * a1 / tau / tau / tau;
-                derivs.d04 += -6.0 * a1 / pow4(tau);
+            derivs.d00 += s;
+            let mut s = 0.0;
+            for i in 0..n.len() {
+                s += n[i] * t[i] * tau.powf(t[i] - 1.0);
             }
-            IdealTerm::PlanckEinsteinGeneralized { n, theta, c, d } => {
-                let (mut s00, mut s01, mut s02, mut s03, mut s04) = (0.0, 0.0, 0.0, 0.0, 0.0);
-                for i in 0..n.len() {
-                    let expthetataui = (theta[i] * tau).exp();
-                    let para = c[i] + d[i] * expthetataui;
-                    s00 += n[i] * para.ln();
-                    s01 += n[i] * theta[i] * d[i] * expthetataui / para;
-                    s02 += n[i] * pow2(theta[i]) * c[i] * d[i] * expthetataui / pow2(para);
-                    s03 += n[i]
-                        * pow3(theta[i])
-                        * c[i]
-                        * d[i]
-                        * (c[i] - d[i] * expthetataui)
-                        * expthetataui
-                        / pow3(para);
-                    let bracket = 6.0 * pow3(d[i]) * pow3(expthetataui)
-                        - 12.0 * d[i] * d[i] * para * pow2(expthetataui)
-                        + 7.0 * d[i] * pow2(para) * expthetataui
-                        - pow3(para);
-                    s04 += -n[i] * d[i] * pow4(theta[i]) * bracket * expthetataui / pow4(para);
-                }
-                derivs.d00 += s00;
-                derivs.d01 += s01;
-                derivs.d02 += s02;
-                derivs.d03 += s03;
-                derivs.d04 += s04;
+            derivs.d01 += s;
+            let mut s = 0.0;
+            for i in 0..n.len() {
+                s += n[i] * t[i] * (t[i] - 1.0) * tau.powf(t[i] - 2.0);
             }
+            derivs.d02 += s;
+            let mut s = 0.0;
+            for i in 0..n.len() {
+                s += n[i] * t[i] * (t[i] - 1.0) * (t[i] - 2.0) * tau.powf(t[i] - 3.0);
+            }
+            derivs.d03 += s;
+            let mut s = 0.0;
+            for i in 0..n.len() {
+                s +=
+                    n[i] * t[i] * (t[i] - 1.0) * (t[i] - 2.0) * (t[i] - 3.0) * tau.powf(t[i] - 4.0);
+            }
+            derivs.d04 += s;
+        }
+        if let Some(pe) = &self.planck_einstein {
+            let (n, theta, c, d) = (&pe.n, &pe.theta, &pe.c, &pe.d);
+            let (mut s00, mut s01, mut s02, mut s03, mut s04) = (0.0, 0.0, 0.0, 0.0, 0.0);
+            for i in 0..n.len() {
+                let expthetataui = (theta[i] * tau).exp();
+                let para = c[i] + d[i] * expthetataui;
+                s00 += n[i] * para.ln();
+                s01 += n[i] * theta[i] * d[i] * expthetataui / para;
+                s02 += n[i] * pow2(theta[i]) * c[i] * d[i] * expthetataui / pow2(para);
+                s03 += n[i]
+                    * pow3(theta[i])
+                    * c[i]
+                    * d[i]
+                    * (c[i] - d[i] * expthetataui)
+                    * expthetataui
+                    / pow3(para);
+                let bracket = 6.0 * pow3(d[i]) * pow3(expthetataui)
+                    - 12.0 * d[i] * d[i] * para * pow2(expthetataui)
+                    + 7.0 * d[i] * pow2(para) * expthetataui
+                    - pow3(para);
+                s04 += -n[i] * d[i] * pow4(theta[i]) * bracket * expthetataui / pow4(para);
+            }
+            derivs.d00 += s00;
+            derivs.d01 += s01;
+            derivs.d02 += s02;
+            derivs.d03 += s03;
+            derivs.d04 += s04;
         }
     }
 }
@@ -721,7 +976,8 @@ fn ideal_all(terms: &[IdealTerm], tau: f64, delta: f64, derivs: &mut HelmholtzDe
 pub struct HelmholtzEos {
     genexp: GenExp,
     non_analytic: Vec<NonAnalyticElement>,
-    ideal: Vec<IdealTerm>,
+    gaob: Vec<GaoBElement>,
+    ideal: IdealContainer,
     /// `EOS[0].STATES.reducing.T` [K]
     pub t_reducing: f64,
     /// `EOS[0].STATES.reducing.rhomolar` [mol/m^3]
@@ -736,6 +992,7 @@ impl HelmholtzEos {
     pub fn new(fluid: &rustprop_core::fluid::FluidData) -> Self {
         let mut genexp = GenExp::new();
         let mut non_analytic = Vec::new();
+        let mut gaob = Vec::new();
         for term in fluid.eos.alphar {
             match term {
                 AlpharTerm::Power { n, d, t, l } => genexp.add_power(n, d, t, l),
@@ -773,32 +1030,76 @@ impl HelmholtzEos {
                         });
                     }
                 }
+                AlpharTerm::GaoB {
+                    n,
+                    t,
+                    d,
+                    eta,
+                    beta,
+                    gamma,
+                    epsilon,
+                    b,
+                } => {
+                    for i in 0..n.len() {
+                        gaob.push(GaoBElement {
+                            n: n[i],
+                            t: t[i],
+                            d: d[i],
+                            eta: eta[i],
+                            beta: beta[i],
+                            gamma: gamma[i],
+                            epsilon: epsilon[i],
+                            b: b[i],
+                        });
+                    }
+                }
             }
         }
         genexp.finish();
 
-        let ideal = fluid
-            .eos
-            .alpha0
-            .iter()
-            .map(|term| match term {
-                Alpha0Term::Lead { a1, a2 } => IdealTerm::Lead { a1: *a1, a2: *a2 },
-                Alpha0Term::LogTau { a } => IdealTerm::LogTau { a1: *a },
-                Alpha0Term::PlanckEinstein { n, t } => {
-                    // Upstream FluidLibrary.h: flip the sign of theta; c = 1, d = -1.
-                    IdealTerm::PlanckEinsteinGeneralized {
-                        n: n.to_vec(),
-                        theta: t.iter().map(|v| -v).collect(),
-                        c: vec![1.0; n.len()],
-                        d: vec![-1.0; n.len()],
+        let mut ideal = IdealContainer::default();
+        for term in fluid.eos.alpha0 {
+            match term {
+                Alpha0Term::Lead { a1, a2 } => ideal.lead = Some((*a1, *a2)),
+                Alpha0Term::LogTau { a } => ideal.log_tau = Some(*a),
+                Alpha0Term::Power { n, t } => {
+                    // Upstream throws on a second Power term.
+                    assert!(ideal.power.is_none(), "duplicate IdealGasHelmholtzPower");
+                    ideal.power = Some((n.to_vec(), t.to_vec()));
+                }
+                Alpha0Term::EnthalpyEntropyOffset { a1, a2, .. } => {
+                    // Upstream `set()`: first call stores, later calls increment.
+                    match &mut ideal.offset_core {
+                        None => ideal.offset_core = Some((*a1, *a2)),
+                        Some((c1, c2)) => {
+                            *c1 += *a1;
+                            *c2 += *a2;
+                        }
                     }
                 }
-            })
-            .collect();
+                Alpha0Term::PlanckEinstein { n, t } => {
+                    // Upstream FluidLibrary.h: flip the sign of theta; c = 1, d = -1.
+                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                    pe.n.extend_from_slice(n);
+                    pe.theta.extend(t.iter().map(|v| -v));
+                    pe.c.extend(std::iter::repeat_n(1.0, n.len()));
+                    pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
+                }
+                Alpha0Term::PlanckEinsteinFunctionT { n, v, tcrit } => {
+                    // Upstream FluidLibrary.h: theta = -v/Tcrit; c = 1, d = -1.
+                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                    pe.n.extend_from_slice(n);
+                    pe.theta.extend(v.iter().map(|x| -x / tcrit));
+                    pe.c.extend(std::iter::repeat_n(1.0, n.len()));
+                    pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
+                }
+            }
+        }
 
         HelmholtzEos {
             genexp,
             non_analytic,
+            gaob,
             ideal,
             t_reducing: fluid.eos.reducing.t,
             rhomolar_reducing: fluid.eos.reducing.rhomolar,
@@ -808,18 +1109,19 @@ impl HelmholtzEos {
     }
 
     /// All residual derivatives (upstream `ResidualHelmholtzContainer::all`):
-    /// GenExp first into a fresh accumulator, NonAnalytic added after.
+    /// GenExp first into a fresh accumulator, then NonAnalytic, then GaoB.
     pub fn alphar_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
         let mut derivs = HelmholtzDerivs::default();
         self.genexp.all(tau, delta, &mut derivs);
         non_analytic_all(&self.non_analytic, tau, delta, &mut derivs);
+        gaob_all(&self.gaob, tau, delta, &mut derivs);
         derivs
     }
 
     /// All ideal-gas derivatives (upstream `IdealHelmholtzContainer::all`).
     pub fn alpha0_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
         let mut derivs = HelmholtzDerivs::default();
-        ideal_all(&self.ideal, tau, delta, &mut derivs);
+        self.ideal.all(tau, delta, &mut derivs);
         derivs
     }
 }

@@ -1,6 +1,7 @@
-//! Data fidelity test (PLAN.md 3.3): every ported field of the generated
-//! Water data must equal the committed upstream JSON **exactly** (bitwise —
-//! the emitter writes shortest round-trip literals, so `==` must hold).
+//! Data fidelity test (PLAN.md 3.3/4.7): every ported field of each
+//! generated fluid's data must equal the committed upstream JSON **exactly**
+//! (bitwise — the emitter writes shortest round-trip literals, so `==` must
+//! hold).
 //!
 //! This walker parses the JSON independently of the datagen tool (raw
 //! `serde_json::Value` with its own path mapping), so a key misread in the
@@ -9,8 +10,7 @@
 //! nothing gets dropped silently.
 
 use rustprop_core::fluid::ChebyshevInterval;
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, SaturationAncillary, StatePoint};
-use rustprop_data::fluids::water::WATER;
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, FluidData, SaturationAncillary, StatePoint};
 use serde_json::Value;
 use std::path::Path;
 
@@ -132,9 +132,10 @@ impl Walker {
     }
 }
 
-#[test]
-fn water_data_matches_upstream_json_exactly() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/coolprop-json/Water.json");
+fn check_fluid(fluid: &FluidData, json_file: &str) {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../data/coolprop-json")
+        .join(json_file);
     let text = std::fs::read_to_string(&path).unwrap();
     let docs: Value = serde_json::from_str(&text).unwrap();
     let doc = &docs[0];
@@ -166,17 +167,19 @@ fn water_data_matches_upstream_json_exactly() {
             "SMILES",
         ],
     );
-    w.string(WATER.name, &info["NAME"], "INFO.NAME");
-    w.string(WATER.cas, &info["CAS"], "INFO.CAS");
+    w.string(fluid.name, &info["NAME"], "INFO.NAME");
+    w.string(fluid.cas, &info["CAS"], "INFO.CAS");
     let aliases = info["ALIASES"].as_array().unwrap();
-    assert_eq!(WATER.aliases.len(), aliases.len(), "INFO.ALIASES length");
-    for (i, (r, j)) in WATER.aliases.iter().zip(aliases).enumerate() {
+    assert_eq!(fluid.aliases.len(), aliases.len(), "INFO.ALIASES length");
+    for (i, (r, j)) in fluid.aliases.iter().zip(aliases).enumerate() {
         w.string(r, j, &format!("INFO.ALIASES[{i}]"));
     }
 
-    // EOS[0]
+    // EOS[0] — some documents (Ammonia) carry alternate historical EOS
+    // entries after index 0; upstream's backend evaluates EOSVector[0]
+    // exclusively (the `EOS()` accessor), so only EOS[0] is ported.
     let eos_arr = doc["EOS"].as_array().unwrap();
-    assert_eq!(eos_arr.len(), 1, "exactly one EOS expected");
+    assert!(!eos_arr.is_empty(), "at least one EOS expected");
     let eos = &eos_arr[0];
     w.keys(
         eos,
@@ -197,21 +200,21 @@ fn water_data_matches_upstream_json_exactly() {
         &["BibTeX_CP0", "BibTeX_EOS", "critical_region_splines"],
     );
     w.num(
-        WATER.eos.gas_constant,
+        fluid.eos.gas_constant,
         &eos["gas_constant"],
         "EOS[0].gas_constant",
     );
     w.num(
-        WATER.eos.molar_mass,
+        fluid.eos.molar_mass,
         &eos["molar_mass"],
         "EOS[0].molar_mass",
     );
-    w.num(WATER.eos.p_max, &eos["p_max"], "EOS[0].p_max");
-    w.num(WATER.eos.t_max, &eos["T_max"], "EOS[0].T_max");
-    w.num(WATER.eos.t_triple, &eos["Ttriple"], "EOS[0].Ttriple");
-    w.num(WATER.eos.acentric, &eos["acentric"], "EOS[0].acentric");
+    w.num(fluid.eos.p_max, &eos["p_max"], "EOS[0].p_max");
+    w.num(fluid.eos.t_max, &eos["T_max"], "EOS[0].T_max");
+    w.num(fluid.eos.t_triple, &eos["Ttriple"], "EOS[0].Ttriple");
+    w.num(fluid.eos.acentric, &eos["acentric"], "EOS[0].acentric");
     w.boolean(
-        WATER.eos.pseudo_pure,
+        fluid.eos.pseudo_pure,
         &eos["pseudo_pure"],
         "EOS[0].pseudo_pure",
     );
@@ -224,30 +227,30 @@ fn water_data_matches_upstream_json_exactly() {
         &[],
     );
     w.state_point(
-        &WATER.eos.reducing,
+        &fluid.eos.reducing,
         &eos_states["reducing"],
         "EOS[0].STATES.reducing",
     );
     w.state_point(
-        &WATER.eos.sat_min_liquid,
+        &fluid.eos.sat_min_liquid,
         &eos_states["sat_min_liquid"],
         "EOS[0].STATES.sat_min_liquid",
     );
     w.state_point(
-        &WATER.eos.sat_min_vapor,
+        &fluid.eos.sat_min_vapor,
         &eos_states["sat_min_vapor"],
         "EOS[0].STATES.sat_min_vapor",
     );
     w.state_point(
-        &WATER.eos.hs_anchor,
+        &fluid.eos.hs_anchor,
         &eos_states["hs_anchor"],
         "EOS[0].STATES.hs_anchor",
     );
 
     // alpha0 terms
     let alpha0 = eos["alpha0"].as_array().unwrap();
-    assert_eq!(WATER.eos.alpha0.len(), alpha0.len(), "alpha0 term count");
-    for (i, (term, json)) in WATER.eos.alpha0.iter().zip(alpha0).enumerate() {
+    assert_eq!(fluid.eos.alpha0.len(), alpha0.len(), "alpha0 term count");
+    for (i, (term, json)) in fluid.eos.alpha0.iter().zip(alpha0).enumerate() {
         let path = format!("EOS[0].alpha0[{i}]");
         match term {
             Alpha0Term::Lead { a1, a2 } => {
@@ -279,13 +282,45 @@ fn water_data_matches_upstream_json_exactly() {
                 w.nums(n, &json["n"], &format!("{path}.n"));
                 w.nums(t, &json["t"], &format!("{path}.t"));
             }
+            Alpha0Term::PlanckEinsteinFunctionT { n, v, tcrit } => {
+                w.keys(json, &path, &["type", "n", "v", "Tcrit"], &[]);
+                w.string(
+                    "IdealGasHelmholtzPlanckEinsteinFunctionT",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(v, &json["v"], &format!("{path}.v"));
+                w.num(*tcrit, &json["Tcrit"], &format!("{path}.Tcrit"));
+            }
+            Alpha0Term::EnthalpyEntropyOffset { a1, a2, reference } => {
+                w.keys(json, &path, &["type", "a1", "a2", "reference"], &[]);
+                w.string(
+                    "IdealGasHelmholtzEnthalpyEntropyOffset",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.num(*a1, &json["a1"], &format!("{path}.a1"));
+                w.num(*a2, &json["a2"], &format!("{path}.a2"));
+                w.string(reference, &json["reference"], &format!("{path}.reference"));
+            }
+            Alpha0Term::Power { n, t } => {
+                w.keys(json, &path, &["type", "n", "t"], &[]);
+                w.string(
+                    "IdealGasHelmholtzPower",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+            }
         }
     }
 
     // alphar terms
     let alphar = eos["alphar"].as_array().unwrap();
-    assert_eq!(WATER.eos.alphar.len(), alphar.len(), "alphar term count");
-    for (i, (term, json)) in WATER.eos.alphar.iter().zip(alphar).enumerate() {
+    assert_eq!(fluid.eos.alphar.len(), alphar.len(), "alphar term count");
+    for (i, (term, json)) in fluid.eos.alphar.iter().zip(alphar).enumerate() {
         let path = format!("EOS[0].alphar[{i}]");
         match term {
             AlpharTerm::Power { n, d, t, l } => {
@@ -358,16 +393,48 @@ fn water_data_matches_upstream_json_exactly() {
                 w.nums(big_c, &json["C"], &format!("{path}.C"));
                 w.nums(big_d, &json["D"], &format!("{path}.D"));
             }
+            AlpharTerm::GaoB {
+                n,
+                t,
+                d,
+                eta,
+                beta,
+                gamma,
+                epsilon,
+                b,
+            } => {
+                w.keys(
+                    json,
+                    &path,
+                    &[
+                        "type", "n", "t", "d", "eta", "beta", "gamma", "epsilon", "b",
+                    ],
+                    &[],
+                );
+                w.string(
+                    "ResidualHelmholtzGaoB",
+                    &json["type"],
+                    &format!("{path}.type"),
+                );
+                w.nums(n, &json["n"], &format!("{path}.n"));
+                w.nums(t, &json["t"], &format!("{path}.t"));
+                w.nums(d, &json["d"], &format!("{path}.d"));
+                w.nums(eta, &json["eta"], &format!("{path}.eta"));
+                w.nums(beta, &json["beta"], &format!("{path}.beta"));
+                w.nums(gamma, &json["gamma"], &format!("{path}.gamma"));
+                w.nums(epsilon, &json["epsilon"], &format!("{path}.epsilon"));
+                w.nums(b, &json["b"], &format!("{path}.b"));
+            }
         }
     }
 
     // SUPERANCILLARY
     let sa_json = &eos["SUPERANCILLARY"];
-    let sa = WATER
+    let sa = fluid
         .eos
         .superancillary
         .as_ref()
-        .expect("Water has a superancillary");
+        .expect("every ported fluid has a superancillary");
     w.keys(
         sa_json,
         "EOS[0].SUPERANCILLARY",
@@ -459,9 +526,9 @@ fn water_data_matches_upstream_json_exactly() {
         &["pS", "rhoL", "rhoV"],
         &["hL", "hLV", "sL", "sLV", "melting_line", "surface_tension"],
     );
-    w.sat_ancillary(&WATER.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
-    w.sat_ancillary(&WATER.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
-    w.sat_ancillary(&WATER.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
+    w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
+    w.sat_ancillary(&fluid.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
+    w.sat_ancillary(&fluid.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
 
     // STATES
     let states = &doc["STATES"];
@@ -472,17 +539,17 @@ fn water_data_matches_upstream_json_exactly() {
         &[],
     );
     w.state_point(
-        &WATER.states.critical,
+        &fluid.states.critical,
         &states["critical"],
         "STATES.critical",
     );
     w.state_point(
-        &WATER.states.triple_liquid,
+        &fluid.states.triple_liquid,
         &states["triple_liquid"],
         "STATES.triple_liquid",
     );
     w.state_point(
-        &WATER.states.triple_vapor,
+        &fluid.states.triple_vapor,
         &states["triple_vapor"],
         "STATES.triple_vapor",
     );
@@ -493,4 +560,40 @@ fn water_data_matches_upstream_json_exactly() {
         w.mismatches.len(),
         w.mismatches.join("\n")
     );
+}
+
+#[test]
+fn water_data_matches_upstream_json_exactly() {
+    check_fluid(&rustprop_data::fluids::water::WATER, "Water.json");
+}
+
+#[test]
+fn nitrogen_data_matches_upstream_json_exactly() {
+    check_fluid(&rustprop_data::fluids::nitrogen::NITROGEN, "Nitrogen.json");
+}
+
+#[test]
+fn carbondioxide_data_matches_upstream_json_exactly() {
+    check_fluid(
+        &rustprop_data::fluids::carbondioxide::CARBONDIOXIDE,
+        "CarbonDioxide.json",
+    );
+}
+
+#[test]
+fn r134a_data_matches_upstream_json_exactly() {
+    check_fluid(&rustprop_data::fluids::r134a::R134A, "R134a.json");
+}
+
+#[test]
+fn n_propane_data_matches_upstream_json_exactly() {
+    check_fluid(
+        &rustprop_data::fluids::n_propane::N_PROPANE,
+        "n-Propane.json",
+    );
+}
+
+#[test]
+fn ammonia_data_matches_upstream_json_exactly() {
+    check_fluid(&rustprop_data::fluids::ammonia::AMMONIA, "Ammonia.json");
 }

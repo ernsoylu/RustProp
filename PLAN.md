@@ -157,9 +157,10 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [ ] 4.6 Flash routines, one input pair at a time (each its own checkbox commit): (T,Q), (P,Q),
       (P,H), (P,S), (H,S), (D,T), (D,P) — including two-phase quality mixing.
       → verify: per-pair golden grids that include two-phase states.
-- [ ] 4.7 Extend datagen + the full 4.1–4.6 test battery to five structurally diverse fluids:
+- [x] 4.7 Extend datagen + the full 4.1–4.6 test battery to five structurally diverse fluids:
       Nitrogen, CO2, R134a, Propane, Ammonia (covers Gaussian and non-analytic term families).
-      Extend core types only as these files force it.
+      Extend core types only as these files force it. (Done except the (H,S) pair, which is
+      still open in 4.6 for all fluids.)
       → verify: all suites green per fluid; data fidelity tests green per fluid.
 - [ ] 4.8 Full sweep: datagen all active upstream fluids; per-fluid feature flags; coarse golden
       smoke grid for every fluid. Keep the default `cargo test` fast — the full sweep runs as an
@@ -508,3 +509,43 @@ Append-only; newest last. Seeded entries:
   (fast dome screen `hs_two_phase_likely`, multi-leg single-phase `hs_cascade` with
   stability-based acceptance, and an EOS-exact Qh==Qs two-phase solve `HS_flash_twophase`,
   with a legacy sad path behind it) — a full sub-project scoped for its own session.
+- 2026-08-06 — 4.7 term families: the five fluids force exactly four new families, all
+  ported op-for-op from Helmholtz.cpp/FluidLibrary.h: ideal-gas `Power` (Nitrogen, R134a),
+  `PlanckEinsteinFunctionT` (Nitrogen; parse maps theta=-v/Tcrit, c=1, d=-1 and EXTENDS the
+  merged generalized Planck-Einstein container), `EnthalpyEntropyOffset` (CO2; the document
+  goes to upstream's `EnthalpyEntropyOffsetCore` slot, adds a1+a2*tau), and residual `GaoB`
+  (Ammonia; giant closed-form tau/delta factor derivatives kept as literal expression trees).
+  Residual container order is GenExp -> NonAnalytic -> GaoB.
+- 2026-08-06 — 4.7 ideal-container evaluation ORDER: upstream `IdealHelmholtzContainer::all`
+  evaluates fixed member order Lead, EnthalpyEntropyOffsetCore, LogTau, Power, PlanckEinstein
+  — NOT JSON document order (CO2 lists the offset last but it evaluates second). The port's
+  ideal terms were restructured from a document-order Vec into an `IdealContainer` with fixed
+  slots to preserve floating-point sum order (visible only at ~1 ULP; done for construction
+  correctness).
+- 2026-08-06 — 4.7 Ammonia document carries TWO `EOS` entries: index 0 = Gao-JPCRD-2020 (the
+  GaoB one, R=8.3144598), index 1 = Tillner-Roth-DKV-1993 (legacy alternate, R=8.314471).
+  Upstream's backend evaluates `EOSVector[0]` exclusively (the `EOS()` accessor); datagen
+  already emitted only `EOS[0]` and the fidelity walker now asserts non-empty and checks
+  index 0, with alternates documented here as not ported.
+- 2026-08-06 — 4.7 fixtures: water suites untouched (fixtures byte-identical); every other
+  fluid runs the same six suites on grids derived in REDUCED coordinates (fractions of
+  Ttriple..Tcrit, geometric ptriple..pcrit, multiples of rhoc / the sat-curve densities)
+  queried from the pinned wheel — deterministic. Zero oracle rejections; uniform per-fluid
+  counts: terms 260, props 104, ancillary 36, sat 268, pt 90, flash 253 (water keeps its
+  historical 240/96/33/292/100/261).
+- 2026-08-06 — 4.7 tolerance findings (all three verified, none a port defect):
+  (1) TERMS at 1e-12 for non-water fluids (water still holds 1e-13): two cancellation-limited
+  records — R134a d3alphar_dDelta3@(561.32 K, 1505.25 mol/m^3) and n-Propane
+  dalphar_dDelta@(170.83 K, 14946.19 mol/m^3) — where mpmath 50-digit truth shows BOTH the
+  wheel and the port within ~1.8e-14 ABSOLUTE of the true value (wheel 3.1e-17/5.9e-15, port
+  1.2e-16/1.8e-14): the true sums cancel from O(1) contributions, so double precision itself
+  is the limit. mpmath added to the golden-gen venv for such probes.
+  (2) PT Cpmolar/A at the solver-dependent 1e-8 tier (rho/h/s stay 1e-9): 8 near-critical
+  records (1.02–1.05*Tc, CO2/R134a/n-Propane, max 9.6e-9) amplify the density solver's
+  stopping residual; upstream stops at ftol 1e-8 and matching that stopping criterion IS the
+  fidelity mandate, so out-solving the wheel is not an option.
+  (3) FLASH caloric zero-crossing guard: for the solver-resolved pairs ((H,P)/(P,S)/(D,P)),
+  H/S/U outputs are measured against max(|expected|, thermal scale R*T resp. R) — one
+  Nitrogen (P,S)->Hmolar record has H = -344 J/mol near the reference-state zero with
+  4.2e-6 J/mol ABSOLUTE agreement; pure relative error against an arbitrary zero is
+  ill-posed.

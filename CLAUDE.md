@@ -36,7 +36,20 @@ PLAN.md **Phases 0–3 are complete**: verification infrastructure; core paramet
 
 Phase 3 added the data pipeline: fluid JSON dumped verbatim from the oracle wheel into `data/coolprop-json/` (pinned, attributed), `rustprop-datagen` emitting feature-gated modules into `rustprop-data` (Water first, bitwise fidelity-tested, CI regeneration guard).
 
-Next work: `PLAN.md` Phase 4 (HEOS engine, pure fluids — Helmholtz terms first, term-level goldens vs the wheel's `AbstractState` derivatives).
+Phase 4 (HEOS pure fluids) is complete through 4.7 except the (H,S) pair: Helmholtz term
+machinery (GenExp with B-recursion, NonAnalytic, GaoB; ideal container in upstream's fixed member
+order), single-phase properties, classic + super-ancillaries (piecewise Chebyshev, dyadic-split
+inverse-on-ln(p)), QT/PQ/PT flashes with upstream's solver strategy tree (SRK seed, Halley,
+Householder4, Brent), and the (D,T)/(H,P)/(P,S)/(D,P) pairs. **Six fluids ported and
+golden-verified end to end** — Water, Nitrogen, CarbonDioxide, R134a, n-Propane, Ammonia — each
+running the full suite battery (terms 1e-13/1e-12, props 1e-9, ancillaries 1e-12, saturation 1e-8
+policy with observed ≤4e-12 for the new fluids, PT 1e-9 with Cp/A at the solver-dependent 1e-8
+tier, flash pairs 1e-9/1e-8) against ~5,900 committed oracle records, plus bitwise data-fidelity
+walks of every fluid document. Ammonia's document carries two EOS blocks — upstream evaluates
+`EOSVector[0]` only (Gao-2020), the Tillner-Roth alternate is not ported.
+
+Next work: `PLAN.md` 4.6 (H,S) — the superancillary hs cascade (own session; structure scoped in
+the Decisions log) — then 4.8 all-fluids sweep.
 
 ## Toolchain
 

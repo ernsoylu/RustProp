@@ -3,5 +3,15 @@
 
 #![cfg_attr(rustfmt, rustfmt::skip)]
 
+#[cfg(feature = "ammonia")]
+pub mod ammonia;
+#[cfg(feature = "carbondioxide")]
+pub mod carbondioxide;
+#[cfg(feature = "nitrogen")]
+pub mod nitrogen;
+#[cfg(feature = "r134a")]
+pub mod r134a;
 #[cfg(feature = "water")]
 pub mod water;
+#[cfg(feature = "n_propane")]
+pub mod n_propane;
