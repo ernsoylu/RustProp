@@ -765,6 +765,9 @@ VISCOSITY_STRUCTURED = [
     # section-hardcoded parts (slice 3):
     "CarbonDioxide", "Ethane", "CycloHexane", "Benzene", "Hydrogen",
     "ParaHydrogen", "Toluene", "n-Hexane", "n-Heptane",
+    # Chung + rhosr-CS (slice 4):
+    "Cyclopentane", "Isopentane",
+    "R1234yf", "R1234ze(E)", "R124", "R152A", "R22", "R245fa", "R32",
 ]
 
 
@@ -814,6 +817,8 @@ CONDUCTIVITY_STRUCTURED = [
     "Ammonia", "R123", "CarbonDioxide", "Ethane", "Benzene", "Methanol",
     "Hydrogen", "ParaHydrogen", "Toluene", "m-Xylene", "o-Xylene",
     "p-Xylene", "n-Hexane", "n-Heptane",
+    # unlocked by slice-4 viscosity (their conductivity trio is structured):
+    "Cyclopentane", "Isopentane", "R1234yf", "R1234ze(E)", "R152A",
 ]
 
 

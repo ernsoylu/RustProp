@@ -747,3 +747,12 @@ Append-only; newest last. Seeded entries:
   (Structured|Hardcoded) under the tri-state; the walker verifies hardcoded tags bitwise.
   Viscosity now evaluates for 37 fluids (296 goldens), conductivity for 34 (306 goldens),
   both at 1e-8. Remaining transport classes: ECS (15/18), Chung (2), rhosr-CS (7).
+- 2026-08-06 — 6.1 slice 4 (Chung + rhosr-CS) complete, first-run green: the generalized
+  Chung correlation (upstream evaluates with kappa = 0 regardless of the document's kappa —
+  both stored for fidelity) and the residual-entropy-scaled corresponding-states model
+  (dilute part = kinetic theory with `default_transport`'s Chung-estimated L-J parameters
+  from the REDUCING state: sigma = 0.809/rhoc[mol/L]^(1/3) nm, eps/k = T_red/1.2593; the
+  crossover uses the literal x-2 as upstream, x_crossover stored unused). Upstream parse
+  semantics encoded: a viscosity ARRAY uses its FIRST entry (the rhosr fluids carry a dead
+  ECS second entry). Viscosity: 46 fluids/368 goldens; conductivity: 39 fluids/351 goldens
+  (Cyclopentane, Isopentane, R1234yf, R1234ze(E), R152A unlocked). Only ECS remains.

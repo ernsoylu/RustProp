@@ -739,6 +739,52 @@ fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
             ViscosityModel::Hardcoded { name } => {
                 w.string(name, &v["hardcoded"], &format!("{path}.hardcoded"));
             }
+            ViscosityModel::Chung {
+                rhomolar_critical,
+                acentric,
+                molar_mass,
+                t_critical,
+                dipole_moment_d,
+                kappa,
+            } => {
+                w.string("Chung", &v["type"], &format!("{path}.type"));
+                w.num(
+                    *rhomolar_critical,
+                    &v["rhomolar_critical"],
+                    &format!("{path}.rhomolar_critical"),
+                );
+                w.num(*acentric, &v["acentric"], &format!("{path}.acentric"));
+                w.num(*molar_mass, &v["molar_mass"], &format!("{path}.molar_mass"));
+                w.num(*t_critical, &v["T_critical"], &format!("{path}.T_critical"));
+                w.num(
+                    *dipole_moment_d,
+                    &v["dipole_moment_D"],
+                    &format!("{path}.dipole_moment_D"),
+                );
+                w.num(*kappa, &v["kappa"], &format!("{path}.kappa"));
+            }
+            ViscosityModel::RhosrCs {
+                c,
+                c_liq,
+                c_vap,
+                rhosr_critical,
+                x_crossover,
+            } => {
+                w.string("rhosr-CS", &v["type"], &format!("{path}.type"));
+                w.num(*c, &v["C"], &format!("{path}.C"));
+                w.nums(c_liq, &v["c_liq"], &format!("{path}.c_liq"));
+                w.nums(c_vap, &v["c_vap"], &format!("{path}.c_vap"));
+                w.num(
+                    *rhosr_critical,
+                    &v["rhosr_critical"],
+                    &format!("{path}.rhosr_critical"),
+                );
+                w.num(
+                    *x_crossover,
+                    &v["x_crossover"],
+                    &format!("{path}.x_crossover"),
+                );
+            }
         },
     );
     check_slot(
@@ -763,19 +809,28 @@ fn check_slot<T>(
     path: &str,
     check: &dyn Fn(&mut Walker, &T, &Value, &str),
 ) {
+    // Upstream parse: an array uses its FIRST entry.
+    let json = json.map(|v| {
+        if v.is_array() {
+            &v.as_array().unwrap()[0]
+        } else {
+            v
+        }
+    });
     let class = match json {
         None => "absent",
-        Some(v) if v.is_object() => {
+        Some(v) => {
             let o = v.as_object().unwrap();
             if o.contains_key("hardcoded") {
                 "model" // fully-hardcoded per-fluid formulation
-            } else if o.contains_key("type") {
-                "unported" // ECS / Chung
             } else {
-                "model" // structured
+                match o.get("type").and_then(Value::as_str) {
+                    Some("Chung" | "rhosr-CS") => "model",
+                    Some(_) => "unported", // ECS
+                    None => "model",       // structured
+                }
             }
         }
-        Some(_) => "unported", // rhosr-CS lists
     };
     match (rust, class) {
         (TransportModel::Absent, "absent") | (TransportModel::Unported, "unported") => {}

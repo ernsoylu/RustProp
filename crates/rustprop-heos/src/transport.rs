@@ -78,7 +78,152 @@ pub fn viscosity(
                 "hardcoded viscosity [{other}] is not ported yet"
             ))),
         },
+        ViscosityModel::Chung {
+            rhomolar_critical,
+            acentric,
+            molar_mass,
+            t_critical,
+            dipole_moment_d,
+            kappa: _,
+        } => Ok(viscosity_chung(
+            t,
+            rhomolar,
+            *rhomolar_critical,
+            *acentric,
+            *molar_mass,
+            *t_critical,
+            *dipole_moment_d,
+        )),
+        ViscosityModel::RhosrCs {
+            c,
+            c_liq,
+            c_vap,
+            rhosr_critical,
+            x_crossover: _,
+        } => Ok(viscosity_rhosr(
+            eos,
+            t,
+            rhomolar,
+            *c,
+            c_liq,
+            c_vap,
+            *rhosr_critical,
+        )),
     }
+}
+
+/// Upstream `viscosity_Chung` (evaluates with kappa = 0 regardless of the
+/// document's kappa, exactly as upstream's local `kappa = 0`).
+#[allow(clippy::many_single_char_names)]
+fn viscosity_chung(
+    t: f64,
+    rhomolar: f64,
+    rhomolar_critical: f64,
+    acentric: f64,
+    molar_mass: f64,
+    t_critical: f64,
+    dipole_moment_d: f64,
+) -> f64 {
+    let a0 = [
+        0.0, 6.32402, 0.12102e-2, 5.28346, 6.62263, 19.74540, -1.89992, 24.27450, 0.79716,
+        -0.23816, 0.68629e-1,
+    ];
+    let a1 = [
+        0.0,
+        50.41190,
+        -0.11536e-2,
+        254.20900,
+        38.09570,
+        7.63034,
+        -12.53670,
+        3.44945,
+        1.11764,
+        0.67695e-1,
+        0.34793,
+    ];
+    let a2 = [
+        0.0,
+        -51.68010,
+        -0.62571e-2,
+        -168.48100,
+        -8.46414,
+        -14.35440,
+        4.98529,
+        -11.29130,
+        0.12348e-1,
+        -0.81630,
+        0.59256,
+    ];
+    let a3 = [
+        0.0, 1189.02000, 0.37283e-1, 3898.27000, 31.41780, 31.52670, -18.15070, 69.34660, -4.11661,
+        4.02528, -0.72663,
+    ];
+    let vc_cm3mol = 1.0 / (rhomolar_critical / 1e6);
+    let m_gmol = molar_mass * 1000.0;
+    let tc = t_critical;
+    let mu_d = dipole_moment_d;
+    let kappa = 0.0;
+    let mu_r = 131.3 * mu_d / (vc_cm3mol * tc).sqrt();
+    let mut a = [0.0f64; 11];
+    for i in 1..=10 {
+        a[i] = a0[i] + a1[i] * acentric + a2[i] * mu_r.powf(4.0) + a3[i] * kappa;
+    }
+    let f_c = 1.0 - 0.2756 * acentric + 0.059035 * mu_r.powf(4.0) + kappa;
+    let epsilon_over_k = tc / 1.2593;
+    let rho_molcm3 = rhomolar / 1e6;
+    let tstar = t / epsilon_over_k;
+    let omega_2_2 = 1.16145 * tstar.powf(-0.14874)
+        + 0.52487 * (-0.77320 * tstar).exp()
+        + 2.16178 * (-2.43787 * tstar).exp()
+        - 6.435e-4 * tstar.powf(0.14874) * (18.0323 * tstar.powf(-0.76830) - 7.27371).sin();
+    let eta0_p = 4.0785e-5 * (m_gmol * t).sqrt() / (vc_cm3mol.powf(2.0 / 3.0) * omega_2_2) * f_c;
+    let y = rho_molcm3 * vc_cm3mol / 6.0;
+    let g_1 = (1.0 - 0.5 * y) / (1.0 - y).powf(3.0);
+    let g_2 = (a[1] * (1.0 - (-a[4] * y).exp()) / y + a[2] * g_1 * (a[5] * y).exp() + a[3] * g_1)
+        / (a[1] * a[4] + a[2] + a[3]);
+    let eta_k_p = eta0_p * (1.0 / g_2 + a[6] * y);
+    let eta_p_p = (36.344e-6 * (m_gmol * tc).sqrt() / vc_cm3mol.powf(2.0 / 3.0))
+        * a[7]
+        * y.powf(2.0)
+        * g_2
+        * (a[8] + a[9] / tstar + a[10] / tstar.powf(2.0)).exp();
+    (eta_k_p + eta_p_p) / 10.0
+}
+
+/// Upstream `viscosity_rhosr` — residual-entropy-scaled corresponding
+/// states; the dilute part is kinetic theory with `default_transport`'s
+/// Chung-estimated L-J parameters from the reducing state.
+fn viscosity_rhosr(
+    eos: &HelmholtzEos,
+    t: f64,
+    rhomolar: f64,
+    c: f64,
+    c_liq: &[f64],
+    c_vap: &[f64],
+    rhosr_critical: f64,
+) -> f64 {
+    // default_transport: sigma/epsilon estimated from the reducing state.
+    let rho_crit_moll = eos.rhomolar_reducing / 1000.0;
+    let sigma_eta = 0.809 / rho_crit_moll.powf(1.0 / 3.0) / 1e9;
+    let epsilon_over_k = eos.t_reducing / 1.2593;
+    let tstar = t / epsilon_over_k;
+    let sigma_nm = sigma_eta * 1e9;
+    let molar_mass_kgkmol = eos.molar_mass * 1000.0;
+    let omega22 = 1.16145 * tstar.powf(-0.14874)
+        + 0.52487 * (-0.77320 * tstar).exp()
+        + 2.16178 * (-2.43787 * tstar).exp();
+    let eta_dilute = 26.692e-9 * (molar_mass_kgkmol * t).sqrt() / (sigma_nm.powf(2.0) * omega22);
+
+    let tau = eos.t_reducing / t;
+    let delta = rhomolar / eos.rhomolar_reducing;
+    let d = eos.alphar_all(tau, delta);
+    let x = rhomolar * eos.gas_constant * (tau * d.d01 - d.d00) / rhosr_critical;
+    let psi_liq = 1.0 / (1.0 + (-100.0 * (x - 2.0)).exp());
+    let f_liq = c_liq[0] + x * (c_liq[1] + x * (c_liq[2] + x * c_liq[3]));
+    let f_vap = c_vap[0] + x * (c_vap[1] + x * (c_vap[2] + x * c_vap[3]));
+    let etastar_ref = (psi_liq * f_liq + (1.0 - psi_liq) * f_vap).exp();
+    let etastar_fluid = 1.0 + c * (etastar_ref - 1.0);
+    etastar_fluid * eta_dilute
 }
 
 fn viscosity_structured(
@@ -580,6 +725,9 @@ fn fluid_dilute_viscosity(
         Some(ViscosityModel::Hardcoded { name }) => Err(Error::NotImplemented(format!(
             "dilute viscosity of hardcoded model [{name}] is not separable"
         ))),
+        Some(ViscosityModel::Chung { .. } | ViscosityModel::RhosrCs { .. }) => Err(
+            Error::NotImplemented("dilute viscosity of Chung/rhosr models is not separable".into()),
+        ),
         None => Err(Error::NotImplemented(
             "this conductivity needs the fluid's (unported) viscosity model".into(),
         )),

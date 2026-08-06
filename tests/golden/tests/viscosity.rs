@@ -11,7 +11,7 @@ use std::path::Path;
 fn structured_viscosity_matches_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/viscosity.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 296);
+    assert_eq!(records.len(), 368);
 
     let mut failures = Vec::new();
     let mut fluids = std::collections::HashSet::new();
@@ -43,7 +43,7 @@ fn structured_viscosity_matches_upstream() {
             ));
         }
     }
-    assert_eq!(fluids.len(), 37, "all evaluable fluids covered");
+    assert_eq!(fluids.len(), 46, "all evaluable fluids covered");
     assert!(
         failures.is_empty(),
         "{} of {} failures:\n{}",
@@ -62,13 +62,9 @@ fn viscosity_error_conditions() {
         props_si("V", "T", 300.0, "P", 1e5, "Acetone").unwrap_err(),
         Error::Value(_)
     ));
-    // Model class not ported yet (Chung and rhosr-CS).
+    // Model class not ported yet (ECS).
     assert!(matches!(
-        props_si("V", "T", 350.0, "P", 1e6, "Cyclopentane").unwrap_err(),
-        Error::NotImplemented(_)
-    ));
-    assert!(matches!(
-        props_si("V", "T", 300.0, "P", 1e6, "R32").unwrap_err(),
+        props_si("V", "T", 300.0, "P", 1e6, "Propylene").unwrap_err(),
         Error::NotImplemented(_)
     ));
 }

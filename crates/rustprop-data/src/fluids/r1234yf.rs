@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static R1234YF: FluidData = FluidData {
     name: "R1234yf",
@@ -326,7 +326,7 @@ pub static R1234YF: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Unported,
+        viscosity: TransportModel::Model(ViscosityModel::RhosrCs { c: 0.87302, c_liq: &[0.6100913843, 0.4508958312, -0.017063, 0.000564], c_vap: &[0.0, 1.2, -0.308598, 0.035317], rhosr_critical: -54468.47741433059, x_crossover: 2.0 }),
         conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.0102778, 0.0291098, 0.000860643], n: &[0.0, 1.0, 2.0], b: &[1.0], m: &[0.0], t_reducing: 367.85 },
             residual: ConductivityResidual::Polynomial { b: &[-0.0368219, 0.0883226, -0.0705909, 0.0259026, -0.0032295, 0.0397166, -0.077239, 0.0664707, -0.0249071, 0.00336228], t: &[0.0, 0.0, 0.0, 0.0, 0.0, -1.0, -1.0, -1.0, -1.0, -1.0], d: &[1.0, 2.0, 3.0, 4.0, 5.0, 1.0, 2.0, 3.0, 4.0, 5.0], t_reducing: 367.85, rhomass_reducing: 475.55 },

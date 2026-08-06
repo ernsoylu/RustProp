@@ -778,23 +778,41 @@ fn emit_transport(tr: Option<&serde_json::Value>) -> String {
                 model: &str,
                 render: &dyn Fn(&serde_json::Map<String, serde_json::Value>) -> String|
      -> String {
-        match tr.get(key) {
-            None => "TransportModel::Absent".into(),
-            Some(v) if v.is_object() => {
-                let v = v.as_object().unwrap();
-                if let Some(h) = v.get("hardcoded") {
-                    // Fully-hardcoded per-fluid formulation.
-                    format!(
-                        "TransportModel::Model({model}::Hardcoded {{ name: {:?} }})",
-                        h.as_str().unwrap()
-                    )
-                } else if v.contains_key("type") {
-                    "TransportModel::Unported".into() // ECS / Chung
-                } else {
-                    render(v)
-                }
-            }
-            Some(_) => "TransportModel::Unported".into(), // rhosr-CS lists
+        // Upstream parse_viscosity/parse_conductivity: an array uses its
+        // FIRST entry.
+        let entry = match tr.get(key) {
+            None => return "TransportModel::Absent".into(),
+            Some(v) if v.is_array() => &v.as_array().unwrap()[0],
+            Some(v) => v,
+        };
+        let v = entry.as_object().expect("transport entry is an object");
+        if let Some(h) = v.get("hardcoded") {
+            // Fully-hardcoded per-fluid formulation.
+            return format!(
+                "TransportModel::Model({model}::Hardcoded {{ name: {:?} }})",
+                h.as_str().unwrap()
+            );
+        }
+        match v.get("type").and_then(serde_json::Value::as_str) {
+            Some("Chung") if model == "ViscosityModel" => format!(
+                "TransportModel::Model(ViscosityModel::Chung {{ rhomolar_critical: {}, acentric: {}, molar_mass: {}, t_critical: {}, dipole_moment_d: {}, kappa: {} }})",
+                f(jnum(entry, "rhomolar_critical")),
+                f(jnum(entry, "acentric")),
+                f(jnum(entry, "molar_mass")),
+                f(jnum(entry, "T_critical")),
+                f(jnum(entry, "dipole_moment_D")),
+                f(jnum(entry, "kappa"))
+            ),
+            Some("rhosr-CS") if model == "ViscosityModel" => format!(
+                "TransportModel::Model(ViscosityModel::RhosrCs {{ c: {}, c_liq: {}, c_vap: {}, rhosr_critical: {}, x_crossover: {} }})",
+                f(jnum(entry, "C")),
+                slice(&jarr(entry, "c_liq")),
+                slice(&jarr(entry, "c_vap")),
+                f(jnum(entry, "rhosr_critical")),
+                f(jnum(entry, "x_crossover"))
+            ),
+            Some(_) => "TransportModel::Unported".into(), // ECS
+            None => render(v),
         }
     };
     let visc = slot("viscosity", "ViscosityModel", &|v| {

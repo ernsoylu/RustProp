@@ -12,7 +12,7 @@ use std::path::Path;
 fn structured_conductivity_matches_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/conductivity.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 306);
+    assert_eq!(records.len(), 351);
 
     let mut failures = Vec::new();
     let mut fluids = std::collections::HashSet::new();
@@ -42,7 +42,7 @@ fn structured_conductivity_matches_upstream() {
             ));
         }
     }
-    assert_eq!(fluids.len(), 34, "all evaluable fluids covered");
+    assert_eq!(fluids.len(), 39, "all evaluable fluids covered");
     assert!(
         failures.is_empty(),
         "{} of {} failures:\n{}",

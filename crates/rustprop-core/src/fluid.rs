@@ -49,6 +49,39 @@ pub enum ViscosityModel {
         /// the `.hardcoded` tag
         name: &'static str,
     },
+    /// `type: "Chung"` — the generalized Chung correlation from critical
+    /// parameters (upstream evaluates with kappa = 0 regardless of the
+    /// document's `kappa`)
+    Chung {
+        /// `.rhomolar_critical` [mol/m^3]
+        rhomolar_critical: f64,
+        /// `.acentric`
+        acentric: f64,
+        /// `.molar_mass` [kg/mol]
+        molar_mass: f64,
+        /// `.T_critical` [K]
+        t_critical: f64,
+        /// `.dipole_moment_D` [Debye]
+        dipole_moment_d: f64,
+        /// `.kappa` (stored for fidelity; unused by upstream's evaluation)
+        kappa: f64,
+    },
+    /// `type: "rhosr-CS"` — residual-entropy-scaled corresponding states;
+    /// the dilute part is kinetic theory with Chung-estimated L-J
+    /// parameters from the reducing state (upstream `default_transport`)
+    RhosrCs {
+        /// `.C`
+        c: f64,
+        /// `.c_liq`
+        c_liq: &'static [f64],
+        /// `.c_vap`
+        c_vap: &'static [f64],
+        /// `.rhosr_critical`
+        rhosr_critical: f64,
+        /// `.x_crossover` (stored for fidelity; upstream's evaluation uses
+        /// the literal 2)
+        x_crossover: f64,
+    },
 }
 
 /// A conductivity model: structured trio or fully-hardcoded.
