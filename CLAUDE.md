@@ -88,10 +88,18 @@ Fidelity discovery: upstream v8 has NO two-phase conductivity guard (cp/cv are r
 single-phase formulas at mixture density) — two-phase states evaluate; the only two-phase
 errors are conformal-solver failures (R32 et al., error parity asserted).
 
-Remaining (tier-2 deferrals, in progress): remaining input pairs ((H,T)/(T,U)/(P,U)/(Q,S)/
-(H,Q)/(D,Q)/(D,H)/(D,S)/(D,U)), melting lines (incl. HS cascade leg 4, PT Tmelt check),
-pseudo-pure fluids (pL/pV ancillaries + Maxwell fallback: Air, R404A/407C/410A/507A, SES36),
-multi-output '&' ValueError parity.
+**Tier-2 deferrals are closed** except pseudo-pure fluids: every PropsSI-reachable input
+pair is ported — (H,T)/(T,U) via generalized DHSU_T, (P,U) via HSU_P, (D,H)/(D,S)/(D,U)
+via HSU_D's superancillary happy path, (D,Q) with strict-mode root enumeration; HQ/QS are
+upstream string-API dead ends (generate_update_pair has no rows) and (Hmass,T)/(T,Umass)/
+(Smolar,Umolar) are upstream "not yet supported" — all with exact error-message parity.
+Melting lines fully ported (3 segment families, 29 fluids, PT below-Tmelt check, (P,X)
+Tmelt bracket floor, HS cascade leg 4 via MeltingCaloric). Sub-triple (P,X) gas states
+and multi-output-'&' parity done. ~15,800 committed oracle records.
+
+Remaining: pseudo-pure fluids (pL/pV ancillaries + Maxwell saturation fallback +
+pseudo-pure phase determination: Air, R404A/407C/410A/507A, SES36 — no superancillaries
+upstream; needs `saturation_T_pure`-style classic solvers).
 
 ## Toolchain
 
