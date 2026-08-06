@@ -1,8 +1,8 @@
-//! Conductivity goldens (PLAN.md 6.1, structured slice): `L` for the 15
-//! fluids whose dilute/residual/critical trio AND viscosity are fully
-//! structured, across PT states (including the near-critical region where
-//! the Olchowy-Sengers enhancement dominates) and the saturation curve;
-//! plus upstream's error conditions.
+//! Conductivity goldens (PLAN.md 6.1): `L` for all 58 registry fluids with
+//! a conductivity model — structured, hardcoded, and ECS — across PT states
+//! (including the near-critical region where the Olchowy-Sengers
+//! enhancement dominates) and the saturation curve; plus upstream's error
+//! conditions.
 
 use rustprop::props_si;
 use rustprop_golden_tests::load_jsonl;
@@ -12,7 +12,7 @@ use std::path::Path;
 fn structured_conductivity_matches_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/conductivity.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 351);
+    assert_eq!(records.len(), 571);
 
     let mut failures = Vec::new();
     let mut fluids = std::collections::HashSet::new();
@@ -42,7 +42,7 @@ fn structured_conductivity_matches_upstream() {
             ));
         }
     }
-    assert_eq!(fluids.len(), 39, "all evaluable fluids covered");
+    assert_eq!(fluids.len(), 58, "all evaluable fluids covered");
     assert!(
         failures.is_empty(),
         "{} of {} failures:\n{}",
@@ -52,7 +52,9 @@ fn structured_conductivity_matches_upstream() {
     );
 }
 
-/// Error-condition parity for the not-yet-covered classes and two-phase.
+/// Error-condition parity: every conductivity model class is now ported —
+/// the remaining upstream errors are a missing TRANSPORT block and
+/// conformal-state-solver failures on deep two-phase mixture states.
 #[test]
 fn conductivity_error_conditions() {
     use rustprop::Error;
@@ -61,20 +63,15 @@ fn conductivity_error_conditions() {
         props_si("L", "T", 300.0, "P", 1e5, "Acetone").unwrap_err(),
         Error::Value(_)
     ));
-    // ECS conductivity class not ported yet.
-    assert!(matches!(
-        props_si("L", "T", 300.0, "P", 1e6, "R11").unwrap_err(),
-        Error::NotImplemented(_)
-    ));
-    // Structured conductivity whose viscosity class is unported blocks the
-    // OS enhancement (EthylBenzene's ECS viscosity).
-    assert!(matches!(
-        props_si("L", "T", 400.0, "P", 1e6, "EthylBenzene").unwrap_err(),
-        Error::NotImplemented(_)
-    ));
-    // Two-phase input: cp (and the enhancement) are undefined.
-    assert!(matches!(
-        props_si("L", "T", 300.0, "Q", 0.5, "n-Propane").unwrap_err(),
-        Error::Value(_)
-    ));
+    // ECS at a deep two-phase mixture density: upstream's conformal state
+    // solver cannot match the reference and throws
+    // "Conformal state solver failed; error was Not able to get a solution".
+    let err = props_si("L", "T", 243.7975002, "Q", 0.5, "R32").unwrap_err();
+    match err {
+        Error::Value(msg) => assert!(
+            msg.contains("Conformal state solver failed"),
+            "unexpected message: {msg}"
+        ),
+        other => panic!("expected Value error, got {other:?}"),
+    }
 }

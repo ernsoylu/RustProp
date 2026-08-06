@@ -785,6 +785,41 @@ fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
                     &format!("{path}.x_crossover"),
                 );
             }
+            ViscosityModel::Ecs {
+                reference_fluid,
+                psi_a,
+                psi_t,
+                psi_rhomolar_reducing,
+                sigma_eta,
+                epsilon_over_k,
+            } => {
+                w.string("ECS", &v["type"], &format!("{path}.type"));
+                w.string(
+                    reference_fluid,
+                    &v["reference_fluid"],
+                    &format!("{path}.reference_fluid"),
+                );
+                w.nums(psi_a, &v["psi"]["a"], &format!("{path}.psi.a"));
+                w.nums(psi_t, &v["psi"]["t"], &format!("{path}.psi.t"));
+                w.num(
+                    *psi_rhomolar_reducing,
+                    &v["psi"]["rhomolar_reducing"],
+                    &format!("{path}.psi.rhomolar_reducing"),
+                );
+                // sigma_eta / epsilon_over_k: NaN encodes "absent".
+                for (val, key) in [
+                    (*sigma_eta, "sigma_eta"),
+                    (*epsilon_over_k, "epsilon_over_k"),
+                ] {
+                    match v.get(key) {
+                        Some(j) => w.num(val, j, &format!("{path}.{key}")),
+                        None if val.is_nan() => {}
+                        None => w
+                            .mismatches
+                            .push(format!("{path}.{key}: rust {val} vs json absent")),
+                    }
+                }
+            }
         },
     );
     check_slot(
@@ -796,6 +831,38 @@ fn check_transport(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
             ConductivityModel::Structured(rc) => check_conductivity(w, rc, c, path),
             ConductivityModel::Hardcoded { name } => {
                 w.string(name, &c["hardcoded"], &format!("{path}.hardcoded"));
+            }
+            ConductivityModel::Ecs {
+                reference_fluid,
+                psi_a,
+                psi_t,
+                psi_rhomolar_reducing,
+                f_int_a,
+                f_int_t,
+                f_int_t_reducing,
+            } => {
+                // `q_D` is present in the documents but never read by
+                // upstream's parse_ECS_conductivity — deliberately skipped.
+                w.string("ECS", &c["type"], &format!("{path}.type"));
+                w.string(
+                    reference_fluid,
+                    &c["reference_fluid"],
+                    &format!("{path}.reference_fluid"),
+                );
+                w.nums(psi_a, &c["psi"]["a"], &format!("{path}.psi.a"));
+                w.nums(psi_t, &c["psi"]["t"], &format!("{path}.psi.t"));
+                w.num(
+                    *psi_rhomolar_reducing,
+                    &c["psi"]["rhomolar_reducing"],
+                    &format!("{path}.psi.rhomolar_reducing"),
+                );
+                w.nums(f_int_a, &c["f_int"]["a"], &format!("{path}.f_int.a"));
+                w.nums(f_int_t, &c["f_int"]["t"], &format!("{path}.f_int.t"));
+                w.num(
+                    *f_int_t_reducing,
+                    &c["f_int"]["T_reducing"],
+                    &format!("{path}.f_int.T_reducing"),
+                );
             }
         },
     );
@@ -825,9 +892,9 @@ fn check_slot<T>(
                 "model" // fully-hardcoded per-fluid formulation
             } else {
                 match o.get("type").and_then(Value::as_str) {
-                    Some("Chung" | "rhosr-CS") => "model",
-                    Some(_) => "unported", // ECS
-                    None => "model",       // structured
+                    Some("Chung" | "rhosr-CS" | "ECS") => "model",
+                    Some(_) => "unported",
+                    None => "model", // structured
                 }
             }
         }

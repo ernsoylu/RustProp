@@ -53,15 +53,38 @@ fn pow_int(x: f64, y: i32) -> f64 {
     product
 }
 
+/// A resolved ECS reference fluid: its EOS, document, and transport models
+/// (the caller — who owns the registry — resolves the name).
+pub struct EcsRef<'a> {
+    pub eos: &'a HelmholtzEos,
+    pub fluid: &'a FluidData,
+    pub viscosity: Option<&'a ViscosityModel>,
+    pub conductivity: Option<&'a ConductivityModel>,
+}
+
+/// Resolver from a reference-fluid name to its pieces.
+pub type EcsResolver<'a> = dyn Fn(&str) -> Result<EcsRef<'a>> + 'a;
+
+/// Upstream `T_critical()`/`rhomolar_critical()`: superancillary numerical
+/// values when present.
+fn crit_of(fluid: &FluidData) -> (f64, f64) {
+    match &fluid.eos.superancillary {
+        Some(sa) => (sa.t_crit_num, sa.rho_crit_num),
+        None => (fluid.states.critical.t, fluid.states.critical.rhomolar),
+    }
+}
+
 /// Upstream `calc_viscosity` for a pure fluid at a fully-determined state:
 /// the state's (T, rhomolar, p) — two-phase states evaluate at the mixture
 /// density exactly as upstream does.
 pub fn viscosity(
     eos: &HelmholtzEos,
+    fluid: &FluidData,
     model: &ViscosityModel,
     t: f64,
     rhomolar: f64,
     p: f64,
+    ecs: Option<&EcsResolver>,
 ) -> Result<f64> {
     match model {
         ViscosityModel::Structured(v) => viscosity_structured(eos, v, t, rhomolar, p),
@@ -109,7 +132,266 @@ pub fn viscosity(
             c_vap,
             *rhosr_critical,
         )),
+        ViscosityModel::Ecs {
+            reference_fluid,
+            psi_a,
+            psi_t,
+            psi_rhomolar_reducing,
+            sigma_eta,
+            epsilon_over_k,
+        } => {
+            let resolver = ecs.ok_or_else(|| {
+                Error::NotImplemented("ECS evaluation needs a reference-fluid resolver".into())
+            })?;
+            let reference = resolver(reference_fluid)?;
+            viscosity_ecs(
+                eos,
+                fluid,
+                &reference,
+                t,
+                rhomolar,
+                psi_a,
+                psi_t,
+                *psi_rhomolar_reducing,
+                *sigma_eta,
+                *epsilon_over_k,
+            )
+        }
     }
+}
+
+/// Upstream `conformal_state_solver`: 2-D Newton matching the reference
+/// fluid's (alphar, Z) to the fluid of interest's, with geometric step
+/// halving, ftol 1e-9, 50-iteration cap.
+fn conformal_state_solver(
+    ref_eos: &HelmholtzEos,
+    ref_tc: f64,
+    ref_rhoc: f64,
+    alphar_target: f64,
+    z_target: f64,
+    t0: &mut f64,
+    rhomolar0: &mut f64,
+) -> Result<()> {
+    let eval = |t: f64, rho: f64| -> (f64, f64, crate::alpha::HelmholtzDerivs, f64) {
+        let tau = ref_eos.t_reducing / t;
+        let delta = rho / ref_eos.rhomolar_reducing;
+        let d = ref_eos.alphar_all(tau, delta);
+        (d.d00, 1.0 + delta * d.d10, d, delta)
+    };
+    let mut iter = 0;
+    let mut resid = 9e30;
+    let mut resid_old: f64;
+    let (mut a0, mut z0, mut d, mut delta) = eval(*t0, *rhomolar0);
+    loop {
+        let dtau_dt = -ref_tc / (*t0 * *t0);
+        let ddelta_drho = 1.0 / ref_rhoc;
+        let r0 = a0 - alphar_target;
+        let r1 = z0 - z_target;
+        let j00 = d.d01 * dtau_dt;
+        let j01 = d.d10 * ddelta_drho;
+        let j10 = delta * d.d11 * dtau_dt;
+        let j11 = (delta * d.d20 + d.d10) * ddelta_drho;
+        // Direct 2x2 solve of J v = -r (upstream uses Eigen's QR; identical
+        // solution to roundoff).
+        let det = j00 * j11 - j01 * j10;
+        if !det.is_finite() || det.abs() < 1e-300 {
+            return Err(Error::Solution(
+                "conformal state solver: singular Jacobian".into(),
+            ));
+        }
+        let v0 = -(j11 * r0 - j01 * r1) / det;
+        let v1 = -(-j10 * r0 + j00 * r1) / det;
+        let mut good_solution = false;
+        let (t0_init, rho0_init) = (*t0, *rhomolar0);
+        resid_old = (r0 * r0 + r1 * r1).sqrt();
+        let mut frac = 1.0;
+        while frac > 0.001 {
+            let t_new = t0_init + frac * v0;
+            let rho_new = rho0_init + frac * v1;
+            if t_new > 0.0 && rho_new > 0.0 {
+                let (a_n, z_n, d_n, delta_n) = eval(t_new, rho_new);
+                resid = ((a_n - alphar_target).powi(2) + (z_n - z_target).powi(2)).sqrt();
+                if resid.is_finite() && resid <= resid_old {
+                    good_solution = true;
+                    *t0 = t_new;
+                    *rhomolar0 = rho_new;
+                    a0 = a_n;
+                    z0 = z_n;
+                    d = d_n;
+                    delta = delta_n;
+                    break;
+                }
+            }
+            frac /= 2.0;
+        }
+        if !good_solution {
+            return Err(Error::Value("Not able to get a solution".into()));
+        }
+        iter += 1;
+        if iter > 50 {
+            return Err(Error::Value(format!(
+                "conformal_state_solver took too many iterations; residual is {resid}"
+            )));
+        }
+        if resid.abs() <= 1e-9 {
+            return Ok(());
+        }
+    }
+}
+
+/// The fluid's Lennard-Jones (sigma [m], epsilon/k [K]) pair as upstream
+/// stores it on `transport`: from the viscosity block when given, else the
+/// `default_transport` critical-point estimation.
+fn fluid_lennard_jones(eos: &HelmholtzEos, viscosity_model: Option<&ViscosityModel>) -> (f64, f64) {
+    match viscosity_model {
+        Some(ViscosityModel::Ecs {
+            sigma_eta,
+            epsilon_over_k,
+            ..
+        }) if sigma_eta.is_finite() && epsilon_over_k.is_finite() => (*sigma_eta, *epsilon_over_k),
+        Some(ViscosityModel::Structured(v))
+            if v.sigma_eta.is_finite() && v.epsilon_over_k.is_finite() =>
+        {
+            (v.sigma_eta, v.epsilon_over_k)
+        }
+        _ => {
+            let rho_crit_moll = eos.rhomolar_reducing / 1000.0;
+            (
+                0.809 / rho_crit_moll.powf(1.0 / 3.0) / 1e9,
+                eos.t_reducing / 1.2593,
+            )
+        }
+    }
+}
+
+/// Upstream `viscosity_dilute_kinetic_theory` with explicit L-J parameters
+/// (Neufeld's Omega22), in Pa-s.
+fn kinetic_theory_dilute(eos: &HelmholtzEos, t: f64, sigma: f64, epsilon_over_k: f64) -> f64 {
+    let tstar = t / epsilon_over_k;
+    let sigma_nm = sigma * 1e9;
+    let molar_mass_kgkmol = eos.molar_mass * 1000.0;
+    let omega22 = 1.16145 * tstar.powf(-0.14874)
+        + 0.52487 * (-0.77320 * tstar).exp()
+        + 2.16178 * (-2.43787 * tstar).exp();
+    26.692e-9 * (molar_mass_kgkmol * t).sqrt() / (sigma_nm.powf(2.0) * omega22)
+}
+
+/// Upstream `viscosity_ECS`.
+#[allow(clippy::too_many_arguments)]
+fn viscosity_ecs(
+    eos: &HelmholtzEos,
+    fluid: &FluidData,
+    reference: &EcsRef,
+    t: f64,
+    rhomolar: f64,
+    psi_a: &[f64],
+    psi_t: &[f64],
+    psi_rhomolar_reducing: f64,
+    sigma_eta: f64,
+    epsilon_over_k: f64,
+) -> Result<f64> {
+    let m = eos.molar_mass;
+    let m0 = reference.eos.molar_mass;
+    let (tc, rhocmolar) = crit_of(fluid);
+    let (tc0, rhocmolar0) = crit_of(reference.fluid);
+
+    let mut psi = 0.0;
+    for i in 0..psi_a.len() {
+        psi += psi_a[i] * (rhomolar / psi_rhomolar_reducing).powf(psi_t[i]);
+    }
+
+    // Dilute part: kinetic theory with the block's L-J parameters (or the
+    // default_transport estimation when absent).
+    let (sigma, eps) = if sigma_eta.is_finite() && epsilon_over_k.is_finite() {
+        (sigma_eta, epsilon_over_k)
+    } else {
+        let rho_crit_moll = eos.rhomolar_reducing / 1000.0;
+        (
+            0.809 / rho_crit_moll.powf(1.0 / 3.0) / 1e9,
+            eos.t_reducing / 1.2593,
+        )
+    };
+    let eta_dilute = kinetic_theory_dilute(eos, t, sigma, eps);
+
+    // Conformal state
+    let tau = eos.t_reducing / t;
+    let delta = rhomolar / eos.rhomolar_reducing;
+    let dd = eos.alphar_all(tau, delta);
+    let alphar_target = dd.d00;
+    let z_target = 1.0 + delta * dd.d10;
+    let mut t0 = t / (tc / tc0);
+    let mut rhomolar0 = rhomolar * (rhocmolar0 / rhocmolar);
+    conformal_state_solver(
+        reference.eos,
+        tc0,
+        rhocmolar0,
+        alphar_target,
+        z_target,
+        &mut t0,
+        &mut rhomolar0,
+    )?;
+
+    // Reference background at (rho0*psi, T0)
+    let rv = reference.viscosity.ok_or_else(|| {
+        Error::NotImplemented("ECS reference fluid's viscosity model is unavailable".into())
+    })?;
+    let ViscosityModel::Structured(rvs) = rv else {
+        return Err(Error::NotImplemented(
+            "ECS reference fluid's viscosity model is not structured".into(),
+        ));
+    };
+    let rho_ref = rhomolar0 * psi;
+    let p_ref = reference.eos.pressure(t0, rho_ref);
+    let eta_dilute_ref = viscosity_dilute(reference.eos, rvs, t0)?;
+    let eta_resid = viscosity_background(reference.eos, rvs, eta_dilute_ref, t0, rho_ref, p_ref)?;
+
+    let f = t / t0;
+    let h = rhomolar0 / rhomolar;
+    let f_eta = f.sqrt() * h.powf(-2.0 / 3.0) * (m / m0).sqrt();
+    Ok(eta_dilute + eta_resid * f_eta)
+}
+
+/// The reference fluid's `calc_viscosity_background`:
+/// initial-density + higher-order at the conformal state.
+fn viscosity_background(
+    eos: &HelmholtzEos,
+    v: &Viscosity,
+    eta_dilute: f64,
+    t: f64,
+    rhomolar: f64,
+    p: f64,
+) -> Result<f64> {
+    let initial_density = match &v.initial_density {
+        None => 0.0,
+        Some(ViscosityInitialDensity::RainwaterFriend { b, t: bt }) => {
+            // B_eta* summed over powers of Tstar; B_eta = N_A * sigma^3 * B_eta*.
+            let tstar = t / v.epsilon_over_k;
+            let sigma = v.sigma_eta;
+            let mut summer = 0.0;
+            for i in 0..b.len() {
+                summer += b[i] * tstar.powf(bt[i]);
+            }
+            let b_eta = 6.02214129e23 * sigma.powf(3.0) * summer; // [m^3/mol]
+            eta_dilute * b_eta * rhomolar
+        }
+        Some(ViscosityInitialDensity::Empirical {
+            n,
+            d,
+            t: te,
+            t_reducing,
+            rhomolar_reducing,
+        }) => {
+            let tau = t_reducing / t;
+            let delta = rhomolar / rhomolar_reducing;
+            let mut summer = 0.0;
+            for i in 0..n.len() {
+                summer += n[i] * delta.powf(d[i]) * tau.powf(te[i]);
+            }
+            summer
+        }
+    };
+    let residual = viscosity_higher_order(eos, v, t, rhomolar, p)?;
+    Ok(initial_density + residual)
 }
 
 /// Upstream `viscosity_Chung` (evaluates with kappa = 0 regardless of the
@@ -234,37 +516,8 @@ fn viscosity_structured(
     p: f64,
 ) -> Result<f64> {
     let dilute = viscosity_dilute(eos, v, t)?;
-    let initial_density = match &v.initial_density {
-        None => 0.0,
-        Some(ViscosityInitialDensity::RainwaterFriend { b, t: bt }) => {
-            // B_eta* summed over powers of Tstar; B_eta = N_A * sigma^3 * B_eta*.
-            let tstar = t / v.epsilon_over_k;
-            let sigma = v.sigma_eta;
-            let mut summer = 0.0;
-            for i in 0..b.len() {
-                summer += b[i] * tstar.powf(bt[i]);
-            }
-            let b_eta = 6.02214129e23 * sigma.powf(3.0) * summer; // [m^3/mol]
-            dilute * b_eta * rhomolar
-        }
-        Some(ViscosityInitialDensity::Empirical {
-            n,
-            d,
-            t: te,
-            t_reducing,
-            rhomolar_reducing,
-        }) => {
-            let tau = t_reducing / t;
-            let delta = rhomolar / rhomolar_reducing;
-            let mut summer = 0.0;
-            for i in 0..n.len() {
-                summer += n[i] * delta.powf(d[i]) * tau.powf(te[i]);
-            }
-            summer
-        }
-    };
-    let residual = viscosity_higher_order(eos, v, t, rhomolar, p)?;
-    Ok(dilute + initial_density + residual)
+    let background = viscosity_background(eos, v, dilute, t, rhomolar, p)?;
+    Ok(dilute + background)
 }
 
 fn viscosity_dilute(eos: &HelmholtzEos, v: &Viscosity, t: f64) -> Result<f64> {
@@ -485,9 +738,10 @@ fn viscosity_higher_order(
 }
 
 /// Upstream `calc_conductivity` (`lambda = dilute + residual + critical`)
-/// for a pure fluid at a fully-determined state. The Olchowy-Sengers
-/// critical enhancement needs the fluid's own viscosity and cp/cv — cp is
-/// undefined in the two-phase region, where upstream throws.
+/// for a pure fluid at a fully-determined state. Two-phase states evaluate
+/// at the mixture density with the plain single-phase formulas — upstream's
+/// `calc_cpmolar`/`calc_cvmolar` carry no two-phase guard, so the
+/// Olchowy-Sengers enhancement (and everything else) computes verbatim.
 #[allow(clippy::too_many_arguments)]
 pub fn conductivity(
     eos: &HelmholtzEos,
@@ -497,25 +751,168 @@ pub fn conductivity(
     t: f64,
     rhomolar: f64,
     p: f64,
-    two_phase: bool,
+    ecs: Option<&EcsResolver>,
 ) -> Result<f64> {
     match model {
         ConductivityModel::Structured(c) => {
-            conductivity_structured(eos, fluid, c, viscosity_model, t, rhomolar, p, two_phase)
+            conductivity_structured(eos, fluid, c, viscosity_model, t, rhomolar, p, ecs)
         }
         ConductivityModel::Hardcoded { name } => match *name {
             "Water" => {
-                conductivity_water_hardcoded(eos, viscosity_model, t, rhomolar, p, two_phase)
+                conductivity_water_hardcoded(eos, fluid, viscosity_model, t, rhomolar, p, ecs)
             }
             "HeavyWater" => Ok(conductivity_heavywater_hardcoded(eos, t, rhomolar)),
-            "Helium" => conductivity_helium_hardcoded(eos, viscosity_model, t, rhomolar, p),
+            "Helium" => {
+                conductivity_helium_hardcoded(eos, fluid, viscosity_model, t, rhomolar, p, ecs)
+            }
             "R23" => Ok(conductivity_r23_hardcoded(t, rhomolar)),
             "Methane" => Ok(conductivity_methane_hardcoded(eos, fluid, t, rhomolar)),
             other => Err(Error::NotImplemented(format!(
                 "hardcoded conductivity [{other}] is not ported yet"
             ))),
         },
+        ConductivityModel::Ecs {
+            reference_fluid,
+            psi_a,
+            psi_t,
+            psi_rhomolar_reducing,
+            f_int_a,
+            f_int_t,
+            f_int_t_reducing,
+        } => {
+            let resolver = ecs.ok_or_else(|| {
+                Error::NotImplemented("ECS evaluation needs a reference-fluid resolver".into())
+            })?;
+            let reference = resolver(reference_fluid)?;
+            conductivity_ecs(
+                eos,
+                fluid,
+                &reference,
+                viscosity_model,
+                t,
+                rhomolar,
+                p,
+                ecs,
+                psi_a,
+                psi_t,
+                *psi_rhomolar_reducing,
+                f_int_a,
+                f_int_t,
+                *f_int_t_reducing,
+            )
+        }
     }
+}
+
+/// Upstream `conductivity_ECS`: `lambda = lambda_int + lambda_dilute +
+/// lambda_resid·F_lambda + lambda_crit`, with the reference fluid evaluated
+/// at the conformal state and the critical enhancement from the fluid of
+/// interest with the Olchowy-Sengers struct DEFAULTS (`parse_ECS_conductivity`
+/// never fills the critical block — the JSON `q_D` key is unread).
+#[allow(clippy::too_many_arguments)]
+fn conductivity_ecs(
+    eos: &HelmholtzEos,
+    fluid: &FluidData,
+    reference: &EcsRef,
+    viscosity_model: Option<&ViscosityModel>,
+    t: f64,
+    rhomolar: f64,
+    p: f64,
+    ecs: Option<&EcsResolver>,
+    psi_a: &[f64],
+    psi_t: &[f64],
+    psi_rhomolar_reducing: f64,
+    f_int_a: &[f64],
+    f_int_t: &[f64],
+    f_int_t_reducing: f64,
+) -> Result<f64> {
+    let m = eos.molar_mass;
+    let m_kmol = m * 1000.0;
+    let m0 = reference.eos.molar_mass;
+    let (tc, rhocmolar) = crit_of(fluid);
+    let (tc0, rhocmolar0) = crit_of(reference.fluid);
+    let r_u = eos.gas_constant;
+    let r = r_u / m;
+    let r_kjkgk = r_u / m_kmol;
+
+    let mut psi = 0.0;
+    for i in 0..psi_a.len() {
+        psi += psi_a[i] * (rhomolar / psi_rhomolar_reducing).powf(psi_t[i]);
+    }
+    let mut fint = 0.0;
+    for i in 0..f_int_a.len() {
+        fint += f_int_a[i] * (t / f_int_t_reducing).powf(f_int_t[i]);
+    }
+
+    // Dilute viscosity of the fluid of interest [uPa-s]: kinetic theory with
+    // the fluid's own L-J parameters (its ECS viscosity block, or the
+    // default_transport estimation).
+    let (sigma, eps) = fluid_lennard_jones(eos, viscosity_model);
+    let eta_dilute_upas = kinetic_theory_dilute(eos, t, sigma, eps) * 1e6;
+
+    // cp0 (ideal gas), mass-based: cp0/R = 1 - tau^2 * d2alpha0/dtau2.
+    let tau = eos.t_reducing / t;
+    let delta = rhomolar / eos.rhomolar_reducing;
+    let a0 = eos.alpha0_all(tau, delta);
+    let cp0 = eos.gas_constant * (1.0 - tau * tau * a0.d02) / m;
+
+    let lambda_int = fint * eta_dilute_upas * (cp0 - 2.5 * r) / 1e3;
+    let lambda_dilute = 15.0e-3 / 4.0 * r_kjkgk * eta_dilute_upas;
+
+    // Conformal state of the reference fluid.
+    let dd = eos.alphar_all(tau, delta);
+    let alphar_target = dd.d00;
+    let z_target = 1.0 + delta * dd.d10;
+    let mut t0 = t / (tc / tc0);
+    let mut rhomolar0 = rhomolar * (rhocmolar0 / rhocmolar);
+    conformal_state_solver(
+        reference.eos,
+        tc0,
+        rhocmolar0,
+        alphar_target,
+        z_target,
+        &mut t0,
+        &mut rhomolar0,
+    )
+    .map_err(|e| Error::Value(format!("Conformal state solver failed; error was: {e}")))?;
+
+    // Reference residual (background) conductivity at (rho0*psi, T0) —
+    // upstream `calc_conductivity_background` is the residual term only.
+    let rc = reference.conductivity.ok_or_else(|| {
+        Error::NotImplemented("ECS reference fluid's conductivity model is unavailable".into())
+    })?;
+    let ConductivityModel::Structured(rcs) = rc else {
+        return Err(Error::NotImplemented(
+            "ECS reference fluid's conductivity model is not structured".into(),
+        ));
+    };
+    let rho_ref = rhomolar0 * psi;
+    let lambda_resid = conductivity_residual(reference.eos, rcs, t0, rho_ref);
+
+    let f = t / t0;
+    let h = rhomolar0 / rhomolar;
+    let f_lambda = f.sqrt() * h.powf(-2.0 / 3.0) * (m0 / m).sqrt();
+
+    // Critical enhancement of the fluid of interest, pure struct defaults.
+    let lambda_critical = olchowy_sengers(
+        eos,
+        fluid,
+        viscosity_model,
+        t,
+        rhomolar,
+        p,
+        ecs,
+        1.3806488e-23,
+        1.03,
+        1.239,
+        0.63,
+        0.0496,
+        1.94e-10,
+        2e9,
+        f64::NAN,
+    )?;
+
+    Ok(lambda_int + lambda_dilute + lambda_resid * f_lambda + lambda_critical)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -527,9 +924,8 @@ fn conductivity_structured(
     t: f64,
     rhomolar: f64,
     p: f64,
-    two_phase: bool,
+    ecs: Option<&EcsResolver>,
 ) -> Result<f64> {
-    let reducing_p = fluid.eos.reducing.p;
     let dilute = match &c.dilute {
         ConductivityDilute::RatioOfPolynomials {
             a,
@@ -584,7 +980,60 @@ fn conductivity_structured(
         },
     };
 
-    let residual = match &c.residual {
+    let residual = conductivity_residual(eos, c, t, rhomolar);
+
+    let critical = match &c.critical {
+        None => 0.0,
+        Some(ConductivityCritical::SimplifiedOlchowySengers {
+            k,
+            r0,
+            gamma,
+            nu,
+            big_gamma,
+            zeta0,
+            qd,
+            t_ref,
+        }) => olchowy_sengers(
+            eos,
+            fluid,
+            viscosity_model,
+            t,
+            rhomolar,
+            p,
+            ecs,
+            *k,
+            *r0,
+            *gamma,
+            *nu,
+            *big_gamma,
+            *zeta0,
+            *qd,
+            *t_ref,
+        )?,
+        Some(ConductivityCritical::Hardcoded { name }) => match *name {
+            "Ammonia" => conductivity_critical_ammonia(t, rhomolar * eos.molar_mass),
+            "R123" => {
+                let tau = eos.t_reducing / t;
+                let delta = rhomolar / eos.rhomolar_reducing;
+                let (a13, a14, a15) = (0.486742e-2, -100.0, -7.08535);
+                a13 * (a14 * (tau - 1.0).powf(4.0) + a15 * (delta - 1.0).powf(2.0)).exp()
+            }
+            other => {
+                return Err(Error::NotImplemented(format!(
+                    "hardcoded critical conductivity [{other}] is not ported yet"
+                )));
+            }
+        },
+    };
+
+    Ok(dilute + residual + critical)
+}
+
+/// The residual conductivity term (upstream `calc_conductivity_background`
+/// — the background is the residual contribution only), reused by the ECS
+/// reference evaluation.
+fn conductivity_residual(eos: &HelmholtzEos, c: &Conductivity, t: f64, rhomolar: f64) -> f64 {
+    match &c.residual {
         ConductivityResidual::Polynomial {
             b,
             t: bt,
@@ -618,92 +1067,7 @@ fn conductivity_structured(
             }
             summer
         }
-    };
-
-    let critical = match &c.critical {
-        None => 0.0,
-        Some(ConductivityCritical::SimplifiedOlchowySengers {
-            k,
-            r0,
-            gamma,
-            nu,
-            big_gamma,
-            zeta0,
-            qd,
-            t_ref,
-        }) => {
-            // cp/cv (and the enhancement) are undefined in the two-phase
-            // region — upstream's cpmolar() throws there.
-            if two_phase {
-                return Err(Error::Value(
-                    "Input is two-phase and the critical conductivity enhancement is not defined"
-                        .into(),
-                ));
-            }
-            let v = viscosity_model.ok_or_else(|| {
-                Error::NotImplemented(
-                    "the Olchowy-Sengers enhancement needs the fluid's (unported) viscosity model"
-                        .into(),
-                )
-            })?;
-            let _ = &v;
-            let tc = eos.t_reducing;
-            let rhoc = eos.rhomolar_reducing;
-            let pcrit = reducing_p;
-            let tref = if t_ref.is_finite() { *t_ref } else { 1.5 * tc };
-
-            let delta = rhomolar / rhoc;
-            let tau = tc / t;
-            let dd = eos.alphar_all(tau, delta);
-            let dp_drho =
-                eos.gas_constant * t * (1.0 + 2.0 * delta * dd.d10 + delta * delta * dd.d20);
-            let x = pcrit / rhoc.powf(2.0) * rhomolar / dp_drho;
-
-            let tau_ref = tc / tref;
-            let dref = eos.alphar_all(tau_ref, delta);
-            let dp_drho_ref =
-                eos.gas_constant * tref * (1.0 + 2.0 * delta * dref.d10 + delta * delta * dref.d20);
-            let xref = pcrit / rhoc.powf(2.0) * rhomolar / dp_drho_ref * tref / t;
-            let num = x - xref;
-
-            // No critical enhancement if the numerator is negative, zero, or
-            // just a tiny bit positive due to roundoff (Lemmon, IJT, 2004).
-            if num < f64::EPSILON * 10.0 {
-                0.0
-            } else {
-                let zeta = zeta0 * (num / big_gamma).powf(nu / gamma);
-                let cp = eos.cpmolar(t, rhomolar);
-                let cv = eos.cvmolar(t, rhomolar);
-                let mu = viscosity(eos, v, t, rhomolar, p)?;
-                let pi = std::f64::consts::PI;
-                let omega_tilde =
-                    2.0 / pi * ((cp - cv) / cp * (zeta * qd).atan() + cv / cp * (zeta * qd));
-                let omega_tilde0 = 2.0 / pi
-                    * (1.0
-                        - (-1.0
-                            / (1.0 / (qd * zeta)
-                                + 1.0 / 3.0 * (zeta * qd) * (zeta * qd) / delta / delta))
-                            .exp());
-                rhomolar * cp * r0 * k * t / (6.0 * pi * mu * zeta) * (omega_tilde - omega_tilde0)
-            }
-        }
-        Some(ConductivityCritical::Hardcoded { name }) => match *name {
-            "Ammonia" => conductivity_critical_ammonia(t, rhomolar * eos.molar_mass),
-            "R123" => {
-                let tau = eos.t_reducing / t;
-                let delta = rhomolar / eos.rhomolar_reducing;
-                let (a13, a14, a15) = (0.486742e-2, -100.0, -7.08535);
-                a13 * (a14 * (tau - 1.0).powf(4.0) + a15 * (delta - 1.0).powf(2.0)).exp()
-            }
-            other => {
-                return Err(Error::NotImplemented(format!(
-                    "hardcoded critical conductivity [{other}] is not ported yet"
-                )));
-            }
-        },
-    };
-
-    Ok(dilute + residual + critical)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -711,6 +1075,68 @@ fn conductivity_structured(
 // line-for-line: constants stay verbatim (excessive-precision literals
 // included) and index loops mirror the upstream loops.
 // ---------------------------------------------------------------------------
+
+/// Upstream `conductivity_critical_simplified_Olchowy_Sengers`, shared by
+/// structured critical blocks (fluid parameters) and ECS conductivity
+/// (upstream struct defaults).
+#[allow(clippy::too_many_arguments)]
+fn olchowy_sengers(
+    eos: &HelmholtzEos,
+    fluid: &FluidData,
+    viscosity_model: Option<&ViscosityModel>,
+    t: f64,
+    rhomolar: f64,
+    p: f64,
+    ecs: Option<&EcsResolver>,
+    k: f64,
+    r0: f64,
+    gamma: f64,
+    nu: f64,
+    big_gamma: f64,
+    zeta0: f64,
+    qd: f64,
+    t_ref: f64,
+) -> Result<f64> {
+    let tc = eos.t_reducing;
+    let rhoc = eos.rhomolar_reducing;
+    let pcrit = fluid.eos.reducing.p;
+    let tref = if t_ref.is_finite() { t_ref } else { 1.5 * tc };
+
+    let delta = rhomolar / rhoc;
+    let tau = tc / t;
+    let dd = eos.alphar_all(tau, delta);
+    let dp_drho = eos.gas_constant * t * (1.0 + 2.0 * delta * dd.d10 + delta * delta * dd.d20);
+    let x = pcrit / rhoc.powf(2.0) * rhomolar / dp_drho;
+
+    let tau_ref = tc / tref;
+    let dref = eos.alphar_all(tau_ref, delta);
+    let dp_drho_ref =
+        eos.gas_constant * tref * (1.0 + 2.0 * delta * dref.d10 + delta * delta * dref.d20);
+    let xref = pcrit / rhoc.powf(2.0) * rhomolar / dp_drho_ref * tref / t;
+    let num = x - xref;
+
+    // No critical enhancement if the numerator is negative, zero, or
+    // just a tiny bit positive due to roundoff (Lemmon, IJT, 2004).
+    if num < f64::EPSILON * 10.0 {
+        return Ok(0.0);
+    }
+    let v = viscosity_model.ok_or_else(|| {
+        Error::NotImplemented(
+            "the Olchowy-Sengers enhancement needs the fluid's (unported) viscosity model".into(),
+        )
+    })?;
+    let zeta = zeta0 * (num / big_gamma).powf(nu / gamma);
+    let cp = eos.cpmolar(t, rhomolar);
+    let cv = eos.cvmolar(t, rhomolar);
+    let mu = viscosity(eos, fluid, v, t, rhomolar, p, ecs)?;
+    let pi = std::f64::consts::PI;
+    let omega_tilde = 2.0 / pi * ((cp - cv) / cp * (zeta * qd).atan() + cv / cp * (zeta * qd));
+    let omega_tilde0 = 2.0 / pi
+        * (1.0
+            - (-1.0 / (1.0 / (qd * zeta) + 1.0 / 3.0 * (zeta * qd) * (zeta * qd) / delta / delta))
+                .exp());
+    Ok(rhomolar * cp * r0 * k * t / (6.0 * pi * mu * zeta) * (omega_tilde - omega_tilde0))
+}
 
 /// The fluid's dilute viscosity (upstream `calc_viscosity_dilute` through
 /// the model wrapper) — consumed by eta0_and_poly and the Ethane dilute
@@ -725,9 +1151,13 @@ fn fluid_dilute_viscosity(
         Some(ViscosityModel::Hardcoded { name }) => Err(Error::NotImplemented(format!(
             "dilute viscosity of hardcoded model [{name}] is not separable"
         ))),
-        Some(ViscosityModel::Chung { .. } | ViscosityModel::RhosrCs { .. }) => Err(
-            Error::NotImplemented("dilute viscosity of Chung/rhosr models is not separable".into()),
-        ),
+        Some(
+            ViscosityModel::Chung { .. }
+            | ViscosityModel::RhosrCs { .. }
+            | ViscosityModel::Ecs { .. },
+        ) => Err(Error::NotImplemented(
+            "dilute viscosity of Chung/rhosr/ECS models is not separable".into(),
+        )),
         None => Err(Error::NotImplemented(
             "this conductivity needs the fluid's (unported) viscosity model".into(),
         )),
@@ -1276,17 +1706,13 @@ fn viscosity_heptane_higher_order(eos: &HelmholtzEos, t: f64, rhomolar: f64) -> 
 #[allow(clippy::many_single_char_names)]
 fn conductivity_water_hardcoded(
     eos: &HelmholtzEos,
+    fluid: &FluidData,
     viscosity_model: Option<&ViscosityModel>,
     t: f64,
     rhomolar: f64,
     p: f64,
-    two_phase: bool,
+    ecs: Option<&EcsResolver>,
 ) -> Result<f64> {
-    if two_phase {
-        return Err(Error::Value(
-            "Input is two-phase and the critical conductivity enhancement is not defined".into(),
-        ));
-    }
     let l: [[f64; 6]; 5] = [
         [
             1.60397357,
@@ -1372,7 +1798,7 @@ fn conductivity_water_hardcoded(
     let v = viscosity_model.ok_or_else(|| {
         Error::NotImplemented("water conductivity needs the water viscosity model".into())
     })?;
-    let mubar = viscosity(eos, v, t, rhomolar, p)? / mustar;
+    let mubar = viscosity(eos, fluid, v, t, rhomolar, p, ecs)? / mustar;
     let delta_chibar_t = rhobar * (drhobar_dpbar - drhobar_dpbar_trbar * tr_bar / tbar);
     let xi = if delta_chibar_t < 0.0 {
         0.0
@@ -1426,10 +1852,12 @@ fn conductivity_heavywater_hardcoded(eos: &HelmholtzEos, t: f64, rhomolar: f64) 
 #[allow(clippy::many_single_char_names)]
 fn conductivity_helium_hardcoded(
     eos: &HelmholtzEos,
+    fluid: &FluidData,
     viscosity_model: Option<&ViscosityModel>,
     t: f64,
     rhomolar: f64,
     p: f64,
+    ecs: Option<&EcsResolver>,
 ) -> Result<f64> {
     let rhoc = 68.0;
     let rho = rhomolar * eos.molar_mass; // [kg/m^3]
@@ -1466,7 +1894,7 @@ fn conductivity_helium_hardcoded(
         let v = viscosity_model.ok_or_else(|| {
             Error::NotImplemented("helium conductivity needs the helium viscosity model".into())
         })?;
-        let eta = viscosity(eos, v, t, rhomolar, p)?;
+        let eta = viscosity(eos, fluid, v, t, rhomolar, p, ecs)?;
         // Isothermal compressibility 1/(rho*dp/drho) and dp/dT|rho from the
         // alpha derivatives.
         let tau = eos.t_reducing / t;

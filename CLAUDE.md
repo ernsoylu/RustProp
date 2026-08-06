@@ -78,12 +78,20 @@ real (e2e + doc-tests).
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
 
-6.1 slices 1+2 (structured viscosity + conductivity) are done: all five dilute viscosity
-families + Rainwater-Friend/empirical + modified-BH/friction-theory (160 goldens, 20 fluids);
-conductivity ratio-of-polynomials/eta0_and_poly + polynomial/polynomial_and_exponential +
-simplified Olchowy-Sengers (135 goldens, 15 fluids; saturation endpoints evaluate, interior
-two-phase errors). TRANSPORT slots are per-property tri-state (Absent/Unported/Model). Next
-6.1 slices: hardcoded models (Water IAPWS first), section-hardcoded fluids, ECS/Chung/rhosr.
+**Phase 6.1 (transport) is DONE — every transport class ported**: structured families,
+fully-/section-hardcoded models, Chung, rhosr-CS, and ECS (conformal-state 2-D Newton;
+references Propane/R134a/Nitrogen resolved through the registry via an `EcsRef` resolver
+seam; conductivity's OS critical term uses pure struct defaults — upstream never reads the
+JSON `q_D`). TRANSPORT slots are per-property tri-state (Absent/Unported/Model); zero
+Unported remain. Viscosity: 61 fluids/482 goldens; conductivity: 58 fluids/571 goldens, 1e-8.
+Fidelity discovery: upstream v8 has NO two-phase conductivity guard (cp/cv are raw
+single-phase formulas at mixture density) — two-phase states evaluate; the only two-phase
+errors are conformal-solver failures (R32 et al., error parity asserted).
+
+Remaining (tier-2 deferrals, in progress): remaining input pairs ((H,T)/(T,U)/(P,U)/(Q,S)/
+(H,Q)/(D,Q)/(D,H)/(D,S)/(D,U)), melting lines (incl. HS cascade leg 4, PT Tmelt check),
+pseudo-pure fluids (pL/pV ancillaries + Maxwell fallback: Air, R404A/407C/410A/507A, SES36),
+multi-output '&' ValueError parity.
 
 ## Toolchain
 

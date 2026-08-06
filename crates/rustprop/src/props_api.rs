@@ -321,10 +321,12 @@ fn keyed_output(
             let v = viscosity_model(data)?;
             rustprop_heos::transport::viscosity(
                 &flash.eos,
+                data,
                 v,
                 state.t(),
                 state.rhomolar(),
                 state.p(),
+                Some(&ecs_resolver),
             )?
         }
         Param::Conductivity => {
@@ -339,24 +341,17 @@ fn keyed_output(
                 }
                 rustprop_core::fluid::TransportModel::Unported => {
                     return Err(Error::NotImplemented(
-                        "this fluid's conductivity model class (ECS) is not ported yet".into(),
+                        "this fluid's conductivity model class is not ported yet".into(),
                     ));
                 }
                 rustprop_core::fluid::TransportModel::Model(c) => c,
             };
             // The Olchowy-Sengers term needs the fluid's viscosity; pass the
             // model when it is ported (its absence only errors if actually
-            // needed).
+            // needed). Two-phase states evaluate at the mixture density —
+            // upstream has no two-phase guard anywhere in the conductivity
+            // path (cp/cv are the raw single-phase formulas).
             let v = viscosity_model(data).ok();
-            // Strictly-interior quality only: the saturation endpoints
-            // (Q = 0/1, DBL_EPSILON shortcuts as in the two-phase mixing)
-            // evaluate like the saturated single phase, as upstream does.
-            let strictly_two_phase = match state {
-                HeosState::TwoPhase { q, .. } => {
-                    q.abs() >= f64::EPSILON && (q - 1.0).abs() >= f64::EPSILON
-                }
-                HeosState::SinglePhase { .. } => false,
-            };
             rustprop_heos::transport::conductivity(
                 &flash.eos,
                 data,
@@ -365,7 +360,7 @@ fn keyed_output(
                 state.t(),
                 state.rhomolar(),
                 state.p(),
-                strictly_two_phase,
+                Some(&ecs_resolver),
             )?
         }
         Param::SurfaceTension => {
@@ -395,6 +390,29 @@ fn keyed_output(
     })
 }
 
+/// ECS reference-fluid resolver: looks the name up in the compiled-in
+/// registry (the reference must be feature-enabled alongside the fluid) and
+/// hands transport its EOS, document, and transport models.
+#[cfg(feature = "heos")]
+fn ecs_resolver(name: &str) -> Result<rustprop_heos::transport::EcsRef<'static>> {
+    let data = resolve_fluid(name)?;
+    let flash = fluid_flash(data);
+    let viscosity = match data.transport.as_ref().map(|tr| &tr.viscosity) {
+        Some(rustprop_core::fluid::TransportModel::Model(v)) => Some(v),
+        _ => None,
+    };
+    let conductivity = match data.transport.as_ref().map(|tr| &tr.conductivity) {
+        Some(rustprop_core::fluid::TransportModel::Model(c)) => Some(c),
+        _ => None,
+    };
+    Ok(rustprop_heos::transport::EcsRef {
+        eos: &flash.eos,
+        fluid: data,
+        viscosity,
+        conductivity,
+    })
+}
+
 /// Resolve the fluid's ported viscosity model (upstream
 /// `viscosity_model_provided` + the per-class dispatch).
 #[cfg(feature = "heos")]
@@ -410,7 +428,7 @@ fn viscosity_model(
             "Viscosity model is not available for this fluid".into(),
         )),
         rustprop_core::fluid::TransportModel::Unported => Err(Error::NotImplemented(
-            "this fluid's viscosity model class (ECS/Chung/rhosr) is not ported yet".into(),
+            "this fluid's viscosity model class is not ported yet".into(),
         )),
         rustprop_core::fluid::TransportModel::Model(v) => Ok(v),
     }

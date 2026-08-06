@@ -190,7 +190,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 
 ## Phase 6 — Transport properties and surface tension
 
-- [ ] 6.1 Extend core types + datagen for transport blocks; port viscosity and conductivity
+- [x] 6.1 Extend core types + datagen for transport blocks; port viscosity and conductivity
       model families used by the ported fluids (dilute, residual, critical enhancement, and the
       per-fluid special cases upstream has).
       → verify: goldens for `V` and `L` outputs across single-phase grids for every fluid with
@@ -756,3 +756,29 @@ Append-only; newest last. Seeded entries:
   semantics encoded: a viscosity ARRAY uses its FIRST entry (the rhosr fluids carry a dead
   ECS second entry). Viscosity: 46 fluids/368 goldens; conductivity: 39 fluids/351 goldens
   (Cyclopentane, Isopentane, R1234yf, R1234ze(E), R152A unlocked). Only ECS remains.
+- 2026-08-06 — 6.1 slice 5 (ECS) complete — 6.1 DONE, every transport class in the 130-fluid
+  set is ported (zero `Unported` slots remain; the variant stays as a defensive dead state).
+  Extended corresponding states per upstream `viscosity_ECS`/`conductivity_ECS`: the
+  conformal-state solver (2-D Newton matching the reference's (alphar, Z) to the fluid's,
+  Jacobian rows dalphar-by-tau/delta chained through dtau/dT = -Tc0/T0^2 and
+  ddelta/drho = 1/rhoc0, geometric step-halving to 1/1024, resid <= 1e-9, 50-iter cap; our
+  direct 2x2 solve replaces Eigen's QR bit-identically to roundoff), psi/f_int correction
+  polynomials, F_eta = sqrt(f)*h^(-2/3)*sqrt(M/M0) with reference background =
+  initial_density + higher_order at (rho0*psi, T0), and conductivity's four-term sum
+  lambda_int (fint*eta_dilute[uPa-s]*(cp0_mass - 2.5R)/1e3) + lambda_dilute
+  (15e-3/4*R_kJkgK*eta_dilute) + lambda_resid*F_lambda (reference RESIDUAL only, F with
+  sqrt(M0/M)) + Olchowy-Sengers with pure struct DEFAULTS (parse_ECS_conductivity never
+  reads the JSON q_D key). T_critical/rhomolar_critical use the superancillary numericals.
+  References resolve through the registry (Propane/R134a/Nitrogen — a `EcsRef` +
+  resolver-closure seam keeps rustprop-heos registry-free); the walker checks ECS fields
+  bitwise (skipping the unread q_D). MAJOR fidelity correction found by the two-phase
+  goldens: upstream v8 has NO two-phase guard anywhere in the conductivity path —
+  calc_cpmolar/calc_cvmolar are the raw single-phase formulas at the mixture density, so
+  two-phase conductivity EVALUATES (the old "Input is two-phase" error text exists nowhere
+  in v8); the strictly-interior-quality gate from slice 2 was removed everywhere (structured
+  OS, water hardcoded, ECS) and Q=0.5 records now golden-verify the value path. The only
+  two-phase errors left are conformal-solver failures on deep mixture states
+  (R124/R141b/R142b/R218/R32 — error parity asserted for R32 with upstream's message).
+  Viscosity: 61 fluids/482 goldens; conductivity: 58 fluids/571 goldens (EthylBenzene's
+  structured trio unlocked by its ECS viscosity), both 1e-8 first-run green after the
+  two-phase fix.

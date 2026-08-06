@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, ChebyshevInterval, Eos, FluidData, SaturationAncillary, StatePoint, States, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static R227EA: FluidData = FluidData {
     name: "R227EA",
@@ -317,7 +317,7 @@ pub static R227EA: FluidData = FluidData {
         },
     },
     transport: Some(Transport {
-        viscosity: TransportModel::Unported,
-        conductivity: TransportModel::Unported,
+        viscosity: TransportModel::Model(ViscosityModel::Ecs { reference_fluid: "Propane", psi_a: &[0.76758, 0.254482, -0.0533748], psi_t: &[0.0, 1.0, 2.0], psi_rhomolar_reducing: 3370.0, sigma_eta: 5.746000000000001e-10, epsilon_over_k: 289.34 }),
+        conductivity: TransportModel::Model(ConductivityModel::Ecs { reference_fluid: "Propane", psi_a: &[1.3122, -0.0874448], psi_t: &[0.0, 1.0], psi_rhomolar_reducing: 3370.0, f_int_a: &[0.00142313, 8.31496e-9], f_int_t: &[0.0, 1.0], f_int_t_reducing: 1.0 }),
     }),
 };

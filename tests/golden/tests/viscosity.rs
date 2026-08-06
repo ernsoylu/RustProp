@@ -1,7 +1,7 @@
-//! Viscosity goldens (PLAN.md 6.1, structured slice): `V` for the 20 fluids
-//! whose model is fully structured (dilute + initial-density + higher-order
-//! typed families), across PT states and the saturation curve including a
-//! two-phase mixture-density evaluation; plus upstream's error conditions.
+//! Viscosity goldens (PLAN.md 6.1): `V` for all 61 registry fluids with a
+//! viscosity model — structured, hardcoded, Chung, rhosr-CS, and ECS —
+//! across PT states and the saturation curve including a two-phase
+//! mixture-density evaluation; plus upstream's error conditions.
 
 use rustprop::props_si;
 use rustprop_golden_tests::load_jsonl;
@@ -11,7 +11,7 @@ use std::path::Path;
 fn structured_viscosity_matches_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/viscosity.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 368);
+    assert_eq!(records.len(), 482);
 
     let mut failures = Vec::new();
     let mut fluids = std::collections::HashSet::new();
@@ -43,7 +43,7 @@ fn structured_viscosity_matches_upstream() {
             ));
         }
     }
-    assert_eq!(fluids.len(), 46, "all evaluable fluids covered");
+    assert_eq!(fluids.len(), 61, "all evaluable fluids covered");
     assert!(
         failures.is_empty(),
         "{} of {} failures:\n{}",
@@ -53,7 +53,8 @@ fn structured_viscosity_matches_upstream() {
     );
 }
 
-/// Error-condition parity for the not-yet-covered classes.
+/// Error-condition parity: every viscosity model class is now ported, so
+/// the only upstream error left is a fluid without a TRANSPORT block.
 #[test]
 fn viscosity_error_conditions() {
     use rustprop::Error;
@@ -61,10 +62,5 @@ fn viscosity_error_conditions() {
     assert!(matches!(
         props_si("V", "T", 300.0, "P", 1e5, "Acetone").unwrap_err(),
         Error::Value(_)
-    ));
-    // Model class not ported yet (ECS).
-    assert!(matches!(
-        props_si("V", "T", 300.0, "P", 1e6, "Propylene").unwrap_err(),
-        Error::NotImplemented(_)
     ));
 }

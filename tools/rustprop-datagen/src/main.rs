@@ -811,7 +811,39 @@ fn emit_transport(tr: Option<&serde_json::Value>) -> String {
                 f(jnum(entry, "rhosr_critical")),
                 f(jnum(entry, "x_crossover"))
             ),
-            Some(_) => "TransportModel::Unported".into(), // ECS
+            Some("ECS") if model == "ViscosityModel" => {
+                let psi = entry.get("psi").expect("ECS viscosity has psi");
+                format!(
+                    "TransportModel::Model(ViscosityModel::Ecs {{ reference_fluid: {:?}, psi_a: {}, psi_t: {}, psi_rhomolar_reducing: {}, sigma_eta: {}, epsilon_over_k: {} }})",
+                    entry
+                        .get("reference_fluid")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap(),
+                    slice(&jarr(psi, "a")),
+                    slice(&jarr(psi, "t")),
+                    f(jnum(psi, "rhomolar_reducing")),
+                    f(jnum_opt(entry, "sigma_eta", f64::NAN)),
+                    f(jnum_opt(entry, "epsilon_over_k", f64::NAN))
+                )
+            }
+            Some("ECS") => {
+                let psi = entry.get("psi").expect("ECS conductivity has psi");
+                let fint = entry.get("f_int").expect("ECS conductivity has f_int");
+                format!(
+                    "TransportModel::Model(ConductivityModel::Ecs {{ reference_fluid: {:?}, psi_a: {}, psi_t: {}, psi_rhomolar_reducing: {}, f_int_a: {}, f_int_t: {}, f_int_t_reducing: {} }})",
+                    entry
+                        .get("reference_fluid")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap(),
+                    slice(&jarr(psi, "a")),
+                    slice(&jarr(psi, "t")),
+                    f(jnum(psi, "rhomolar_reducing")),
+                    slice(&jarr(fint, "a")),
+                    slice(&jarr(fint, "t")),
+                    f(jnum(fint, "T_reducing"))
+                )
+            }
+            Some(_) => "TransportModel::Unported".into(),
             None => render(v),
         }
     };

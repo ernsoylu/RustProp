@@ -768,6 +768,10 @@ VISCOSITY_STRUCTURED = [
     # Chung + rhosr-CS (slice 4):
     "Cyclopentane", "Isopentane",
     "R1234yf", "R1234ze(E)", "R124", "R152A", "R22", "R245fa", "R32",
+    # ECS (slice 5) — references Propane/R134a/Nitrogen:
+    "EthylBenzene", "Propylene", "R11", "R116", "R12", "R13", "R14",
+    "R141b", "R142b", "R143a", "R218", "R227EA", "R236EA", "R236FA",
+    "RC318",
 ]
 
 
@@ -819,6 +823,12 @@ CONDUCTIVITY_STRUCTURED = [
     "p-Xylene", "n-Hexane", "n-Heptane",
     # unlocked by slice-4 viscosity (their conductivity trio is structured):
     "Cyclopentane", "Isopentane", "R1234yf", "R1234ze(E)", "R152A",
+    # ECS conductivity (slice 5):
+    "Propylene", "R11", "R116", "R12", "R124", "R13", "R14", "R141b",
+    "R142b", "R143a", "R218", "R22", "R227EA", "R236EA", "R236FA",
+    "R245fa", "R32", "RC318",
+    # structured conductivity unlocked by slice-5 ECS viscosity (OS term):
+    "EthylBenzene",
 ]
 
 
@@ -851,6 +861,10 @@ def gen_conductivity():
         rec("L", "T", 1.02 * Tc, "P", 1.02 * pc)
         rec("L", "T", TL(0.5), "Q", 0.0)
         rec("L", "T", TL(0.5), "Q", 1.0)
+        # Strictly two-phase: upstream returns dilute+residual when the OS
+        # numerator gate short-circuits (else throws via cpmolar) —
+        # try_record keeps whichever states evaluate.
+        rec("L", "T", TL(0.5), "Q", 0.5)
         rec("L", "T", TL(0.98), "Q", 0.0)
         rec("conductivity", "T", TL(0.7), "P", 3.0 * psat(TL(0.7)))
     print(f"conductivity: {len(rows)} records, {skipped} rejected")

@@ -66,6 +66,23 @@ pub enum ViscosityModel {
         /// `.kappa` (stored for fidelity; unused by upstream's evaluation)
         kappa: f64,
     },
+    /// `type: "ECS"` — extended corresponding states against a reference
+    /// fluid (the L-J parameters may be absent; upstream then estimates
+    /// them via `default_transport` — NaN encodes that here)
+    Ecs {
+        /// `.reference_fluid`
+        reference_fluid: &'static str,
+        /// `.psi.a`
+        psi_a: &'static [f64],
+        /// `.psi.t`
+        psi_t: &'static [f64],
+        /// `.psi.rhomolar_reducing` [mol/m^3]
+        psi_rhomolar_reducing: f64,
+        /// top-level `.sigma_eta` [m] (NaN when absent)
+        sigma_eta: f64,
+        /// top-level `.epsilon_over_k` [K] (NaN when absent)
+        epsilon_over_k: f64,
+    },
     /// `type: "rhosr-CS"` — residual-entropy-scaled corresponding states;
     /// the dilute part is kinetic theory with Chung-estimated L-J
     /// parameters from the reducing state (upstream `default_transport`)
@@ -93,6 +110,25 @@ pub enum ConductivityModel {
     Hardcoded {
         /// the `.hardcoded` tag
         name: &'static str,
+    },
+    /// `type: "ECS"` — extended corresponding states; the critical
+    /// enhancement is Olchowy-Sengers with pure struct defaults (upstream
+    /// does not read the block's informational `q_D`)
+    Ecs {
+        /// `.reference_fluid`
+        reference_fluid: &'static str,
+        /// `.psi.a`
+        psi_a: &'static [f64],
+        /// `.psi.t`
+        psi_t: &'static [f64],
+        /// `.psi.rhomolar_reducing` [mol/m^3]
+        psi_rhomolar_reducing: f64,
+        /// `.f_int.a`
+        f_int_a: &'static [f64],
+        /// `.f_int.t`
+        f_int_t: &'static [f64],
+        /// `.f_int.T_reducing` [K]
+        f_int_t_reducing: f64,
     },
 }
 
