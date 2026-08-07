@@ -91,10 +91,14 @@ pub fn load_jsonl(path: &Path) -> Vec<GoldenRecord> {
 }
 
 /// Checks `actual` against the record under its tolerance (or `default_rtol`).
-/// Relative comparison only: a zero `expected` yields an infinite relative
-/// error for any nonzero `actual`, which fails loudly — revisit the policy if
-/// a legitimate zero-valued fixture ever appears.
+/// Exact equality always passes (legitimate zero-valued fixtures exist: the
+/// mixture `d2alpha0_dDelta_dTau` is identically zero). Otherwise relative
+/// comparison only: a zero `expected` yields an infinite (or NaN) relative
+/// error for any disagreeing `actual`, which fails loudly.
 pub fn check(rec: &GoldenRecord, actual: f64, default_rtol: f64) -> Result<(), String> {
+    if actual == rec.expected {
+        return Ok(());
+    }
     let rtol = rec.rtol.unwrap_or(default_rtol);
     let rel = ((actual - rec.expected) / rec.expected).abs();
     if rel <= rtol {
@@ -140,6 +144,14 @@ mod tests {
         let r = rec(373.124295847666, None);
         let err = check(&r, 373.2, 1e-9).unwrap_err();
         assert!(err.contains("rel err"), "diagnostic missing: {err}");
+    }
+
+    #[test]
+    fn exact_zero_agreement_passes() {
+        let r = rec(0.0, None);
+        check(&r, 0.0, 1e-12).unwrap();
+        check(&r, -0.0, 1e-12).unwrap();
+        assert!(check(&r, 1e-300, 1e-12).is_err());
     }
 
     #[test]

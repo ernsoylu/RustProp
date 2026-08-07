@@ -1006,6 +1006,29 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 slice 10c (mixture Helmholtz assembly):
+  `rustprop_heos::mixture::MixtureModel` — corresponding-states sum
+  (sum_i x_i alphar_i at the MIXTURE tau/delta) plus the excess term
+  (sum_{i<j} x_i x_j F_ij alphar_ij), and the GERG Table B5 alpha0 (per-component
+  tau_i = T_ci tau/Tr, delta_i = delta rhor/rho_ci from STATES.critical — NOT the
+  reducing state — with R_i/R_mix rescaling, R_mix = R_U_CODATA, and x_i ln x_i in
+  the (0,0) derivative only; upstream's set_Tred(Tr) hook targets GERG-2004
+  sinh/cosh alpha0 terms no ported fluid document carries). GenExp gained the
+  delta-LINEAR eta1/epsilon1 channel (upstream add_GERG2008Gaussian maps
+  beta->eta1, gamma->epsilon1; ValidNumber gate); DepartureEval builds all three
+  departure kinds from MixDepartureFn with upstream's empty-slice guards, and
+  DepartureEval::zero is the F==0 placeholder ExponentialDepartureFunction.
+  Verified: 864 goldens (six pairs covering Gerg2008/Exponential/
+  GaussianExponential departures + the F=0 pair, four compositions incl. the
+  pure x1=1 limit, three supercritical states, twelve alphar/alpha0 accessors)
+  at 1e-12. DISCOVERY: the wheel's mixture DmolarT update re-solves density
+  during phase determination (observed delta = 1 + 6e-13), so the generator
+  imposes iphase_supercritical to keep fixtures at bitwise delta = Dmolar/rhor;
+  fidelity nits fixed along the way (v_c cube via powf(3.0) matching upstream
+  pow(x,3); second-derivative f_Y multiplication order left-to-right). The
+  golden harness check() now short-circuits exact equality — the mixture
+  d2alpha0_dDelta_dTau is identically zero (alpha0's only delta term is ln
+  delta), the first legitimate zero-valued fixture.
 - 2026-08-07 — Phase 10 slice 10b (GERG-2008 reducing function):
   `rustprop_heos::mixture::Gerg2008Reducing` ports the quadratic Yr form (x_i^2 Y_ci +
   the 2*beta*gamma*Yc_ij*f_Y cross terms — the upstream Doxygen's x_i Y_ci^2 is a doc

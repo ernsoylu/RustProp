@@ -102,3 +102,66 @@ fn reducing_derivatives_consistent() {
         }
     }
 }
+
+#[test]
+fn mixture_helmholtz_matches_oracle() {
+    // Slice 10c: corresponding-states + excess alphar and Table B5 alpha0
+    // against the wheel's low-level accessors. Direct evaluations: 1e-12.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_helmholtz.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 864);
+
+    let mut models: std::collections::HashMap<String, rustprop_heos::mixture::MixtureModel> =
+        std::collections::HashMap::new();
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let (f1, f2) = rec.fluid.split_once('&').expect("pair fluid string");
+        let model = models.entry(rec.fluid.clone()).or_insert_with(|| {
+            rustprop_heos::mixture::MixtureModel::new(
+                &[fluid(f1), fluid(f2)],
+                rustprop_data::mixtures::MIX_BINARY_PAIRS,
+                rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+            )
+            .expect("model builds")
+        });
+        let x = [rec.val3, 1.0 - rec.val3];
+        let tr = model.reducing.tr(&x);
+        let rhor = model.reducing.rhormolar(&x);
+        let tau = tr / rec.val1;
+        let delta = rec.val2 / rhor;
+        let actual = if rec.out.starts_with("alphar") || rec.out.contains("alphar_") {
+            let ar = model.alphar_all(&x, tau, delta);
+            match rec.out.as_str() {
+                "alphar" => ar.d00,
+                "dalphar_dTau" => ar.d01,
+                "dalphar_dDelta" => ar.d10,
+                "d2alphar_dTau2" => ar.d02,
+                "d2alphar_dDelta2" => ar.d20,
+                "d2alphar_dDelta_dTau" => ar.d11,
+                other => panic!("unknown out {other}"),
+            }
+        } else {
+            let a0 = model.alpha0_all(&x, tau, delta, tr, rhor);
+            match rec.out.as_str() {
+                "alpha0" => a0.d00,
+                "dalpha0_dTau" => a0.d01,
+                "dalpha0_dDelta" => a0.d10,
+                "d2alpha0_dTau2" => a0.d02,
+                "d2alpha0_dDelta2" => a0.d20,
+                "d2alpha0_dDelta_dTau" => a0.d11,
+                other => panic!("unknown out {other}"),
+            }
+        };
+        if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-12) {
+            failures.push(format!("{} x1={}: {e}", rec.fluid, rec.val3));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture Helmholtz records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}

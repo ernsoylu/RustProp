@@ -45,6 +45,29 @@ pub struct HelmholtzDerivs {
     pub d04: f64,
 }
 
+impl HelmholtzDerivs {
+    /// `self += w * other` on every derivative (upstream
+    /// `HelmholtzDerivatives::operator+` / `operator*` chain in the
+    /// corresponding-states and excess sums).
+    pub fn add_scaled(&mut self, other: &HelmholtzDerivs, w: f64) {
+        self.d00 += w * other.d00;
+        self.d10 += w * other.d10;
+        self.d01 += w * other.d01;
+        self.d20 += w * other.d20;
+        self.d11 += w * other.d11;
+        self.d02 += w * other.d02;
+        self.d30 += w * other.d30;
+        self.d21 += w * other.d21;
+        self.d12 += w * other.d12;
+        self.d03 += w * other.d03;
+        self.d40 += w * other.d40;
+        self.d31 += w * other.d31;
+        self.d22 += w * other.d22;
+        self.d13 += w * other.d13;
+        self.d04 += w * other.d04;
+    }
+}
+
 /// Standalone ideal-gas Helmholtz evaluator over a document's `alpha0` term
 /// list — shared with the cubic backend exactly as upstream shares
 /// `parse_alpha0` / `IdealHelmholtzContainer` between the fluid libraries.
@@ -63,6 +86,75 @@ impl Alpha0Eval {
     pub fn all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
         let mut derivs = HelmholtzDerivs::default();
         self.ideal.all(tau, delta, &mut derivs);
+        derivs
+    }
+}
+
+/// A mixture departure function alphar_ij(tau, delta) evaluator (upstream
+/// `GERG2008DepartureFunction` / `ExponentialDepartureFunction` /
+/// `GaussianExponentialDepartureFunction`, all backed by the same
+/// generalized-exponential machinery).
+pub struct DepartureEval {
+    genexp: GenExp,
+}
+
+impl DepartureEval {
+    pub fn new(dep: &rustprop_core::fluid::MixDepartureFn) -> Self {
+        use rustprop_core::fluid::MixDepartureKind;
+        let mut genexp = GenExp::new();
+        let np = dep.npower;
+        match dep.kind {
+            MixDepartureKind::Gerg2008 => {
+                let zeros = vec![0.0; np];
+                genexp.add_power(&dep.n[..np], &dep.d[..np], &dep.t[..np], &zeros);
+                if np < dep.n.len() {
+                    genexp.add_gerg2008_gaussian(
+                        &dep.n[np..],
+                        &dep.d[np..],
+                        &dep.t[np..],
+                        &dep.eta[np..],
+                        &dep.epsilon[np..],
+                        &dep.beta[np..],
+                        &dep.gamma[np..],
+                    );
+                }
+            }
+            MixDepartureKind::Exponential => {
+                genexp.add_power(dep.n, dep.d, dep.t, dep.l);
+            }
+            MixDepartureKind::GaussianExponential => {
+                genexp.add_power(&dep.n[..np], &dep.d[..np], &dep.t[..np], &dep.l[..np]);
+                if np < dep.n.len() {
+                    genexp.add_gaussian(
+                        &dep.n[np..],
+                        &dep.d[np..],
+                        &dep.t[np..],
+                        &dep.eta[np..],
+                        &dep.epsilon[np..],
+                        &dep.beta[np..],
+                        &dep.gamma[np..],
+                    );
+                }
+            }
+        }
+        genexp.finish();
+        DepartureEval { genexp }
+    }
+
+    /// Upstream's placeholder for `F == 0` pairs: an
+    /// `ExponentialDepartureFunction({0}, {1}, {1}, {0})` that evaluates
+    /// to zero everywhere (`MixtureParameters::set_mixture_parameters`).
+    pub fn zero() -> Self {
+        let mut genexp = GenExp::new();
+        genexp.add_power(&[0.0], &[1.0], &[1.0], &[0.0]);
+        genexp.finish();
+        DepartureEval { genexp }
+    }
+
+    /// All derivatives of alphar_ij at (tau, delta).
+    pub fn all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        let mut derivs = HelmholtzDerivs::default();
+        self.genexp.all(tau, delta, &mut derivs);
         derivs
     }
 }
@@ -224,6 +316,8 @@ struct GenExpElement {
     l_is_int: bool,
     omega: f64,
     m_double: f64,
+    eta1: f64,
+    epsilon1: f64,
     eta2: f64,
     epsilon2: f64,
     beta2: f64,
@@ -238,6 +332,7 @@ pub(crate) struct GenExp {
     elements: Vec<GenExpElement>,
     delta_li_in_u: bool,
     tau_mi_in_u: bool,
+    eta1_in_u: bool,
     eta2_in_u: bool,
     beta2_in_u: bool,
 }
@@ -248,6 +343,7 @@ impl GenExp {
             elements: Vec::new(),
             delta_li_in_u: false,
             tau_mi_in_u: false,
+            eta1_in_u: false,
             eta2_in_u: false,
             beta2_in_u: false,
         }
@@ -364,6 +460,37 @@ impl GenExp {
         self.beta2_in_u = true;
     }
 
+    /// Upstream `add_GERG2008Gaussian`: the GERG departure gaussian
+    /// `exp(-eta*(delta-epsilon)^2 - beta*(delta-gamma))` — quadratic delta
+    /// through the eta2 channel, LINEAR delta through eta1 (upstream maps
+    /// `beta -> eta1`, `gamma -> epsilon1`).
+    #[allow(clippy::too_many_arguments)]
+    fn add_gerg2008_gaussian(
+        &mut self,
+        n: &[f64],
+        d: &[f64],
+        t: &[f64],
+        eta: &[f64],
+        epsilon: &[f64],
+        beta: &[f64],
+        gamma: &[f64],
+    ) {
+        for i in 0..n.len() {
+            self.elements.push(GenExpElement {
+                n: n[i],
+                d: d[i],
+                t: t[i],
+                eta2: eta[i],
+                epsilon2: epsilon[i],
+                eta1: beta[i],
+                epsilon1: gamma[i],
+                ..Default::default()
+            });
+        }
+        self.eta1_in_u = true;
+        self.eta2_in_u = true;
+    }
+
     /// Upstream `finish()` — set the l-is-integer fast-path flags.
     fn finish(&mut self) {
         for el in &mut self.elements {
@@ -428,6 +555,13 @@ impl GenExp {
                     d2u_dtau2 += d2u_dtau2_increment;
                     d3u_dtau3 += d3u_dtau3_increment;
                     d4u_dtau4 += d4u_dtau4_increment;
+                }
+            }
+            if self.eta1_in_u {
+                let (eta1, epsilon1) = (el.eta1, el.epsilon1);
+                if eta1.is_finite() {
+                    u += -eta1 * (delta - epsilon1);
+                    du_ddelta += -eta1;
                 }
             }
             if self.eta2_in_u {

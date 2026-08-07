@@ -646,6 +646,57 @@ def gen_heos_all_smoke():
     return rows
 
 
+def gen_mixture_helmholtz():
+    """Slice 10c: the mixture Helmholtz assembly (corresponding-states sum +
+    excess departure term; GERG Table B5 alpha0) probed through the wheel's
+    low-level accessors at fixed (T, Dmolar, x). Composition rides name3/val3
+    as x1 (x2 = 1 - x1 computed identically on both sides). Pair coverage:
+    each departure kind plus the F == 0 placeholder."""
+    pairs = [
+        ("Methane", "Ethane"),       # GERG-2008 departure (power + gaussian)
+        ("Methane", "Nitrogen"),     # GERG-2008 departure
+        ("CarbonDioxide", "Water"),  # Exponential departure (Gernert)
+        ("R32", "R125"),             # Exponential departure, Lemmon reducing
+        ("Helium", "Argon"),         # Gaussian+Exponential departure
+        ("Nitrogen", "Oxygen"),      # F = 0 empty departure
+    ]
+    outs = [
+        "alphar", "dalphar_dTau", "dalphar_dDelta",
+        "d2alphar_dTau2", "d2alphar_dDelta2", "d2alphar_dDelta_dTau",
+        "alpha0", "dalpha0_dTau", "dalpha0_dDelta",
+        "d2alpha0_dTau2", "d2alpha0_dDelta2", "d2alpha0_dDelta_dTau",
+    ]
+    rows = []
+    for f1, f2 in pairs:
+        state = CP.AbstractState("HEOS", f"{f1}&{f2}")
+        # Impose the phase: mixture phase determination re-solves the
+        # density (observed delta = 1 + 6e-13 for Helium&Argon), which would
+        # bake a perturbed delta into the fixtures. The grid is supercritical
+        # by construction, so imposing is truthful and keeps
+        # delta = Dmolar/rhor bitwise-reproducible on the Rust side.
+        state.specify_phase(CP.iphase_supercritical)
+        for x1 in (0.2, 0.5, 0.8, 1.0):
+            state.set_mole_fractions([x1, 1.0 - x1])
+            tr = state.T_reducing()
+            rhor = state.rhomolar_reducing()
+            for tfac, dfac in ((1.2, 1.0), (1.2, 0.05), (1.5, 0.6)):
+                try:
+                    state.update(CP.DmolarT_INPUTS, dfac * rhor, tfac * tr)
+                    vals = [(out, getattr(state, out)()) for out in outs]
+                except Exception:
+                    continue
+                for out, val in vals:
+                    rows.append({
+                        "backend": "HEOS-MIX", "fluid": f"{f1}&{f2}",
+                        "out": out,
+                        "name1": "T", "val1": tfac * tr,
+                        "name2": "Dmolar", "val2": dfac * rhor,
+                        "name3": "x1", "val3": x1,
+                        "expected": val,
+                    })
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1306,6 +1357,7 @@ def main():
     write_jsonl("cubic_superanc.jsonl", gen_cubic_superanc())
     write_jsonl("incompressible.jsonl", gen_incompressible())
     write_jsonl("humid_air.jsonl", gen_humid_air())
+    write_jsonl("mixture_helmholtz.jsonl", gen_mixture_helmholtz())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

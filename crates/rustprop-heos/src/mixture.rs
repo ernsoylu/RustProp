@@ -108,7 +108,7 @@ impl Gerg2008Reducing {
                 v_c[i * n + j] = 1.0 / 8.0
                     * (components[i].eos.reducing.rhomolar.powf(-1.0 / 3.0)
                         + components[j].eos.reducing.rhomolar.powf(-1.0 / 3.0))
-                    .powi(3);
+                    .powf(3.0);
             }
         }
         Ok(Gerg2008Reducing {
@@ -174,14 +174,14 @@ impl Gerg2008Reducing {
         let b2 = beta_y * beta_y;
         1.0 / (b2 * xi + xk)
             * (1.0 - b2 * (xi + xk) / (b2 * xi + xk))
-            * (2.0 * xk - 2.0 * b2 * xi * xk / (b2 * xi + xk))
+            * (2.0 * xk - xi * xk * 2.0 * b2 / (b2 * xi + xk))
     }
     fn d2fykidxi2__constxk(x: &[f64], k: usize, i: usize, beta_y: f64) -> f64 {
         let (xk, xi) = (x[k], x[i]);
         let b2 = beta_y * beta_y;
         1.0 / (b2 * xk + xi)
             * (1.0 - (xk + xi) / (b2 * xk + xi))
-            * (2.0 * xk - 2.0 * xk * xi / (b2 * xk + xi))
+            * (2.0 * xk - xk * xi * 2.0 / (b2 * xk + xi))
     }
     fn d2fyijdxidxj(x: &[f64], i: usize, j: usize, beta_y: f64) -> f64 {
         let (xi, xj) = (x[i], x[j]);
@@ -399,5 +399,163 @@ impl Gerg2008Reducing {
             summer += x[k] * self.d2rhormolardxidxj(x, j, k, flag);
         }
         self.d2rhormolardxidxj(x, j, i, flag) - self.drhormolardxi__constxj(x, j, flag) - summer
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mixture Helmholtz model (slice 10c)
+// ---------------------------------------------------------------------------
+
+/// Upstream `R_U_CODATA` (Configuration.h) — `calc_gas_constant` returns it
+/// for every mixture because `NORMALIZE_GAS_CONSTANTS` defaults to true.
+pub const R_U_CODATA: f64 = 8.314_462_618_153_24;
+
+/// One `i < j` pair of the excess term: the scaling factor `F[i][j]` and the
+/// departure function (upstream `ExcessTerm`'s F matrix +
+/// `DepartureFunctionMatrix`).
+struct ExcessPair {
+    i: usize,
+    j: usize,
+    f: f64,
+    dep: crate::alpha::DepartureEval,
+}
+
+/// The Helmholtz-energy model of one mixture: per-component pure containers
+/// (corresponding-states part), the GERG-2008 reducing function, and the
+/// excess term (upstream `HelmholtzEOSMixtureBackend`'s `residual_helmholtz`
+/// + `Reducing` + the Table B5 ideal part).
+pub struct MixtureModel {
+    /// Per-component full pure-fluid containers evaluated at the MIXTURE
+    /// (tau, delta) in the corresponding-states sum.
+    pure: Vec<crate::alpha::HelmholtzEos>,
+    /// `STATES.critical` T [K] per component (upstream `iT_critical`) — the
+    /// Table B5 alpha0 scales, NOT the reducing state.
+    crit_t: Vec<f64>,
+    /// `STATES.critical` rhomolar [mol/m^3] per component.
+    crit_rhomolar: Vec<f64>,
+    /// `EOS().R_u` per component.
+    r_component: Vec<f64>,
+    pub reducing: Gerg2008Reducing,
+    excess: Vec<ExcessPair>,
+}
+
+impl MixtureModel {
+    /// Build from the component list and the datagen tables (the caller
+    /// passes `rustprop_data::mixtures::{MIX_BINARY_PAIRS, MIX_DEPARTURE_FNS}`
+    /// — engines only depend on core). Mirrors upstream
+    /// `MixtureParameters::set_mixture_parameters`.
+    pub fn new(
+        components: &[&'static FluidData],
+        pairs: &[rustprop_core::fluid::MixBinaryPair],
+        departures: &[rustprop_core::fluid::MixDepartureFn],
+    ) -> Result<Self> {
+        let reducing = Gerg2008Reducing::new(components, pairs)?;
+        let n = components.len();
+        let mut excess = Vec::new();
+        for i in 0..n {
+            for j in (i + 1)..n {
+                let (a, b) = (components[i].cas, components[j].cas);
+                // Gerg2008Reducing::new already proved the pair exists.
+                let pair = pairs
+                    .iter()
+                    .find(|p| (p.cas1 == a && p.cas2 == b) || (p.cas1 == b && p.cas2 == a))
+                    .expect("pair vetted by Gerg2008Reducing::new");
+                // Upstream: |F| < DBL_EPSILON gets the empty departure
+                // function that just returns 0.
+                let dep = if pair.f.abs() < f64::EPSILON {
+                    crate::alpha::DepartureEval::zero()
+                } else {
+                    let name = pair.function.unwrap_or("");
+                    let dep_fn = departures.iter().find(|d| d.name == name).ok_or_else(|| {
+                        Error::Value(format!(
+                            "Departure function name [{name}] seems to be invalid"
+                        ))
+                    })?;
+                    crate::alpha::DepartureEval::new(dep_fn)
+                };
+                excess.push(ExcessPair {
+                    i,
+                    j,
+                    f: pair.f,
+                    dep,
+                });
+            }
+        }
+        Ok(MixtureModel {
+            pure: components
+                .iter()
+                .map(|c| crate::alpha::HelmholtzEos::new(c))
+                .collect(),
+            crit_t: components.iter().map(|c| c.states.critical.t).collect(),
+            crit_rhomolar: components
+                .iter()
+                .map(|c| c.states.critical.rhomolar)
+                .collect(),
+            r_component: components.iter().map(|c| c.eos.gas_constant).collect(),
+            reducing,
+            excess,
+        })
+    }
+
+    /// `gas_constant()` — R for every mixture property relation.
+    pub fn gas_constant(&self) -> f64 {
+        R_U_CODATA
+    }
+
+    /// All residual derivatives at the mixture (tau, delta):
+    /// corresponding-states sum plus excess term (upstream
+    /// `ResidualHelmholtz::all` without the convenience products).
+    pub fn alphar_all(&self, x: &[f64], tau: f64, delta: f64) -> crate::alpha::HelmholtzDerivs {
+        let mut summer = crate::alpha::HelmholtzDerivs::default();
+        for (i, eos) in self.pure.iter().enumerate() {
+            let derivs = eos.alphar_all(tau, delta);
+            summer.add_scaled(&derivs, x[i]);
+        }
+        for pair in &self.excess {
+            let term = pair.dep.all(tau, delta);
+            summer.add_scaled(&term, x[pair.i] * x[pair.j] * pair.f);
+        }
+        summer
+    }
+
+    /// The six ideal-gas derivatives through second order at the mixture
+    /// (tau, delta) — Table B5, GERG 2008 (upstream
+    /// `calc_all_alpha0_derivs_nocache`, mixture branch). Components are
+    /// evaluated at their shifted `tau_i = T_ci tau / Tr`,
+    /// `delta_i = delta rhor / rho_ci` and rescaled by `R_i / R_mix`; the
+    /// `x_i ln x_i` entropy-of-mixing piece rides only the (0,0) derivative.
+    /// (Upstream also calls `set_Tred(Tr)` here for GERG-2004 sinh/cosh
+    /// alpha0 terms; no fluid document in the ported set carries them.)
+    pub fn alpha0_all(
+        &self,
+        x: &[f64],
+        tau: f64,
+        delta: f64,
+        tr: f64,
+        rhor: f64,
+    ) -> crate::alpha::HelmholtzDerivs {
+        let r_mix = self.gas_constant();
+        let mut ders = crate::alpha::HelmholtzDerivs::default();
+        for (i, eos) in self.pure.iter().enumerate() {
+            let rho_ci = self.crit_rhomolar[i];
+            let t_ci = self.crit_t[i];
+            let tau_i = t_ci * tau / tr;
+            let delta_i = delta * rhor / rho_ci;
+            let rratio = self.r_component[i] / r_mix;
+
+            let pure = eos.alpha0_all(tau_i, delta_i);
+            let logxi = if x[i].abs() > f64::EPSILON {
+                x[i].ln()
+            } else {
+                0.0
+            };
+            ders.d00 += x[i] * rratio * (pure.d00 + logxi);
+            ders.d10 += x[i] * rratio * rhor / rho_ci * pure.d10;
+            ders.d01 += x[i] * rratio * t_ci / tr * pure.d01;
+            ders.d20 += x[i] * rratio * (rhor / rho_ci).powi(2) * pure.d20;
+            ders.d11 += x[i] * rratio * rhor / rho_ci * t_ci / tr * pure.d11;
+            ders.d02 += x[i] * rratio * (t_ci / tr).powi(2) * pure.d02;
+        }
+        ders
     }
 }

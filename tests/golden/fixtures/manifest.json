@@ -98,6 +98,7 @@
     "if97_water.jsonl",
     "incompressible.jsonl",
     "melting.jsonl",
+    "mixture_helmholtz.jsonl",
     "param_aliases.jsonl",
     "parameters.jsonl",
     "phases.jsonl",
