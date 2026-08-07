@@ -12,6 +12,7 @@ PropsSI(out, name1, val1, name2, val2, "backend::fluid").
 """
 
 import json
+import math
 import platform
 from pathlib import Path
 
@@ -1483,6 +1484,198 @@ def gen_svdsbtl():
     return rows
 
 
+def gen_acceptance_sweep():
+    """PLAN.md 15.3: the final acceptance suite — a SEEDED randomized sweep
+    of the state space across every engine, checked against the wheel.
+
+    Everything else in this directory samples states a human chose. This one
+    does not: it draws pseudo-random states from a fixed seed so the coverage
+    is nobody's intuition about where the bugs are. The seed is committed, so
+    the record set is reproducible; raising `N_PER` widens coverage without
+    invalidating what is already there (the first N draws are unchanged).
+
+    States that the wheel itself rejects are skipped, not recorded — the aim
+    is agreement where upstream has an answer, and the per-engine error
+    parity is already pinned by the phase suites."""
+    import random
+    rng = random.Random(20260807)
+    N_PER = 120
+    rows = []
+
+    def add(backend, fluid, out, n1, v1, n2, v2, expected, rtol=None):
+        rec = {"backend": backend, "fluid": fluid, "out": out,
+               "name1": n1, "val1": v1, "name2": n2, "val2": v2,
+               "expected": expected}
+        if rtol is not None:
+            rec["rtol"] = rtol
+        rows.append(rec)
+
+    def sweep_propssi(prefix, fluids, outs, pairs, n=N_PER):
+        """Draw n states per fluid, in ranges the fluid actually supports."""
+        for name in fluids:
+            spec = f"{prefix}{name}" if prefix else name
+            try:
+                Tmin = PropsSI("Tmin", "", 0, "", 0, spec)
+                Tmax = PropsSI("Tmax", "", 0, "", 0, spec)
+                pmax = min(PropsSI("pmax", "", 0, "", 0, spec), 5e8)
+            except Exception:
+                continue
+            # Saturation draws stay inside the dome. Below the triple point
+            # there is no VLE, and upstream happily extrapolates its
+            # ancillaries into nonsense there (CO2 at 25 kPa reports a
+            # negative temperature and an entropy of -1.9e18); agreeing with
+            # upstream on garbage is not a fidelity property, and the real
+            # sub-triple error conditions are already pinned by the phase
+            # suites.
+            try:
+                Tc = PropsSI("Tcrit", "", 0, "", 0, spec)
+                pc = PropsSI("pcrit", "", 0, "", 0, spec)
+                p_triple = PropsSI("P", "T", Tmin, "Q", 0, spec)
+                has_dome = p_triple < pc
+            except Exception:
+                has_dome = False
+            drawn = 0
+            attempts = 0
+            while drawn < n and attempts < n * 8:
+                attempts += 1
+                pair = pairs[rng.randrange(len(pairs))]
+                T = Tmin + (Tmax - Tmin) * rng.random()
+                p = math.exp(math.log(1e3) + (math.log(pmax) - math.log(1e3)) * rng.random())
+                if pair == "PT":
+                    n1, v1, n2, v2 = "T", T, "P", p
+                elif pair == "PQ":
+                    if not has_dome:
+                        continue
+                    p_sat = math.exp(
+                        math.log(p_triple)
+                        + (math.log(pc) - math.log(p_triple)) * rng.random()
+                    )
+                    n1, v1, n2, v2 = "P", p_sat, "Q", rng.random()
+                elif pair == "QT":
+                    if not has_dome:
+                        continue
+                    n1, v1 = "Q", rng.random()
+                    n2, v2 = "T", Tmin + (Tc - Tmin) * rng.random()
+                elif pair == "DT":
+                    try:
+                        rho = PropsSI("D", "T", T, "P", p, spec)
+                    except Exception:
+                        continue
+                    n1, v1, n2, v2 = "D", rho, "T", T
+                elif pair == "HP":
+                    try:
+                        h = PropsSI("H", "T", T, "P", p, spec)
+                    except Exception:
+                        continue
+                    n1, v1, n2, v2 = "H", h, "P", p
+                else:  # "PS"
+                    try:
+                        sv = PropsSI("S", "T", T, "P", p, spec)
+                    except Exception:
+                        continue
+                    n1, v1, n2, v2 = "P", p, "S", sv
+                out = outs[rng.randrange(len(outs))]
+                try:
+                    val = PropsSI(out, n1, v1, n2, v2, spec)
+                except Exception:
+                    continue
+                if val != val or abs(val) == float("inf"):
+                    continue
+                add(prefix.rstrip(":") or "HEOS", name, out, n1, v1, n2, v2, val)
+                drawn += 1
+
+    base_outs = ["D", "H", "S", "U", "T", "P", "C", "CVMASS", "A"]
+
+    # HEOS: a spread of fluid families, not just the easy ones.
+    heos_fluids = ["Water", "Nitrogen", "CarbonDioxide", "R134a", "n-Propane",
+                   "Ammonia", "Methane", "Hydrogen", "Helium", "Toluene",
+                   "Ethanol"]
+    sweep_propssi("HEOS::", heos_fluids, base_outs, ["PT", "PQ", "QT", "DT", "HP", "PS"])
+    # Pseudo-pure fluids get only the pairs this port serves. Upstream routes
+    # the others through legacy solvers that are dead code for the 130
+    # superancillary fluids, and the port refuses them loudly by design (see
+    # the Phase 4 pseudo-pure entry); that deviation is asserted verbatim in
+    # the phase suite, so re-drawing it here would only re-test a decision.
+    sweep_propssi("HEOS::", ["R410A", "Air", "SES36", "R404A"], base_outs, ["PT", "PQ", "QT"])
+    # IF97 steam.
+    sweep_propssi("IF97::", ["Water"], ["D", "H", "S", "U", "T", "P", "C", "A"], ["PT"])
+    # Cubics, both roots.
+    sweep_propssi("SRK::", ["Water", "n-Propane", "CarbonDioxide"], base_outs, ["PT", "PQ", "QT", "DT"])
+    sweep_propssi("PR::", ["Water", "n-Propane", "CarbonDioxide"], base_outs, ["PT", "PQ", "QT", "DT"])
+    # Incompressible and PC-SAFT report no `pmax` (and PC-SAFT no Tmin/Tmax
+    # either), so `sweep_propssi`'s range probe rejects them. They get their
+    # own draws over ranges taken from the fluids themselves.
+    for name, Tmin, Tmax in [("Water", 273.15, 473.15), ("DowQ", 238.15, 633.15),
+                             ("MEG-30%", 173.15, 373.15)]:
+        spec = f"INCOMP::{name}"
+        drawn = 0
+        attempts = 0
+        while drawn < N_PER and attempts < N_PER * 8:
+            attempts += 1
+            T = Tmin + (Tmax - Tmin) * rng.random()
+            p = math.exp(math.log(1e5) + (math.log(1e8) - math.log(1e5)) * rng.random())
+            out = ["D", "H", "S", "U", "T", "C", "V", "L"][rng.randrange(8)]
+            try:
+                val = PropsSI(out, "T", T, "P", p, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            add("INCOMP", name, out, "T", T, "P", p, val)
+            drawn += 1
+
+    for name, Tmin, Tmax in [("TOLUENE", 200.0, 550.0), ("PROPANE", 100.0, 350.0)]:
+        spec = f"PCSAFT::{name}"
+        drawn = 0
+        attempts = 0
+        while drawn < N_PER and attempts < N_PER * 10:
+            attempts += 1
+            T = Tmin + (Tmax - Tmin) * rng.random()
+            p = math.exp(math.log(1e4) + (math.log(1e7) - math.log(1e4)) * rng.random())
+            out = ["D", "H", "S", "U", "T", "P"][rng.randrange(6)]
+            pair = ["PT", "PQ", "QT"][rng.randrange(3)]
+            if pair == "PT":
+                n1, v1, n2, v2 = "T", T, "P", p
+            elif pair == "PQ":
+                n1, v1, n2, v2 = "P", p, "Q", rng.random()
+            else:
+                n1, v1, n2, v2 = "Q", rng.random(), "T", T
+            try:
+                val = PropsSI(out, n1, v1, n2, v2, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            add("PCSAFT", name, out, n1, v1, n2, v2, val)
+            drawn += 1
+    # Transport, where it exists.
+    sweep_propssi("HEOS::", ["Water", "Nitrogen", "R134a", "n-Propane"], ["V", "L", "I"], ["PT", "QT"], n=60)
+
+    # Humid air, its own signature.
+    ha_outs = ["W", "H", "S", "V", "Tdp", "Twb", "R", "D"]
+    drawn = 0
+    attempts = 0
+    while drawn < N_PER * 2 and attempts < N_PER * 12:
+        attempts += 1
+        T = 220.0 + 200.0 * rng.random()
+        p = 1e4 + 4e5 * rng.random()
+        R = rng.random()
+        out = ha_outs[rng.randrange(len(ha_outs))]
+        try:
+            val = CP.HAPropsSI(out, "T", T, "P", p, "R", R)
+        except Exception:
+            continue
+        if val != val or abs(val) == float("inf"):
+            continue
+        rows.append({"backend": "HA", "fluid": "", "out": out,
+                     "name1": "T", "val1": T, "name2": "P", "val2": p,
+                     "name3": "R", "val3": R, "expected": val})
+        drawn += 1
+
+    print(f"acceptance_sweep: {len(rows)} records")
+    return rows
+
+
 def gen_bicubic():
     """Phase 12 slice 12d: bicubic evaluation on the LogPT table through PT
     inputs, against the wheel's own BICUBIC backend (same 200x200 grid, same
@@ -2208,6 +2401,7 @@ def main():
     write_jsonl("tabular_state.jsonl", gen_tabular_state())
     write_jsonl("tabular_pairs.jsonl", gen_tabular_pairs())
     write_jsonl("svdsbtl.jsonl", gen_svdsbtl())
+    write_jsonl("acceptance_sweep.jsonl", gen_acceptance_sweep())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

@@ -361,6 +361,54 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
     }
 }
 
+/// `calc_speed_sound`: the saturated branch at Q == 0 or 1, and upstream's
+/// verbatim refusal in between — the speed of sound in a two-phase mixture
+/// depends on how the phases are distributed, which a bulk state does not say.
+#[cfg(feature = "heos")]
+fn two_phase_speed_sound(flash: &PtFlash, state: &HeosState) -> Result<f64> {
+    match state {
+        HeosState::SinglePhase { t, rhomolar, .. } => Ok(flash.eos.speed_sound(*t, *rhomolar)),
+        HeosState::TwoPhase {
+            q,
+            rho_l,
+            rho_v,
+            t_l,
+            t_v,
+            ..
+        } => {
+            if q.abs() < f64::EPSILON {
+                Ok(flash.eos.speed_sound(*t_l, *rho_l))
+            } else if (*q - 1.0).abs() < f64::EPSILON {
+                Ok(flash.eos.speed_sound(*t_v, *rho_v))
+            } else {
+                Err(Error::Value(
+                    "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
+                ))
+            }
+        }
+    }
+}
+
+/// `calc_gibbsmolar`: the lever rule over the saturated branches in the dome.
+#[cfg(feature = "heos")]
+fn state_gibbsmolar(flash: &PtFlash, state: &HeosState) -> f64 {
+    match state {
+        HeosState::SinglePhase { t, rhomolar, .. } => flash.eos.gibbsmolar(*t, *rhomolar),
+        HeosState::TwoPhase {
+            q,
+            rho_l,
+            rho_v,
+            t_l,
+            t_v,
+            ..
+        } => {
+            let gl = flash.eos.gibbsmolar(*t_l, *rho_l);
+            let gv = flash.eos.gibbsmolar(*t_v, *rho_v);
+            q * gv + (1.0 - q) * gl
+        }
+    }
+}
+
 /// Upstream `AbstractState::keyed_output` for the ported outputs, including
 /// the mass-basis conversions and the two-phase error conditions.
 #[cfg(feature = "heos")]
@@ -374,16 +422,6 @@ fn keyed_output(
         return trivial_output(flash, data, out);
     }
     let mm = flash.eos.molar_mass;
-    // Second-derivative and single-phase-only properties are undefined in
-    // the two-phase region (upstream throws).
-    let single_phase_rho = |what: &str| -> Result<f64> {
-        match state {
-            HeosState::SinglePhase { rhomolar, .. } => Ok(*rhomolar),
-            HeosState::TwoPhase { .. } => Err(Error::Value(format!(
-                "Input is two-phase and {what} is not defined"
-            ))),
-        }
-    };
     Ok(match out {
         Param::T => state.t(),
         Param::P => state.p(),
@@ -396,22 +434,21 @@ fn keyed_output(
         Param::Smass => flash.state_smolar(state) / mm,
         Param::Umolar => flash.state_umolar(state),
         Param::Umass => flash.state_umolar(state) / mm,
-        Param::Cpmolar => flash.eos.cpmolar(state.t(), single_phase_rho("cpmolar")?),
-        Param::Cpmass => flash.eos.cpmolar(state.t(), single_phase_rho("cpmass")?) / mm,
-        Param::Cvmolar => flash.eos.cvmolar(state.t(), single_phase_rho("cvmolar")?),
-        Param::Cvmass => flash.eos.cvmolar(state.t(), single_phase_rho("cvmass")?) / mm,
-        Param::SpeedSound => flash
-            .eos
-            .speed_sound(state.t(), single_phase_rho("speed_sound")?),
-        Param::Gmolar => flash
-            .eos
-            .gibbsmolar(state.t(), single_phase_rho("gibbsmolar")?),
-        Param::Gmass => {
-            flash
-                .eos
-                .gibbsmolar(state.t(), single_phase_rho("gibbsmass")?)
-                / mm
-        }
+        // `calc_cpmolar` / `calc_cvmolar` have NO two-phase guard upstream —
+        // they evaluate the single-phase formula at the state's (T, rho),
+        // which in the dome is the MIXTURE density. Same shape as the
+        // two-phase conductivity finding in Phase 6.1. Erroring here was a
+        // guard this port invented; the acceptance sweep caught it.
+        Param::Cpmolar => flash.eos.cpmolar(state.t(), state.rhomolar()),
+        Param::Cpmass => flash.eos.cpmolar(state.t(), state.rhomolar()) / mm,
+        Param::Cvmolar => flash.eos.cvmolar(state.t(), state.rhomolar()),
+        Param::Cvmass => flash.eos.cvmolar(state.t(), state.rhomolar()) / mm,
+        // `calc_speed_sound` IS guarded: the saturated branch at Q == 0 or 1,
+        // and upstream's verbatim message in between.
+        Param::SpeedSound => two_phase_speed_sound(flash, state)?,
+        // `calc_gibbsmolar` mixes by the lever rule in the dome.
+        Param::Gmolar => state_gibbsmolar(flash, state),
+        Param::Gmass => state_gibbsmolar(flash, state) / mm,
         Param::Viscosity => {
             // Upstream calc_viscosity evaluates at the state's (T, rhomolar)
             // regardless of phase (two-phase uses the mixture density).
@@ -672,6 +709,18 @@ fn cubic_route(
     if let Some(v) = trivial(out) {
         return Ok(v);
     }
+    // If the output IS one of the inputs, upstream echoes it without ever
+    // updating the state — `_PropsSImulti` short-circuits before the flash.
+    // The cubic route needs this as much as the HEOS one does: SRK::Water at
+    // 2735 K has no gaseous density root, so `update` throws, yet
+    // `PropsSI("T", "T", ..., "P", ...)` still answers. Wheel-confirmed.
+    let (echo1, echo2) = pair.split();
+    if out == echo1 {
+        return Ok(v1);
+    }
+    if out == echo2 {
+        return Ok(v2);
+    }
 
     // Mass-basis inputs convert exactly as the HEOS route.
     let mm = data.molemass;
@@ -754,27 +803,32 @@ fn cubic_route(
         Param::Smass => mix(&|t, r| eos.smolar(t, r))? / mm,
         Param::Umolar => mix(&|t, r| eos.umolar(t, r))?,
         Param::Umass => mix(&|t, r| eos.umolar(t, r))? / mm,
-        Param::Cpmolar => match &state {
-            CubicState::Single { t, rho, .. } => eos.cpmolar(*t, *rho),
-            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
-                return Err(Error::Value(
-                    "Input is two-phase and cp is not defined".into(),
-                ));
-            }
-        },
-        Param::Cvmolar => match &state {
-            CubicState::Single { t, rho, .. } => eos.cvmolar(*t, *rho),
-            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
-                return Err(Error::Value(
-                    "Input is two-phase and cv is not defined".into(),
-                ));
-            }
-        },
+        // `AbstractCubicBackend` derives from `HelmholtzEOSMixtureBackend`,
+        // so cp and cv inherit its behaviour exactly: NO two-phase guard,
+        // just the single-phase formula at the state's (T, rho) — which in
+        // the dome is the mixture density. Wheel-confirmed on SRK::Water.
+        Param::Cpmolar => eos.cpmolar(t, rho),
+        Param::Cpmass => eos.cpmolar(t, rho) / mm,
+        Param::Cvmolar => eos.cvmolar(t, rho),
+        Param::Cvmass => eos.cvmolar(t, rho) / mm,
+        // Speed of sound IS guarded, with upstream's verbatim message.
         Param::SpeedSound => match &state {
             CubicState::Single { t, rho, .. } => eos.speed_sound(*t, *rho),
-            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
+            CubicState::TwoPhase(s) => {
+                if q.abs() < f64::EPSILON {
+                    eos.speed_sound(s.t, s.rho_l)
+                } else if (q - 1.0).abs() < f64::EPSILON {
+                    eos.speed_sound(s.t, s.rho_v)
+                } else {
+                    return Err(Error::Value(
+                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
+                    ));
+                }
+            }
+            CubicState::TwoPhaseDt(_) => {
                 return Err(Error::Value(
-                    "Input is two-phase and the speed of sound is not defined".into(),
+                    "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 1, nDelta: 0, tau: inf, delta: 0"
+                        .into(),
                 ));
             }
         },
@@ -922,6 +976,18 @@ fn incomp_route(
                 .into(),
         ));
     };
+    // The output IS an input: `_PropsSImulti` echoes it before ever calling
+    // update(), so the state's validity never comes into it. This matters
+    // here more than elsewhere — the INCOMP backend rejects states outside a
+    // fluid's liquid range or below its freezing point, and upstream still
+    // answers `PropsSI("T", "T", ..., "P", ...)` at those states.
+    let (echo1, echo2) = pair.split();
+    if out == echo1 {
+        return Ok(v1);
+    }
+    if out == echo2 {
+        return Ok(v2);
+    }
 
     // Composition gates (upstream update()).
     if data.xid == IncompFrac::Pure {

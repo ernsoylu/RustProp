@@ -12,7 +12,7 @@ repository.workspace = true
 rustprop = { workspace = true, features = ["if97", "heos", "heos-mixtures", "cubics", "incompressible", "humid-air", "pcsaft"] }
 rustprop-core.workspace = true
 rustprop-pcsaft.workspace = true
-rustprop-svdsbtl = { path = "../../crates/rustprop-svdsbtl" }
+rustprop-svdsbtl.workspace = true
 rustprop-tabular.workspace = true
 rustprop-data = { workspace = true, features = [
     "mixture-data",

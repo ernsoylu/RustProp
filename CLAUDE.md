@@ -161,7 +161,30 @@ CLOSEST TO the node instead. More upstream quirks reproduced: QT's
 `(void)`-discarded `is_inside` (p = +inf instead of an error) and
 `bisect_segmented_vector_slice` sizing itself on `mat[j]`. Tolerance 1e-9
 except density-keyed bicubic inversions at 1e-5 (LogPH nodes come from
-iterative (h, p) flashes; worst observed 2.0e-6). Next: Phase 15 release pipeline.
+iterative (h, p) flashes; worst observed 2.0e-6). **Phase 15 (release pipeline) is code-complete.** 15.1: every `rustprop*` name is
+FREE on crates.io (control-checked) and on npm, so no rename is needed; five wasm
+presets chosen from the measured size table. 15.2: `release.yml` fires on a `vX.Y.Z`
+tag — verify job, crates.io publication, five presets x three wasm targets, CLI
+binaries for three platforms. `cargo publish --dry-run --workspace` is the every-push
+CI gate (the per-crate form CANNOT work before a first publish: cargo resolves each
+crate's deps against the index). 15.3: the seeded acceptance sweep, 3,720 records over
+seven backends, wired into the weekly job.
+
+**The acceptance sweep found five real defects on its first run**, none of which the
+~28,000 hand-chosen goldens had caught, all now fixed: (1) a PANIC in `rho_tp_cubic`
+(`partial_cmp().unwrap()` on the NaN roots `solve_cubic` leaves when the leading
+coefficient underflows — upstream's `sort3` is a `>` network that passes NaN through);
+(2) cp/cv wrongly refused in the dome for HEOS and cubics (upstream has NO two-phase
+guard — raw single-phase formula at the mixture density, same shape as the Phase 6.1
+conductivity finding); (3) speed of sound refused at Q==0/1 where upstream returns the
+saturated branch; (4) Gibbs energy refused in the dome where upstream applies the lever
+rule; (5) the ECHO ROUTE missing from the cubic and incompressible paths — upstream
+returns an output that IS an input without updating the state, so `PropsSI("T","T",...)`
+answers even where the flash cannot converge. One known divergence remains, asserted
+explicitly so it cannot silently widen OR silently heal: cubic PQ below one pascal.
+
+REMAINING FOR THE OWNER (cannot be done from here): claim the crates.io names and add
+the `CARGO_REGISTRY_TOKEN` secret, then tag v0.1.0. Publication is irreversible.
 
 **Phase 14 (WASM bindings) is DONE**: `crates/rustprop-wasm` exports
 `props_si` / `ha_props_si` / `upstream_version` plus the typed fast path

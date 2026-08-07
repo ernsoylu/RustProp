@@ -335,9 +335,26 @@ impl CubicEos {
         let crho2 = r * t * (d2 + d3) - p * (d1 * (d2 + d3) + d2 * d3) - am;
         let crho3 = r * t * d2 * d3 - p * d1 * d2 * d3 - d1 * am;
         let (n, r0, r1, r2) = solve_cubic(crho3, crho2, crho1, crho0);
-        let mut roots = [r0, r1, r2];
-        roots.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        (n, roots[0], roots[1], roots[2])
+        // Upstream `sort3` verbatim: a fixed three-comparison network on `>`.
+        // The shape matters, not just the outcome — `solve_cubic` leaves NaN
+        // in the slots it did not fill (the linear and quadratic branches
+        // taken when the leading coefficient underflows, which happens for
+        // real states: the Soave alpha function passes through zero at high
+        // reduced temperature, and `crho3` carries a factor of `am`). Every
+        // comparison against NaN is false, so upstream performs no swaps and
+        // passes the NaN through. A `partial_cmp().unwrap()` sort panics
+        // there instead — found by the seeded acceptance sweep.
+        let (mut a, mut b, mut c) = (r0, r1, r2);
+        if a > b {
+            core::mem::swap(&mut a, &mut b);
+        }
+        if a > c {
+            core::mem::swap(&mut a, &mut c);
+        }
+        if b > c {
+            core::mem::swap(&mut b, &mut c);
+        }
+        (n, a, b, c)
     }
 
     /// Upstream `recalculate_singlephase_phase` with the cubic's critical

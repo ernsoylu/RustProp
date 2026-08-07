@@ -1,0 +1,126 @@
+name: release
+
+# Tag-driven. `vX.Y.Z` publishes the library crates to crates.io and attaches
+# the prebuilt wasm bundles and CLI binaries to the GitHub release.
+#
+# Deliberately manual in one respect: crates.io publication is irreversible
+# (a version can be yanked but never replaced), so the job runs only on a tag
+# the owner pushed, never on a branch.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Gate everything on the same suite CI runs, so a tag can never ship
+  # something the branch would have failed.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace --all-features --release
+      - run: cargo publish --dry-run --workspace
+
+  crates-io:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      # --workspace resolves the dependency order itself, so the crates go up
+      # bottom-first without a hand-maintained list that would rot.
+      - run: cargo publish --workspace
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  wasm-bundles:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Prebuilt binaries cannot pick features after the fact, so the
+        # release ships the presets the size table shows are worth shipping.
+        # Source consumers keep the full per-fluid modularity.
+        include:
+          - preset: if97
+            features: if97
+          - preset: heos-water
+            features: heos,water
+          - preset: refrigerants
+            features: heos,rustprop-data/r134a,rustprop-data/r32,rustprop-data/r125,rustprop-data/r1234yf
+          - preset: humid-air
+            features: humid-air
+          - preset: all-backends
+            features: all-backends
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "v0.13.1"
+      - name: build ${{ matrix.preset }}
+        run: |
+          for target in web nodejs bundler; do
+            wasm-pack build crates/rustprop-wasm --target "$target" \
+              --out-dir "pkg-${{ matrix.preset }}-$target" \
+              --features "${{ matrix.features }}"
+          done
+          tar czf "rustprop-wasm-${{ matrix.preset }}.tar.gz" \
+            -C crates/rustprop-wasm \
+            pkg-${{ matrix.preset }}-web pkg-${{ matrix.preset }}-nodejs pkg-${{ matrix.preset }}-bundler
+      - name: smoke the nodejs bundle
+        # Only the presets that carry the engines the smoke test exercises.
+        if: matrix.preset == 'all-backends'
+        run: |
+          cp -r crates/rustprop-wasm/pkg-all-backends-nodejs crates/rustprop-wasm/pkg-node
+          node tests/wasm-smoke/smoke.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-${{ matrix.preset }}
+          path: rustprop-wasm-${{ matrix.preset }}.tar.gz
+
+  cli-binaries:
+    needs: verify
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - run: rustup target add ${{ matrix.target }}
+      - run: cargo build -p rustprop-cli --release --target ${{ matrix.target }} --features rustprop/all-backends
+      - name: package
+        shell: bash
+        run: |
+          bin=target/${{ matrix.target }}/release/rustprop-cli
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          tar czf "rustprop-cli-${{ matrix.target }}.tar.gz" -C "$(dirname "$bin")" "$(basename "$bin")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.target }}
+          path: rustprop-cli-${{ matrix.target }}.tar.gz
+
+  github-release:
+    needs: [crates-io, wasm-bundles, cli-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*.tar.gz
+          generate_release_notes: true

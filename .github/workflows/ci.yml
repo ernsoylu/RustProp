@@ -39,6 +39,10 @@ jobs:
           wasm-pack build crates/rustprop-wasm --target nodejs --out-dir pkg-node \
             --features if97,heos,water,humid-air
           node tests/wasm-smoke/smoke.mjs
+      # Catches publishing metadata problems on every push, long before a
+      # tag makes them irreversible. --workspace resolves the ordering and
+      # verifies each crate against the local ones.
+      - run: cargo publish --dry-run --workspace
       - name: wasm size report
         run: |
           echo "### wasm size report (rustprop-wasm-size-probe, release)"
@@ -63,3 +67,6 @@ jobs:
       - run: cargo test -p rustprop-golden-tests --test heos_all_smoke -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test mixtures mixture_sweep -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test tabular_state tabular_pairs -- --ignored --nocapture
+      # The final acceptance suite: a seeded randomized sweep across every
+      # engine (PLAN.md 15.3).
+      - run: cargo test --release -p rustprop-golden-tests --test acceptance -- --ignored --nocapture

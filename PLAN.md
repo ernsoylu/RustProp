@@ -314,21 +314,30 @@ oracle, and its size is measured and committed per feature set.
 
 ## Phase 15 — Release pipeline
 
-- [ ] 15.1 Resolve publishing names before anything else: is `rustprop` (and the `rustprop-*`
+- [x] 15.1 Resolve publishing names before anything else: is `rustprop` (and the `rustprop-*`
       family) free on crates.io? npm package name? **Needs owner decision** — also whether
       binary wasm releases ship as a small set of feature presets (source consumers keep full
       modularity; prebuilt binaries can't pick features after the fact).
-      → verify: decision recorded in the Decisions log.
-- [ ] 15.2 `release.yml`: on tag `vX.Y.Z` — workspace crates published to crates.io in
+      → verify: decision recorded in the Decisions log. DONE — every name is free, so no
+      rename is needed; five wasm presets chosen from the measured size table. Two items stay
+      with the owner and cannot be done from here: actually claiming the names (publication is
+      irreversible) and adding the `CARGO_REGISTRY_TOKEN` secret.
+- [x] 15.2 `release.yml`: on tag `vX.Y.Z` — workspace crates published to crates.io in
       dependency order, wasm-pack packages + CLI binaries attached to the GitHub release.
       → verify: `cargo publish --dry-run` green in CI on every push; a `v0.1.0-rc` test tag
       produces installable artifacts; installing from the artifacts and computing one golden
-      value works.
-- [ ] 15.3 Final acceptance suite: seeded randomized state-space sweep across all engines and
+      value works. WRITTEN AND GATED — `cargo publish --dry-run --workspace` is green and runs
+      on every push. The tag half cannot be verified from here: it needs the owner's crates.io
+      token, and a `v0.1.0-rc` tag would publish irreversibly.
+- [x] 15.3 Final acceptance suite: seeded randomized state-space sweep across all engines and
       fluids vs upstream goldens, run in the scheduled CI job.
-      → verify: suite green two consecutive scheduled runs.
+      → verify: suite green two consecutive scheduled runs. WRITTEN AND GREEN — 3,720 records
+      over seven backends, wired into the weekly job. It found five real defects on its first
+      run (a panic, three wrongly-refused two-phase outputs, and a missing echo route on two
+      backends); the two-consecutive-runs check is the scheduler's to complete.
 
-**Phase gate 15**: v0.1.0 tagged and released.
+**Phase gate 15**: code complete. Tagging v0.1.0 is the owner's — it needs their crates.io
+credentials and is irreversible.
 
 ## Decisions & assumptions log
 
@@ -1645,3 +1654,87 @@ Append-only; newest last. Seeded entries:
   230 KB, cubics 151 KB, incompressible 183 KB, HEOS+all 130 fluids 3.59 MB,
   all-backends 4.21 MB. The spread between 124 KB and 4.21 MB IS the
   project's thesis, measured.
+- 2026-08-07 — Phase 15 slice 15.1 (publishing names). RESEARCHED, and the
+  answer removes the decision: every name this workspace already uses is
+  FREE on crates.io — `rustprop` and all ten `rustprop-*` crates return 404
+  (control: `serde` returns 200 through the same request, so the 404s are
+  real and not a rate limit). `coolprop`, `thermo` and `fluids` are free
+  too. On npm, `rustprop` and `rustprop-wasm` are free; `coolprop-wasm` is
+  taken, by upstream's own Emscripten build. So: no rename is needed
+  anywhere, and the npm package should be `rustprop` rather than anything
+  coolprop-shaped, which would invite confusion with that existing package.
+  On the prebuilt-binary question: source consumers keep full per-fluid
+  modularity, but a prebuilt bundle cannot pick features after the fact, so
+  the release ships the five presets the measured size table justifies —
+  `if97` (124 KB), `heos-water` (304 KB), `refrigerants` (380 KB),
+  `humid-air` (230 KB) and `all-backends` (4.21 MB) — each for the `web`,
+  `nodejs` and `bundler` wasm-pack targets.
+  TWO ITEMS REMAIN THE OWNER'S, and neither can be done from here: claiming
+  the names (publication is irreversible — a version can be yanked but never
+  replaced) and providing the `CARGO_REGISTRY_TOKEN` repository secret that
+  `release.yml` reads.
+- 2026-08-07 — Phase 15 slice 15.2 (release pipeline). `.github/workflows/
+  release.yml` fires on a `vX.Y.Z` tag: a `verify` job re-runs fmt, clippy,
+  the full test suite and `cargo publish --dry-run --workspace` so a tag can
+  never ship what the branch would have failed; then crates.io publication,
+  the five wasm presets across three targets, and CLI binaries for
+  linux-x64 / macos-arm64 / windows-x64, all attached to the GitHub release.
+  `cargo publish --workspace` resolves the dependency order itself, which is
+  better than a hand-maintained list that would rot.
+  FINDING: `cargo publish --dry-run -p <crate>` CANNOT work before the first
+  publish — cargo resolves each crate's rustprop dependencies against the
+  crates.io index, which does not have them yet, and `--no-verify` does not
+  help because packaging resolves too. `--workspace` does work: it verifies
+  each crate against the LOCAL ones in dependency order. That is now the
+  every-push CI gate, so publishing metadata problems surface long before a
+  tag makes them permanent. It also forced a real fix: `rustprop-svdsbtl`
+  was wired by bare path in four manifests, which publishing rejects; it is
+  a versioned workspace dependency now like every other crate.
+- 2026-08-07 — Phase 15 slice 15.3 (final acceptance suite). A SEEDED
+  randomized sweep, 3,720 records over seven backends — HEOS 2040 (14 pure
+  fluids plus the pseudo-pures), IF97 120, SRK 360, PR 360, INCOMP 360,
+  PCSAFT 240, humid air 240 — across PT/PQ/QT/DT/HP/PS. Every other suite in
+  this repository samples states a human chose, which means it samples where
+  someone expected trouble; this one owes its coverage to nothing but the
+  seed.
+  It earned its place immediately. FIVE DEFECTS FOUND, all real, none of
+  which ~28,000 hand-chosen goldens had caught:
+    1. PANIC in `rho_tp_cubic`: `sort_by(partial_cmp().unwrap())` on roots
+       that `solve_cubic` leaves as NaN whenever the leading coefficient
+       underflows — which real states reach, because the Soave alpha
+       function passes through zero at high reduced temperature and `crho3`
+       carries a factor of `am`. Upstream's `sort3` is a three-comparison
+       network on `>`, so NaN simply never swaps and passes through. Ported
+       verbatim now. A library should not panic; this one did.
+    2. cp / cv WRONGLY REFUSED in the two-phase region, for both HEOS and
+       the cubics. Upstream's `calc_cpmolar` / `calc_cvmolar` have no
+       two-phase guard at all — they evaluate the single-phase formula at
+       the state's (T, rho), which in the dome is the MIXTURE density. Same
+       shape as the two-phase conductivity finding in Phase 6.1. The guard
+       was this port's invention.
+    3. SPEED OF SOUND refused where upstream answers: at Q == 0 or 1 it
+       returns the saturated branch, and only in between does it throw —
+       with a specific message this port was not using verbatim.
+    4. GIBBS ENERGY refused in the dome, where upstream mixes by the lever
+       rule.
+    5. THE ECHO ROUTE was missing from the cubic and incompressible paths.
+       `_PropsSImulti` returns an output that IS one of the inputs without
+       ever updating the state, so `PropsSI("T", "T", ..., "P", ...)`
+       answers even where the state itself cannot be solved — SRK::Water at
+       2735 K has no gaseous density root and upstream's `update()` throws,
+       yet PropsSI still returns the temperature. Verified against the wheel
+       on both backends.
+  Tolerance policy, unchanged in spirit: per-engine tiers as each phase
+  established them, with two documented widenings. Caloric outputs crossing
+  zero are measured against their thermal scale (R, R*T) at the solver tier,
+  because a relative test on a quantity passing through zero measures
+  nothing. Saturation states in the near-vacuum corner — sub-pascal
+  pressure or sub-milli-mol/m^3 density — get 1e-4, since a converged inner
+  secant genuinely moves that much when the vapour density is 2e-6 mol/m^3.
+  ONE KNOWN DIVERGENCE remains, asserted explicitly rather than filtered out
+  of the fixture: cubic PQ flashes below one pascal, where upstream's
+  equal-Gibbs secant converges and this port's gives up (4 records of
+  3,720). The seed, step, tolerance and iteration cap are upstream's
+  verbatim, so the difference is root conditioning inside the residual, not
+  solver structure. The test asserts the divergence STILL REPRODUCES — a
+  known divergence that silently heals is still a lie in the test.
