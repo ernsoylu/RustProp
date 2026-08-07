@@ -4,5 +4,6 @@
 //! CoolProp v8.0.0 — see CLAUDE.md.
 
 pub mod tables;
+pub mod ttse;
 
 pub use rustprop_core::UPSTREAM_VERSION;

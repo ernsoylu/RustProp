@@ -1226,6 +1226,51 @@ def gen_tabular_tables():
     return rows
 
 
+def gen_ttse():
+    """Phase 12 slice 12c: TTSE evaluation on the LogPT table through
+    PT inputs, against the wheel's own TTSE backend (which builds the same
+    200x200 grid). Node records use the exact grid coordinates so the
+    expansion must reproduce the stored node value."""
+    import math
+    rows = []
+    for fluid in ["Water", "n-Propane"]:
+        AS = CP.AbstractState("TTSE&HEOS", fluid)
+        hf = f"HEOS::{fluid}"
+        Tmin = max(PropsSI("Ttriple", "", 0, "", 0, hf), PropsSI("Tmin", "", 0, "", 0, hf))
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        pmax = PropsSI("pmax", "", 0, "", 0, hf)
+        ref = CP.AbstractState("HEOS", fluid)
+        ref.update(CP.QT_INPUTS, 0, Tmin)
+        pmin = ref.p()
+        xmin, xmax = Tmin, Tmax * 1.499
+        # Interior states, plus states landing exactly on grid nodes.
+        nx = ny = 200
+        states = []
+        for fi in (0.13, 0.37, 0.61, 0.88):
+            for fj in (0.2, 0.5, 0.8):
+                states.append((xmin + (xmax - xmin) * fi,
+                               math.exp(math.log(pmin) + math.log(pmax / pmin) * fj)))
+        for i in (40, 111, 175):
+            for j in (30, 140):
+                states.append((xmin + (xmax - xmin) / (nx - 1) * i,
+                               math.exp(math.log(pmin) + math.log(pmax / pmin) / (ny - 1) * j)))
+        for (t, p) in states:
+            try:
+                AS.update(CP.PT_INPUTS, p, t)
+                vals = [("Dmolar", AS.rhomolar()), ("Hmolar", AS.hmolar()),
+                        ("Smolar", AS.smolar()), ("Umolar", AS.umolar())]
+            except Exception:
+                continue
+            for out, v in vals:
+                rows.append({
+                    "backend": "TTSE", "fluid": fluid, "out": out,
+                    "name1": "T", "val1": t, "name2": "P", "val2": p,
+                    "expected": v,
+                })
+    print(f"ttse: {len(rows)} records")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1897,6 +1942,7 @@ def main():
     write_jsonl("pcsaft_flash.jsonl", gen_pcsaft_flash())
     write_jsonl("partial_derivs.jsonl", gen_partial_derivs())
     write_jsonl("tabular_tables.jsonl", gen_tabular_tables())
+    write_jsonl("ttse.jsonl", gen_ttse())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

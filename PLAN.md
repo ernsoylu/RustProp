@@ -1012,6 +1012,26 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 12 slice 12c (TTSE evaluation): ports
+  `TTSEBackend::evaluate_single_phase` (the second-order Taylor expansion
+  z + dx*z_x + dy*z_y + dx^2/2*z_xx + dy^2/2*z_yy + dx*dy*z_xy about the
+  NEAREST node), `evaluate_single_phase_derivative` (first order only, with
+  upstream's native-key short circuits duplicated before AND after the
+  pointer hookup exactly as upstream writes them),
+  `evaluate_single_phase_transport` (bilinear over the cell, keeping
+  upstream's guard that tests the four `smolar` corners whatever property is
+  being interpolated), and both quadratic inverters
+  `invert_single_phase_x`/`_y` with their spacing- and ratio-based root
+  selection. The cell search comes with them: `bisect_vector` (including its
+  invalid-entry walks at both ends and the segmented middle), plus
+  `find_native_nearest_neighbor` (arithmetic midpoint on the linear axis,
+  GEOMETRIC midpoint on the log axis), `find_native_nearest_good_neighbor`
+  and `find_native_nearest_good_cell`. Verified: 144 goldens for Water and
+  n-Propane against the WHEEL'S OWN TTSE backend at interior and on-node
+  states — the first probe matched bitwise (rho = 30.80411074505238 at
+  400 K / 101325 Pa), which is the whole path agreeing: limits, spacing,
+  node selection and expansion. Plus a node-exactness test asserting the
+  expansion returns the stored value bitwise when both deltas are zero.
 - 2026-08-07 — Phase 12 slice 12b (table construction): `rustprop-tabular`
   ports `PureFluidSaturationTableData::build` (1000 log-spaced pressures from
   the triple point to 0.9999*p_critical, both branches per point with the
