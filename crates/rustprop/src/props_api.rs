@@ -987,7 +987,7 @@ fn extract_mole_fractions(fluid_string: &str) -> Result<(Vec<&str>, Vec<f64>)> {
         let f: f64 = fraction
             .parse()
             .map_err(|_| Error::Value(format!("fraction [{fraction}] was not converted fully")))?;
-        if f > 1.0 || f < 0.0 {
+        if !(0.0..=1.0).contains(&f) {
             return Err(Error::Value(format!(
                 "fraction [{fraction}] was not converted to a value between 0 and 1 inclusive"
             )));
