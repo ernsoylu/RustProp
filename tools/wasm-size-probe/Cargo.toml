@@ -16,6 +16,7 @@ rustprop.workspace = true
 rustprop-core.workspace = true
 rustprop-heos = { workspace = true, optional = true }
 rustprop-data = { workspace = true, optional = true }
+rustprop-svdsbtl = { path = "../../crates/rustprop-svdsbtl", optional = true }
 
 [features]
 default = []
@@ -25,6 +26,9 @@ heos-water = ["heos-data", "rustprop-data/water"]
 heos-all-fluids = ["heos-data", "rustprop-data/all-fluids"]
 # Mixture support on top of two fluids: the pair/departure-table data cost.
 heos-mixtures = ["heos-data", "rustprop/heos-mixtures", "rustprop-data/methane", "rustprop-data/ethane"]
+# The SVDSBTL EVALUATOR only — no HEOS, no coefficients. The surface
+# artifacts are ingested data and are never linked by default (13.1 note).
+svdsbtl = ["dep:rustprop-svdsbtl"]
 cubics = ["rustprop/cubics"]
 incompressible = ["rustprop/incompressible"]
 humid-air = ["rustprop/humid-air"]

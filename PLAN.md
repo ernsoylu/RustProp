@@ -286,11 +286,15 @@ Hardest phase; sub-steps land separately like 4.x did.
       surfaces are 26.4 MB, eight times this project's entire 130-fluid HEOS wasm build.
       SVDSBTL buys SPEED at the cost of size. See the Decisions entry for the full note and
       the resulting design (port the evaluator, ingest the coefficients, never rebuild them).
-- [ ] 13.2 Port per that note.
+- [x] 13.2 Port per that note.
       → verify: goldens vs `SVDSBTL&HEOS::` outputs within upstream's documented accuracy;
       wasm size report for a tables-only build (no HEOS) recorded.
+      DONE — 745 goldens against the wheel's own `SVDSBTL&HEOS` reading the same
+      coefficients, 700 bitwise and the rest within a few ulp; tables-only wasm build
+      recorded at 51,491 bytes and wired into the CI size report.
 
-**Phase gate 13.**
+**Phase gate 13: PASSED** — the evaluator, the region atlas and the artifact ingestion
+path, with the builder deliberately unported and the critical patch left as a seam.
 
 ## Phase 14 — WASM bindings crate
 
@@ -1549,3 +1553,56 @@ Append-only; newest last. Seeded entries:
      only, `SVDSBTL&HEOS` sources only. The dome blend, the critical patch,
      REFPROP/IF97 sources, and `fast_evaluate` follow only if a consumer
      needs them — each is additive and none changes the evaluator.
+- 2026-08-07 — Phase 13 slice 13.2 (SVDSBTL evaluator), built exactly as the
+  13.1 note prescribed. `rustprop-svdsbtl` now carries:
+    - `hermite` — the four cubic-Hermite basis polynomials, value and
+      derivative (upstream `Hermite1D.h`);
+    - `region` — `AxisTransform` (LINEAR / LOG / POWER / POWER_LO forward and
+      inverse), the two serializable boundary-curve kinds (`ConstantCurve`
+      and the natural cubic spline reconstructed from upstream's `State`
+      snapshot WITHOUT re-solving the tridiagonal system, bucket-table
+      `locate` included), `Region` (AABB, curve envelope, the xi/eta
+      normalisation with its degenerate-span NaN guard) and `RegionAtlas`
+      (AABB-first dispatch in REGISTRATION ORDER — first match wins, which is
+      contract, not accident, because disjoint regions routinely have
+      overlapping boxes);
+    - `svd` — `SvdDecomposition` plus the `make_context` / `eval_with_context`
+      kernel, singular values pre-folded into V exactly as upstream stores
+      them;
+    - `surface` — `SvdSurface` resolve/eval/eval_with_region and the
+      amortised multi-property path, including upstream's easily-inverted
+      axis convention: the SVD's x axis is the SECONDARY normalised
+      coordinate (eta), its y axis the PRIMARY one (xi).
+  `tools/rustprop-svdgen` converts an upstream `.svd.bin.z` (zlib + msgpack)
+  into the flat little-endian `.svds` blob the crate reads with
+  `f64::from_le_bytes` — no msgpack, no zlib and no JSON in a shipped
+  binary, matching the rule that already keeps parsers out of
+  `rustprop-data`. Every coefficient is copied as its exact bit pattern.
+  UPSTREAM BEHAVIOUR FOUND AND SCOPED OUT: the `critical_patch` defaults to
+  `"auto"`, not off. Inside a build-time-calibrated bbox around the critical
+  point (fallback multipliers T in [0.95, 1.05]*Tc, p in [0.75, 1.15]*pc)
+  upstream does not evaluate the SVD at all — it forwards to the SOURCE
+  backend and returns HEOS truth. Verified: at (p = 19.8 MPa, T = 640 K) the
+  wheel's SVDSBTL and its HEOS agree to the last bit while the SVD surface
+  itself is 1% away. The patch is therefore a caller-supplied seam here
+  (the same shape as `rustprop-tabular`'s `TransportSource`), and the
+  goldens are generated with `critical_patch: {mode: "off"}` so they test
+  the evaluator rather than re-testing rustprop's HEOS.
+  745 goldens, 700 of them BITWISE, worst 1.8e-15 (a few ulp). The residual
+  is the reference BUILD, not the algorithm: GCC compiles the accumulation
+  with `-ffp-contract=fast` and fuses some multiply-adds, which Rust never
+  does implicitly. Fusing the obvious candidate (`acc += u_k*v_k` ->
+  `mul_add`) makes agreement WORSE — 69 differing records instead of 45 — so
+  the contraction GCC chose sits elsewhere in the expression, and chasing it
+  would be matching a compiler flag rather than porting an algorithm.
+  SIZE, the number 13.2 asked for: the tables-only wasm build (feature
+  `svdsbtl`, no HEOS, no coefficients) is **51,491 bytes**. That is the whole
+  point of the 13.1 finding in one line — the engine is 50 KB and the data
+  is 13 MB. The committed fixture is a deliberately tiny surface (NT=16,
+  NR=24, rank=6, transport off, 186 KB): both sides approximate HEOS equally
+  badly on it and must still agree to the ulp, which is exactly what a port
+  test should assert.
+  Not ported, and each additive when a consumer needs it: the builder (by
+  design), the dome blend, `fast_evaluate`, REFPROP/IF97 sources, and
+  `PiecewiseChebyshevCurve` (kind 2 — no artifact seen uses one, and the
+  loader refuses it loudly rather than guessing at the basis).

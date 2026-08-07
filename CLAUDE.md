@@ -161,7 +161,26 @@ CLOSEST TO the node instead. More upstream quirks reproduced: QT's
 `(void)`-discarded `is_inside` (p = +inf instead of an error) and
 `bisect_segmented_vector_slice` sizing itself on `mat[j]`. Tolerance 1e-9
 except density-keyed bicubic inversions at 1e-5 (LogPH nodes come from
-iterative (h, p) flashes; worst observed 2.0e-6). Next: Phase 13 SVDSBTL.
+iterative (h, p) flashes; worst observed 2.0e-6). Next: Phase 14 WASM bindings.
+
+**Phase 13 (SVDSBTL) is DONE.** 13.1's study overturned the phase's premise:
+measured against the wheel, one fluid's two MVP surfaces are 26.4 MB — eight
+times this project's whole 130-fluid HEOS wasm build — so SVDSBTL buys SPEED,
+not size, and like Tabular it is low-level only
+(`available_in_high_level()` is false). 13.2 ported what that implies:
+`rustprop-svdsbtl` carries the evaluator (Hermite basis, AxisTransform,
+boundary curves, Region/RegionAtlas, the rank-r kernel, SvdSurface dispatch)
+and an artifact reader for a flat little-endian `.svds` blob; the BUILDER is
+deliberately NOT ported (Eigen BDCSVD is not reproducible bitwise, so the
+coefficients are ingested by `tools/rustprop-svdgen` from upstream's
+`.svd.bin.z`, never recomputed). 745 goldens, 700 bitwise, worst 1.8e-15
+(GCC's `-ffp-contract=fast` in the reference build; fusing the obvious
+candidate makes agreement worse). Tables-only wasm: **51,491 bytes** with
+zero coefficients linked. Upstream's `critical_patch` defaults to "auto" and
+silently returns SOURCE-backend truth near the critical point — left as a
+caller seam, goldens generated with the patch off. Unported by design: the
+builder, dome blend, `fast_evaluate`, REFPROP/IF97 sources, and
+`PiecewiseChebyshevCurve` (loader refuses it loudly).
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

@@ -1,0 +1,17 @@
+[package]
+name = "rustprop-svdgen"
+description = "Converts upstream CoolProp .svd.bin.z surfaces into rustprop .svds blobs (unpublished tool)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+rustprop-svdsbtl = { path = "../../crates/rustprop-svdsbtl" }
+flate2 = "1"
+rmpv = "1"
+
+[lints]
+workspace = true

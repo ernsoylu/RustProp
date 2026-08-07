@@ -1431,6 +1431,58 @@ def gen_tabular_pairs():
     return rows
 
 
+def gen_svdsbtl():
+    """Phase 13 slice 13.2: the SVDSBTL evaluator, against the wheel's own
+    `SVDSBTL&HEOS` backend reading the SAME artifact this port ingests.
+
+    The committed artifact is deliberately LOW RESOLUTION (NT=16, NR=24,
+    rank=6, transport off, ~186 KB). That is not an accuracy compromise: the
+    comparison is my evaluator vs upstream's evaluator on identical
+    coefficients, so both approximate HEOS equally badly and must still agree
+    bitwise. A default-resolution surface is 13 MB and does not belong in a
+    repository (see the 13.1 design note).
+
+    (a, b) = (p, T) for the PT surface. Probes sweep pressure across every
+    region boundary the Water atlas carries: subcritical LOG band, the two
+    POWER bands straddling p_crit, and the supercritical LOG band."""
+    import json
+    # critical_patch OFF. Upstream defaults it to "auto": inside a
+    # calibrated bbox around the critical point it returns the SOURCE
+    # backend's value verbatim instead of the SVD's, which would make these
+    # records a test of rustprop's HEOS rather than of the evaluator. The
+    # patch is a caller-supplied seam in this port (see 13.2 notes).
+    opts = json.dumps({"grid": {"NT": 16, "NR": 24, "rank": 6},
+                       "properties": {"transport": "off"},
+                       "critical_patch": {"mode": "off"}})
+    AS = CP.AbstractState("SVDSBTL&HEOS?" + opts, "Water")
+    outs = ["Dmass", "Hmass", "Smass", "Umass", "A"]
+    getters = {"Dmass": lambda s: s.rhomass(), "Hmass": lambda s: s.hmass(),
+               "Smass": lambda s: s.smass(), "Umass": lambda s: s.umass(),
+               "A": lambda s: s.speed_sound()}
+    rows = []
+    pressures = [1.0e3, 1.0e4, 1.0e5, 101325.0, 1.0e6, 5.0e6, 1.5e7, 1.98e7,
+                 2.05e7, 2.19e7, 2.2064e7, 2.3e7, 2.42e7, 5.0e7, 2.0e8, 8.0e8]
+    temperatures = [280.0, 300.0, 350.0, 400.0, 500.0, 600.0, 640.0, 700.0,
+                    900.0, 1200.0]
+    for p in pressures:
+        for T in temperatures:
+            try:
+                AS.update(CP.PT_INPUTS, p, T)
+                vals = {k: g(AS) for k, g in getters.items()}
+            except Exception:
+                continue
+            if any(v != v for v in vals.values()):
+                continue
+            for out in outs:
+                rows.append({
+                    "backend": "SVDSBTL", "fluid": "Water", "out": out,
+                    "name1": "P", "val1": p, "name2": "T", "val2": T,
+                    "expected": vals[out],
+                })
+    print(f"svdsbtl: {len(rows)} records")
+    return rows
+
+
 def gen_bicubic():
     """Phase 12 slice 12d: bicubic evaluation on the LogPT table through PT
     inputs, against the wheel's own BICUBIC backend (same 200x200 grid, same
@@ -2155,6 +2207,7 @@ def main():
     write_jsonl("bicubic.jsonl", gen_bicubic())
     write_jsonl("tabular_state.jsonl", gen_tabular_state())
     write_jsonl("tabular_pairs.jsonl", gen_tabular_pairs())
+    write_jsonl("svdsbtl.jsonl", gen_svdsbtl())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

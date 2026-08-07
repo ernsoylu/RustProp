@@ -78,3 +78,22 @@ pub extern "C" fn probe_heos_mixtures(t: f64, p: f64) -> f64 {
 pub extern "C" fn probe_ha(t: f64, p: f64) -> f64 {
     rustprop::ha_props_si("H", "T", t, "P", p, "R", 0.5).unwrap_or(f64::NAN)
 }
+
+/// Tables-only SVDSBTL: the evaluator and artifact reader with no engine and
+/// no coefficients linked.
+///
+/// # Safety
+/// `ptr` must point to `len` readable bytes holding a `.svds` blob, valid for
+/// the duration of the call.
+#[cfg(feature = "svdsbtl")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn probe_svdsbtl(ptr: *const u8, len: usize, a: f64, b: f64) -> f64 {
+    use rustprop_core::params::Param;
+    // SAFETY: the caller passes a valid (ptr, len) pair for a `.svds` blob;
+    // this probe exists only to keep the evaluator reachable for the linker.
+    let bytes = unsafe { core::slice::from_raw_parts(ptr, len) };
+    match rustprop_svdsbtl::artifact::load("probe", bytes) {
+        Ok(s) => s.eval(Param::Dmass, a, b).unwrap_or(f64::NAN),
+        Err(_) => f64::NAN,
+    }
+}
