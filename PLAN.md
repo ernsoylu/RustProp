@@ -268,9 +268,12 @@ Hardest phase; sub-steps land separately like 4.x did.
       upstream's own interpolation accuracy, plus exactness tests at table nodes.
       Slices: 12a generic (T, rho) partial derivatives; 12b table construction (LogPH/LogPT
       grids + saturation table); 12c TTSE; 12d bicubic; 12e the low-level `TabularState`
-      (PT inputs) and the high-level rejection.
+      (PT inputs) and the high-level rejection; 12f the remaining input pairs (HmolarP,
+      PUmolar, PSmolar, DmolarP, SmolarT, DmolarT, PQ, QT) with the saturation-table
+      two-phase route.
 
-**Phase gate 12.**
+**Phase gate 12: PASSED** — both schemes, both tables, every input pair upstream accepts,
+2,184 tabular goldens against the wheel's own TTSE/BICUBIC backends.
 
 ## Phase 13 — SVDSBTL engine
 
@@ -1416,3 +1419,41 @@ Append-only; newest last. Seeded entries:
   grids are filled through a `TransportSource` implemented in the test on
   the facade's public string API, which is the resolver seam the
   `rustprop-tabular` crate deliberately leaves open.
+- 2026-08-07 — Phase 12 slice 12f (the remaining tabular input pairs):
+  completes `TabularBackend::update` — HmolarP, PUmolar, PSmolar, DmolarP
+  (LogPH table, `invert_single_phase_x` for hmolar), SmolarT and DmolarT
+  (LogPT table, `invert_single_phase_y` for p), PQ and QT (saturation table
+  only). New machinery: the generalized `PureFluidSaturationTableData::
+  is_inside` (T- or p-keyed, with the `iQ` early return that fills the
+  saturation temperature/pressure and always reports "inside"),
+  `PureFluidSaturationTableData::evaluate` (per-branch cubic interpolation
+  against ln p, or against T when the output IS p; density and viscosity
+  interpolate their logs and mix reciprocally, everything else linearly),
+  `find_nearest_neighbor` with `bisect_segmented_vector_slice` and its
+  linear closest-value fallback, bicubic's cubic-root inversions, and
+  `recalculate_singlephase_phase`.
+  PORT BUG FOUND AND FIXED: my 12c `invert_single_phase_y` had copied the
+  root-selection ladder from the x variant. Upstream's two differ in their
+  last resort — x widens its band by 5 and keeps root 1, y keeps whichever
+  root sits CLOSER TO the node (ratio nearest 1). Only y's log branch is
+  reachable (both tables are logy, linear-x), and the wrong ladder put
+  SmolarT pressures 60-125% off. Caught by the new goldens.
+  UPSTREAM QUIRKS REPRODUCED: (a) QT discards its `is_inside` result with a
+  `(void)` cast, so a T outside the saturation table yields p = +inf rather
+  than an error — only PQ carries the "Not possible to determine whether
+  pressure is inside or not" guard; (b) `bisect_segmented_vector_slice`
+  takes its length from `mat[j].size()` — the length of ROW j, not of the
+  column it bisects — dormant only because upstream's grids are square;
+  (c) bicubic's `invert_single_phase_y` names `invert_single_phase_x` in its
+  failure message.
+  A small C `%g` formatter lands with this slice: upstream builds these
+  error strings with `%g`, which differs from Rust's `Display` outside
+  [1e-4, 1e6), and the messages are asserted against the wheel.
+  1,632 goldens over 2 fluids x 2 schemes x 8 pairs. Tolerance is 1e-9
+  except for bicubic inversions keyed on DENSITY, which get 1e-5: the LogPH
+  grid's nodes come from iterative (h, p) flashes, so my node densities sit
+  5e-11..3e-10 from the wheel's (both inside solver tolerance) and the
+  cubic root amplifies that — worst observed 2.0e-6, at n-Propane's
+  lowest-pressure corner (rho = 9e-6 mol/m^3). The suite is `#[ignore]`d for
+  runtime, not confidence: each state builds a 200x200 LogPH grid at ~100 s
+  (one (h, p) flash per node). Added to the weekly CI job.

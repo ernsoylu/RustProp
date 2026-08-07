@@ -242,3 +242,83 @@ pub fn evaluate_single_phase_transport(
             + f12 * (x2 - x) * (y - y1)
             + f22 * (x - x1) * (y - y1)))
 }
+
+/// Pick the root nearest zero, upstream's `N`-branch ladder in
+/// `invert_single_phase_x`/`_y`. `N == 0` raises upstream's message — which
+/// names `invert_single_phase_x` in BOTH functions.
+fn pick_root(n: i32, r0: f64, r1: f64, r2: f64) -> Result<f64> {
+    Ok(match n {
+        1 => r0,
+        2 => {
+            if r0.abs() < r1.abs() {
+                r0
+            } else {
+                r1
+            }
+        }
+        3 => {
+            if r0.abs() < r1.abs() && r0.abs() < r2.abs() {
+                r0
+            } else if r1.abs() < r2.abs() {
+                r1
+            } else {
+                r2
+            }
+        }
+        _ => {
+            return Err(Error::Value(
+                "Could not find a solution in invert_single_phase_x".into(),
+            ));
+        }
+    })
+}
+
+/// `BicubicBackend::invert_single_phase_x`: solve the cell's cubic in xhat
+/// for the x that produces `other` at the given y.
+pub fn invert_single_phase_x(
+    table: &GriddedTable,
+    coeffs: &CellCoeffGrid,
+    other_key: Param,
+    other: f64,
+    y: f64,
+    i: usize,
+    j: usize,
+) -> Result<f64> {
+    let alpha = coeffs.cell(i, j).get(other_key)?;
+    let yhat = (y - table.yvec[j]) / (table.yvec[j + 1] - table.yvec[j]);
+    let (y0, y1, y2, y3) = (1.0, yhat, yhat * yhat, yhat * yhat * yhat);
+
+    let a = alpha[3] * y0 + alpha[3 + 4] * y1 + alpha[3 + 8] * y2 + alpha[3 + 12] * y3;
+    let b = alpha[2] * y0 + alpha[2 + 4] * y1 + alpha[2 + 8] * y2 + alpha[2 + 12] * y3;
+    let c = alpha[1] * y0 + alpha[1 + 4] * y1 + alpha[1 + 8] * y2 + alpha[1 + 12] * y3;
+    let d = alpha[0] * y0 + alpha[4] * y1 + alpha[8] * y2 + alpha[12] * y3 - other;
+
+    let (n, x0, x1, x2) = rustprop_heos::solvers::solve_cubic(a, b, c, d);
+    let xhat = pick_root(n, x0, x1, x2)?;
+    Ok(xhat * (table.xvec[i + 1] - table.xvec[i]) + table.xvec[i])
+}
+
+/// `BicubicBackend::invert_single_phase_y`: solve the cell's cubic in yhat
+/// for the y that produces `other` at the given x.
+pub fn invert_single_phase_y(
+    table: &GriddedTable,
+    coeffs: &CellCoeffGrid,
+    other_key: Param,
+    other: f64,
+    x: f64,
+    i: usize,
+    j: usize,
+) -> Result<f64> {
+    let alpha = coeffs.cell(i, j).get(other_key)?;
+    let xhat = (x - table.xvec[i]) / (table.xvec[i + 1] - table.xvec[i]);
+    let (x0, x1, x2, x3) = (1.0, xhat, xhat * xhat, xhat * xhat * xhat);
+
+    let a = alpha[12] * x0 + alpha[13] * x1 + alpha[14] * x2 + alpha[15] * x3;
+    let b = alpha[8] * x0 + alpha[9] * x1 + alpha[10] * x2 + alpha[11] * x3;
+    let c = alpha[4] * x0 + alpha[5] * x1 + alpha[6] * x2 + alpha[7] * x3;
+    let d = alpha[0] * x0 + alpha[1] * x1 + alpha[2] * x2 + alpha[3] * x3 - other;
+
+    let (n, y0, y1, y2) = rustprop_heos::solvers::solve_cubic(a, b, c, d);
+    let yhat = pick_root(n, y0, y1, y2)?;
+    Ok(yhat * (table.yvec[j + 1] - table.yvec[j]) + table.yvec[j])
+}

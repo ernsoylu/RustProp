@@ -52,3 +52,4 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test -p rustprop-golden-tests --test heos_all_smoke -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test mixtures mixture_sweep -- --ignored --nocapture
+      - run: cargo test --release -p rustprop-golden-tests --test tabular_state tabular_pairs -- --ignored --nocapture

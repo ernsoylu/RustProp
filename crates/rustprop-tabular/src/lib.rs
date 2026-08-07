@@ -8,6 +8,6 @@ pub mod state;
 pub mod tables;
 pub mod ttse;
 
-pub use state::{Scheme, TabularState};
+pub use state::{Scheme, TabularInput, TabularState};
 
 pub use rustprop_core::UPSTREAM_VERSION;

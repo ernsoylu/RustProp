@@ -510,62 +510,319 @@ fn cubic_interp_vec(
     cubic_interp(x[i0], x[i1], x[i2], x[i3], y[i0], y[i1], y[i2], y[i3], v)
 }
 
+/// What `PureFluidSaturationTableData::is_inside` reports when the state is
+/// inside the dome: the bracketing indices and the saturation values of the
+/// "other" variable on each branch.
+#[derive(Clone, Copy, Debug)]
+pub struct Inside {
+    pub il: usize,
+    pub iv: usize,
+    pub y_l: f64,
+    pub y_v: f64,
+}
+
 impl SatTable {
-    /// `PureFluidSaturationTableData::is_inside(iP, p, iT, T, ...)` — is the
-    /// (p, T) state inside the two-phase dome, by the saturation table?
-    /// Returns the bracketing indices as upstream does (`iL`/`iV` are set to
-    /// `i*plus - 1` when inside).
-    pub fn is_inside_pt(&self, p: f64, t: f64) -> Result<Option<(usize, usize)>> {
-        // Trivial check on the pressure range
-        let pmax = self.p_v[self.n - 1];
-        let pmin = self.p_v[0];
-        if p > pmax || p < pmin {
-            return Ok(None);
+    /// The saturated liquid/vapour vectors for the "other" variable
+    /// (upstream's lambda at the top of `is_inside`). `iQ` maps to the
+    /// temperature vectors, matching upstream.
+    fn other_vecs(&self, other: Param) -> Result<(&Vec<f64>, &Vec<f64>)> {
+        Ok(match other {
+            Param::T | Param::Q => (&self.t_l, &self.t_v),
+            Param::Hmolar => (&self.hmolar_l, &self.hmolar_v),
+            Param::Smolar => (&self.smolar_l, &self.smolar_v),
+            Param::Umolar => (&self.umolar_l, &self.umolar_v),
+            Param::Dmolar => (&self.rhomolar_l, &self.rhomolar_v),
+            _ => {
+                return Err(Error::Value("invalid input for other in is_inside".into()));
+            }
+        })
+    }
+
+    /// `PureFluidSaturationTableData::is_inside`: is the state inside the
+    /// two-phase dome, by the saturation table? `main` must be `P` or `T`.
+    ///
+    /// For `other == Q` upstream returns TRUE unconditionally once the main
+    /// variable is in range, after filling `y_l`/`y_v` with the saturation
+    /// temperature (for `main == P`) or pressure (for `main == T`).
+    pub fn is_inside(
+        &self,
+        main: Param,
+        mainval: f64,
+        other: Param,
+        val: f64,
+    ) -> Result<Option<Inside>> {
+        let (yvec_l, yvec_v) = self.other_vecs(other)?;
+
+        // Trivial checks on the main variable's range
+        match main {
+            Param::P => {
+                let (pmax, pmin) = (self.p_v[self.n - 1], self.p_v[0]);
+                if mainval > pmax || mainval < pmin {
+                    return Ok(None);
+                }
+            }
+            Param::T => {
+                let (tmax, tmin) = (self.t_v[self.n - 1], self.t_v[0]);
+                if mainval > tmax || mainval < tmin {
+                    return Ok(None);
+                }
+            }
+            _ => {
+                return Err(Error::Value("invalid input for other in is_inside".into()));
+            }
         }
-        let iv = crate::ttse::bisect_vector(&self.p_v, p)?;
-        let il = crate::ttse::bisect_vector(&self.p_l, p)?;
+
+        // Indices bounding the main variable on each branch
+        let (iv, il) = match main {
+            Param::P => (
+                crate::ttse::bisect_vector(&self.p_v, mainval)?,
+                crate::ttse::bisect_vector(&self.p_l, mainval)?,
+            ),
+            _ => (
+                crate::ttse::bisect_vector(&self.t_v, mainval)?,
+                crate::ttse::bisect_vector(&self.t_l, mainval)?,
+            ),
+        };
         let mut ivplus = (iv + 1).min(self.n - 1);
         let mut ilplus = (il + 1).min(self.n - 1);
 
-        // Bounding values for T across the four bracketing nodes
-        let ymin = self.t_l[il]
-            .min(self.t_l[ilplus])
-            .min(self.t_v[iv])
-            .min(self.t_v[ivplus]);
-        let ymax = self.t_l[il]
-            .max(self.t_l[ilplus])
-            .max(self.t_v[iv])
-            .max(self.t_v[ivplus]);
-        if t < ymin || t > ymax {
+        if other == Param::Q {
+            ivplus = ivplus.max(3);
+            ilplus = ilplus.max(3);
+            let (y_v, y_l) = if main == Param::P {
+                let logp = mainval.ln();
+                (
+                    cubic_interp_vec(
+                        &self.logp_v,
+                        &self.t_v,
+                        ivplus - 3,
+                        ivplus - 2,
+                        ivplus - 1,
+                        ivplus,
+                        logp,
+                    ),
+                    cubic_interp_vec(
+                        &self.logp_l,
+                        &self.t_l,
+                        ilplus - 3,
+                        ilplus - 2,
+                        ilplus - 1,
+                        ilplus,
+                        logp,
+                    ),
+                )
+            } else {
+                (
+                    cubic_interp_vec(
+                        &self.t_v,
+                        &self.logp_v,
+                        ivplus - 3,
+                        ivplus - 2,
+                        ivplus - 1,
+                        ivplus,
+                        mainval,
+                    )
+                    .exp(),
+                    cubic_interp_vec(
+                        &self.t_l,
+                        &self.logp_l,
+                        ilplus - 3,
+                        ilplus - 2,
+                        ilplus - 1,
+                        ilplus,
+                        mainval,
+                    )
+                    .exp(),
+                )
+            };
+            return Ok(Some(Inside {
+                il: ilplus - 1,
+                iv: ivplus - 1,
+                y_l,
+                y_v,
+            }));
+        }
+
+        // Bounding values for the other variable across the four nodes
+        let ymin = yvec_l[il]
+            .min(yvec_l[ilplus])
+            .min(yvec_v[iv])
+            .min(yvec_v[ivplus]);
+        let ymax = yvec_l[il]
+            .max(yvec_l[ilplus])
+            .max(yvec_v[iv])
+            .max(yvec_v[ivplus]);
+        if val < ymin || val > ymax {
             return Ok(None);
         }
 
-        // Cubic "saturation" call against log(p)
+        // Actually do the "saturation" call using cubic interpolation
         ivplus = ivplus.max(3);
         ilplus = ilplus.max(3);
-        let logp = p.ln();
-        let yv = cubic_interp_vec(
-            &self.logp_v,
-            &self.t_v,
-            ivplus - 3,
-            ivplus - 2,
-            ivplus - 1,
-            ivplus,
-            logp,
-        );
-        let yl = cubic_interp_vec(
-            &self.logp_l,
-            &self.t_l,
-            ilplus - 3,
-            ilplus - 2,
-            ilplus - 1,
-            ilplus,
-            logp,
-        );
-        if t < yv.min(yl) || t > yv.max(yl) {
+        let (y_v, y_l) = if main == Param::P {
+            let logp = mainval.ln();
+            (
+                cubic_interp_vec(
+                    &self.logp_v,
+                    yvec_v,
+                    ivplus - 3,
+                    ivplus - 2,
+                    ivplus - 1,
+                    ivplus,
+                    logp,
+                ),
+                cubic_interp_vec(
+                    &self.logp_l,
+                    yvec_l,
+                    ilplus - 3,
+                    ilplus - 2,
+                    ilplus - 1,
+                    ilplus,
+                    logp,
+                ),
+            )
+        } else {
+            (
+                cubic_interp_vec(
+                    &self.t_v,
+                    yvec_v,
+                    ivplus - 3,
+                    ivplus - 2,
+                    ivplus - 1,
+                    ivplus,
+                    mainval,
+                ),
+                cubic_interp_vec(
+                    &self.t_l,
+                    yvec_l,
+                    ilplus - 3,
+                    ilplus - 2,
+                    ilplus - 1,
+                    ilplus,
+                    mainval,
+                ),
+            )
+        };
+
+        // `is_in_closed_range(yV, yL, val)` — upstream's helper sorts its
+        // bounds, so the branch order does not matter.
+        if val < y_v.min(y_l) || val > y_v.max(y_l) {
             Ok(None)
         } else {
-            Ok(Some((ilplus - 1, ivplus - 1)))
+            Ok(Some(Inside {
+                il: ilplus - 1,
+                iv: ivplus - 1,
+                y_l,
+                y_v,
+            }))
         }
+    }
+
+    /// `is_inside(iP, p, iT, T, ...)`, the shape `update(PT_INPUTS)` needs.
+    pub fn is_inside_pt(&self, p: f64, t: f64) -> Result<Option<(usize, usize)>> {
+        Ok(self
+            .is_inside(Param::P, p, Param::T, t)?
+            .map(|r| (r.il, r.iv)))
+    }
+
+    /// `PureFluidSaturationTableData::evaluate`: the two-phase output at
+    /// quality `q`, cubic-interpolated along each branch against log(p) (or
+    /// against T when the output is pressure). Density and viscosity
+    /// interpolate their logs and mix reciprocally; the rest mix linearly.
+    pub fn evaluate(
+        &self,
+        output: Param,
+        p_or_t: f64,
+        q: f64,
+        il: usize,
+        iv: usize,
+    ) -> Result<f64> {
+        let clamp = |mut i: usize| {
+            if i <= 2 {
+                i = 2;
+            } else if i + 1 == self.n {
+                i = self.n - 2;
+            }
+            i
+        };
+        let (il, iv) = (clamp(il), clamp(iv));
+        let logp = p_or_t.ln();
+        // The four-point stencils upstream uses, in its order.
+        let cl = |x: &Vec<f64>, y: &Vec<f64>, i: usize, v: f64| {
+            cubic_interp_vec(x, y, i - 2, i - 1, i, i + 1, v)
+        };
+        let mix = |v_v: f64, v_l: f64| q * v_v + (1.0 - q) * v_l;
+        let checked = |name: &str, v: f64| -> Result<f64> {
+            if valid_number(v) {
+                Ok(v)
+            } else {
+                Err(Error::Value(format!("{name} is invalid")))
+            }
+        };
+        Ok(match output {
+            Param::P => {
+                let logp_v = cl(&self.t_v, &self.logp_v, iv, p_or_t);
+                let logp_l = cl(&self.t_l, &self.logp_l, il, p_or_t);
+                q * logp_v.exp() + (1.0 - q) * logp_l.exp()
+            }
+            Param::T => mix(
+                cl(&self.logp_v, &self.t_v, iv, logp),
+                cl(&self.logp_l, &self.t_l, il, logp),
+            ),
+            Param::Smolar => mix(
+                cl(&self.logp_v, &self.smolar_v, iv, logp),
+                cl(&self.logp_l, &self.smolar_l, il, logp),
+            ),
+            Param::Hmolar => mix(
+                cl(&self.logp_v, &self.hmolar_v, iv, logp),
+                cl(&self.logp_l, &self.hmolar_l, il, logp),
+            ),
+            Param::Umolar => mix(
+                cl(&self.logp_v, &self.umolar_v, iv, logp),
+                cl(&self.logp_l, &self.umolar_l, il, logp),
+            ),
+            Param::Dmolar => {
+                let rho_v = checked(
+                    "rhoV",
+                    cl(&self.logp_v, &self.logrhomolar_v, iv, logp).exp(),
+                )?;
+                let rho_l = checked(
+                    "rhoL",
+                    cl(&self.logp_l, &self.logrhomolar_l, il, logp).exp(),
+                )?;
+                1.0 / (q / rho_v + (1.0 - q) / rho_l)
+            }
+            Param::Conductivity => {
+                let k_v = checked("kV", cl(&self.logp_v, &self.cond_v, iv, logp))?;
+                let k_l = checked("kL", cl(&self.logp_l, &self.cond_l, il, logp))?;
+                mix(k_v, k_l)
+            }
+            Param::Viscosity => {
+                let mu_v = checked("muV", cl(&self.logp_v, &self.logvisc_v, iv, logp).exp())?;
+                let mu_l = checked("muL", cl(&self.logp_l, &self.logvisc_l, il, logp).exp())?;
+                1.0 / (q / mu_v + (1.0 - q) / mu_l)
+            }
+            Param::Cpmolar => {
+                let cp_v = checked("cpV", cl(&self.logp_v, &self.cpmolar_v, iv, logp))?;
+                let cp_l = checked("cpL", cl(&self.logp_l, &self.cpmolar_l, il, logp))?;
+                mix(cp_v, cp_l)
+            }
+            Param::Cvmolar => {
+                let cv_v = checked("cvV", cl(&self.logp_v, &self.cvmolar_v, iv, logp))?;
+                let cv_l = checked("cvL", cl(&self.logp_l, &self.cvmolar_l, il, logp))?;
+                mix(cv_v, cv_l)
+            }
+            Param::SpeedSound => {
+                let w_v = checked("wV", cl(&self.logp_v, &self.speed_sound_v, iv, logp))?;
+                let w_l = checked("wL", cl(&self.logp_l, &self.speed_sound_l, il, logp))?;
+                mix(w_v, w_l)
+            }
+            other => {
+                return Err(Error::Value(format!(
+                    "Output key {} is not valid in pure_saturation.evaluate",
+                    other.short_name()
+                )));
+            }
+        })
     }
 }

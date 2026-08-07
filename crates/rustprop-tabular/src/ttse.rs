@@ -155,6 +155,53 @@ impl GriddedTable {
         Ok((bisect_vector(&self.xvec, x)?, bisect_vector(&self.yvec, y)?))
     }
 
+    /// `SinglePhaseGriddedTableData::find_nearest_neighbor`: locate the node
+    /// bracketing one GIVEN axis value plus a value of some OTHER tabulated
+    /// property. Along the y (pressure) axis the search runs against the
+    /// grain of the matrix, so it uses the segmented slice bisector and falls
+    /// back to a linear closest-value scan when that throws — upstream's
+    /// "less intelligent solution".
+    pub fn find_nearest_neighbor(
+        &self,
+        givenkey: Param,
+        givenval: f64,
+        otherkey: Param,
+        otherval: f64,
+    ) -> Result<(usize, usize)> {
+        if givenkey == self.kind.ykey() {
+            let j = bisect_vector(&self.yvec, givenval)?;
+            let mat = &self.grid_for(otherkey)?.val;
+            let i = match bisect_segmented_vector_slice(mat, j, otherval) {
+                Ok(i) => i,
+                Err(_) => {
+                    let mut closest_diff = 1e20;
+                    let mut closest_i = 0;
+                    for (index, row) in mat.iter().enumerate() {
+                        let diff = (row[j] - otherval).abs();
+                        if diff < closest_diff {
+                            closest_diff = diff;
+                            closest_i = index;
+                        }
+                    }
+                    closest_i
+                }
+            };
+            Ok((i, j))
+        } else if givenkey == self.kind.xkey() {
+            let i = bisect_vector(&self.xvec, givenval)?;
+            let j = bisect_vector(&self.grid_for(otherkey)?.val[i], otherval)?;
+            Ok((i, j))
+        } else {
+            // Upstream leaves (i, j) untouched here — a silent no-op that
+            // cannot happen through `update`, which only ever passes an axis
+            // key. Erroring is the honest translation of "unreachable".
+            Err(Error::Value(format!(
+                "find_nearest_neighbor: given key [{}] is not an axis of this table",
+                givenkey.short_name()
+            )))
+        }
+    }
+
     /// The stored grid for one output (upstream `get(key)`).
     pub fn grid_for(&self, key: Param) -> Result<&PropGrid> {
         Ok(match key {
@@ -351,16 +398,94 @@ pub fn invert_single_phase_y(
     let yj = table.yvec[j];
     let yratio1 = (yj + deltay1) / yj;
     let yratio2 = (yj + deltay2) / yj;
+    // The last resort differs from the x variant: here upstream keeps
+    // whichever root sits CLOSER TO the node (ratio nearest 1), where the x
+    // variant widens its band by 5 and keeps root 1.
     if yratio1 < yratio && yratio1 > 1.0 / yratio {
         Ok(deltay1 + table.yvec[j])
     } else if yratio2 < yratio && yratio2 > 1.0 / yratio {
         Ok(deltay2 + table.yvec[j])
-    } else if yratio1 < yratio * 5.0 && yratio1 > 1.0 / yratio / 5.0 {
+    } else if (yratio1 - 1.0).abs() < (yratio2 - 1.0).abs() {
         Ok(deltay1 + table.yvec[j])
+    } else if (yratio2 - 1.0).abs() < (yratio1 - 1.0).abs() {
+        Ok(deltay2 + table.yvec[j])
     } else {
         Err(Error::Value(format!(
-            "Cannot find the y solution; yj: {yj} yratio: {yratio} yratio1: {yratio1} yratio2: {yratio2} a: {a} b^2-4*a*c {}",
+            "Cannot find the y solution; yj: {yj} yratio: {yratio} yratio1: {yratio1} yratio2: {yratio2} a: {a} b: {b} b^2-4ac: {} {i} {j}",
             b * b - 4.0 * a * c
         )))
     }
+}
+
+/// Upstream `bisect_segmented_vector_slice` (numerics.h): bisect DOWN a
+/// column of a matrix that may contain holes, moving each limit onto a valid
+/// number before testing it.
+///
+/// UPSTREAM QUIRK, REPRODUCED: the initial `N` is taken as `mat[j].size()` —
+/// the length of ROW `j`, not of the column being bisected — and the
+/// hole-walking guards mix `mat.size()` with that `N`. For the square tables
+/// upstream builds (nx == ny == 200) the two agree, so the quirk is dormant;
+/// it would bite a non-square grid.
+pub fn bisect_segmented_vector_slice(mat: &[Vec<f64>], j: usize, val: f64) -> Result<usize> {
+    let invalid = || Error::Value("All the values in bisection vector are invalid".into());
+    let n = mat[j].len();
+    let (mut l, mut r) = (0usize, n - 1);
+    let mut m = (l + r) / 2;
+    while !valid_number(mat[r][j]) {
+        if r == 1 {
+            return Err(invalid());
+        }
+        r -= 1;
+    }
+    let mut rr = mat[r][j] - val;
+    while !valid_number(mat[l][j]) {
+        if l == mat.len() - 1 {
+            return Err(invalid());
+        }
+        l += 1;
+    }
+    let mut rl = mat[l][j] - val;
+    while r - l > 1 {
+        if !valid_number(mat[m][j]) {
+            let (mut mr, mut ml) = (m, m);
+            while !valid_number(mat[mr][j]) {
+                if mr == mat.len() - 1 {
+                    return Err(invalid());
+                }
+                mr += 1;
+            }
+            while !valid_number(mat[ml][j]) {
+                if ml == 1 {
+                    return Err(invalid());
+                }
+                ml -= 1;
+            }
+            let rml = mat[ml][j] - val;
+            let rmr = mat[mr][j] - val;
+            if rr * rmr > 0.0 && rl * rml < 0.0 {
+                r = ml;
+                rr = mat[ml][j] - val;
+            } else if rr * rmr < 0.0 && rl * rml > 0.0 {
+                l = mr;
+                rl = mat[mr][j] - val;
+            } else {
+                return Err(Error::Value(format!(
+                    "Unable to bisect segmented vector slice; neither chunk contains the solution {val} lef:({},{}) right:({},{})",
+                    mat[l][j], mat[ml][j], mat[mr][j], mat[r][j]
+                )));
+            }
+            m = (l + r) / 2;
+        } else {
+            let rm = mat[m][j] - val;
+            if rr * rm > 0.0 && rl * rm < 0.0 {
+                r = m;
+                rr = mat[r][j] - val;
+            } else {
+                l = m;
+                rl = mat[l][j] - val;
+            }
+            m = (l + r) / 2;
+        }
+    }
+    Ok(l)
 }

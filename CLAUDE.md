@@ -142,7 +142,26 @@ cells from the row-major Ainv, Horner evaluation, invalid-cell remap) — 160
 goldens vs the wheel's BICUBIC backend. Found and reproduced an upstream
 `bisect_vector` bug: an exact-node query zeroes the residual, poisoning the
 sign test so the index marches to R-1 (the wheel mis-locates identically).
-Next: 12e inversion + PropsSI routing.
+**PHASE 12 COMPLETE.** 12e shipped the low-level `TabularState`
+(`TabularBackend::update`'s PT branch: range gate, two-phase rejection,
+per-scheme cached indices, outputs and transport off those indices) plus the
+ROUTING discovery — `available_in_high_level()` is FALSE upstream, so
+`props_si` returns the verbatim "cannot be used in the high-level interface"
+rejection for `TTSE&HEOS::`/`BICUBIC&HEOS::` and the tables are a LOW-LEVEL
+API only (552 goldens). 12f completed `update`: HmolarP/PUmolar/PSmolar/
+DmolarP on the LogPH table (x-inversion for hmolar), SmolarT/DmolarT on the
+LogPT table (y-inversion for p), PQ/QT on the saturation table — with the
+generalized `is_inside`, `PureFluidSaturationTableData::evaluate`,
+`find_nearest_neighbor` + `bisect_segmented_vector_slice`, bicubic's
+cubic-root inversions and `recalculate_singlephase_phase` (1,632 goldens,
+`#[ignore]`d + weekly CI because each state builds a 200x200 LogPH grid at
+~100 s). Fixed a port bug 12c had introduced: `invert_single_phase_y` had
+copied the x variant's root ladder; upstream's y variant keeps the root
+CLOSEST TO the node instead. More upstream quirks reproduced: QT's
+`(void)`-discarded `is_inside` (p = +inf instead of an error) and
+`bisect_segmented_vector_slice` sizing itself on `mat[j]`. Tolerance 1e-9
+except density-keyed bicubic inversions at 1e-5 (LogPH nodes come from
+iterative (h, p) flashes; worst observed 2.0e-6). Next: Phase 13 SVDSBTL.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

@@ -1338,6 +1338,99 @@ def gen_tabular_state():
     return rows
 
 
+def gen_tabular_pairs():
+    """Phase 12 slice 12f: every input pair `TabularBackend::update` accepts
+    beyond PT — HmolarP, PUmolar, PSmolar, DmolarP, SmolarT, DmolarT, PQ and
+    QT — through the wheel's own low-level tabular backends.
+
+    Single-phase input values are taken from a HEOS state at a chosen (T, p)
+    so they are guaranteed to be reachable; two-phase pairs are driven
+    directly. States avoid a 1.5-cell band around the dome for the same
+    reason gen_tabular_state does (node selection there is ulp-decided)."""
+    import math
+    rows = []
+    outs = ["T", "P", "Dmolar", "Hmolar", "Smolar", "Umolar"]
+    for fluid in ["Water", "n-Propane"]:
+        hf = f"HEOS::{fluid}"
+        Tmin = max(PropsSI("Ttriple", "", 0, "", 0, hf), PropsSI("Tmin", "", 0, "", 0, hf))
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        pmax = PropsSI("pmax", "", 0, "", 0, hf)
+        Tcrit = PropsSI("Tcrit", "", 0, "", 0, hf)
+        ref = CP.AbstractState("HEOS", fluid)
+        ref.update(CP.QT_INPUTS, 0, Tmin)
+        pmin = ref.p()
+        xmin, xmax = Tmin, Tmax * 1.499
+        dlnp = math.log(pmax / pmin) / (200 - 1)
+
+        # Single-phase seeds
+        seeds = []
+        for fi in (0.3, 0.55, 0.8):
+            for fj in (0.2, 0.5, 0.8):
+                t = xmin + (xmax - xmin) * fi
+                p = math.exp(math.log(pmin) + math.log(pmax / pmin) * fj)
+                if t < Tcrit:
+                    psat = PropsSI("P", "T", t, "Q", 0, hf)
+                    if abs(math.log(p) - math.log(psat)) < 1.5 * dlnp:
+                        continue
+                ref.update(CP.PT_INPUTS, p, t)
+                seeds.append({"T": t, "P": p, "Dmolar": ref.rhomolar(),
+                              "Hmolar": ref.hmolar(), "Smolar": ref.smolar(),
+                              "Umolar": ref.umolar()})
+
+        # (pair constant, first input name, second input name)
+        single_pairs = [
+            (CP.HmolarP_INPUTS, "Hmolar", "P"),
+            (CP.PUmolar_INPUTS, "P", "Umolar"),
+            (CP.PSmolar_INPUTS, "P", "Smolar"),
+            (CP.DmolarP_INPUTS, "Dmolar", "P"),
+            (CP.SmolarT_INPUTS, "Smolar", "T"),
+            (CP.DmolarT_INPUTS, "Dmolar", "T"),
+        ]
+        # Two-phase drives: (pair, name1, val1, name2, val2)
+        two_phase = []
+        for fT in (0.5, 0.75, 0.92):
+            T = Tmin + (Tcrit - Tmin) * fT
+            psat = PropsSI("P", "T", T, "Q", 0, hf)
+            for Q in (0.0, 0.35, 1.0):
+                two_phase.append((CP.PQ_INPUTS, "P", psat, "Q", Q))
+                two_phase.append((CP.QT_INPUTS, "Q", Q, "T", T))
+
+        for backend in ["TTSE", "BICUBIC"]:
+            AS = CP.AbstractState(f"{backend}&HEOS", fluid)
+            for (pair, n1, n2) in single_pairs:
+                for seed in seeds:
+                    try:
+                        AS.update(pair, seed[n1], seed[n2])
+                        vals = {"T": AS.T(), "P": AS.p(), "Dmolar": AS.rhomolar(),
+                                "Hmolar": AS.hmolar(), "Smolar": AS.smolar(),
+                                "Umolar": AS.umolar()}
+                    except Exception:
+                        continue
+                    for out in outs:
+                        rows.append({
+                            "backend": backend, "fluid": fluid, "out": out,
+                            "name1": n1, "val1": seed[n1],
+                            "name2": n2, "val2": seed[n2],
+                            "expected": vals[out],
+                        })
+            for (pair, n1, v1, n2, v2) in two_phase:
+                try:
+                    AS.update(pair, v1, v2)
+                    vals = {"T": AS.T(), "P": AS.p(), "Dmolar": AS.rhomolar(),
+                            "Hmolar": AS.hmolar(), "Smolar": AS.smolar(),
+                            "Umolar": AS.umolar(), "Q": AS.Q()}
+                except Exception:
+                    continue
+                for out in outs + ["Q"]:
+                    rows.append({
+                        "backend": backend, "fluid": fluid, "out": out,
+                        "name1": n1, "val1": v1, "name2": n2, "val2": v2,
+                        "expected": vals[out],
+                    })
+    print(f"tabular_pairs: {len(rows)} records")
+    return rows
+
+
 def gen_bicubic():
     """Phase 12 slice 12d: bicubic evaluation on the LogPT table through PT
     inputs, against the wheel's own BICUBIC backend (same 200x200 grid, same
@@ -2061,6 +2154,7 @@ def main():
     write_jsonl("ttse.jsonl", gen_ttse())
     write_jsonl("bicubic.jsonl", gen_bicubic())
     write_jsonl("tabular_state.jsonl", gen_tabular_state())
+    write_jsonl("tabular_pairs.jsonl", gen_tabular_pairs())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
