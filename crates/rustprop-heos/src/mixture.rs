@@ -435,6 +435,11 @@ pub struct MixtureModel {
     crit_rhomolar: Vec<f64>,
     /// `EOS().R_u` per component.
     r_component: Vec<f64>,
+    /// `(EOS().reduce.T, EOS().reduce.p, EOS().acentric)` per component —
+    /// the SRK seed constants.
+    srk_consts: Vec<(f64, f64, f64)>,
+    /// `EOS().molar_mass` per component.
+    molar_mass: Vec<f64>,
     pub reducing: Gerg2008Reducing,
     excess: Vec<ExcessPair>,
 }
@@ -492,9 +497,22 @@ impl MixtureModel {
                 .map(|c| c.states.critical.rhomolar)
                 .collect(),
             r_component: components.iter().map(|c| c.eos.gas_constant).collect(),
+            srk_consts: components
+                .iter()
+                .map(|c| (c.eos.reducing.t, c.eos.reducing.p, c.eos.acentric))
+                .collect(),
+            molar_mass: components.iter().map(|c| c.eos.molar_mass).collect(),
             reducing,
             excess,
         })
+    }
+
+    pub(crate) fn srk_component_consts(&self) -> &[(f64, f64, f64)] {
+        &self.srk_consts
+    }
+
+    pub(crate) fn molar_masses(&self) -> &[f64] {
+        &self.molar_mass
     }
 
     /// `gas_constant()` — R for every mixture property relation.

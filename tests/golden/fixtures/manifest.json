@@ -99,6 +99,7 @@
     "incompressible.jsonl",
     "melting.jsonl",
     "mixture_helmholtz.jsonl",
+    "mixture_pt.jsonl",
     "param_aliases.jsonl",
     "parameters.jsonl",
     "phases.jsonl",

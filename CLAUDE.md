@@ -81,9 +81,13 @@ datagen'd behind `mixture-data`, 6 Lemmon pairs converted at datagen), 10b
 XN conventions), and 10c (`MixtureModel`: CS sum + excess term via the new GenExp
 eta1 delta-linear channel; GERG Table B5 alpha0 on STATES.critical scales with
 R_mix = R_U_CODATA) are done — 864 goldens at 1e-12 across six pairs/all three
-departure kinds/F=0. Wheel discovery: mixture DmolarT updates re-solve density in
-phase determination (delta = 1+6e-13), so mixture fixtures impose
-iphase_supercritical. Next: 10d PT flash, 10e PQ/QT VLE, predefined blends.
+departure kinds/F=0, and 10d (PT single-phase flash: SRK-seeded lowest-Gibbs
+root selection + homogeneous props, 696 goldens at 1e-9 against the wheel's real
+PT update). Wheel discovery: mixture DmolarT updates re-solve density in phase
+determination (delta = 1+6e-13), so Helmholtz-assembly fixtures impose
+iphase_supercritical. In-dome PT returns the metastable single-phase root until
+10f (stability + Michelsen split). Next: 10e PQ/QT VLE, PropsSI mixture routing,
+predefined blends.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

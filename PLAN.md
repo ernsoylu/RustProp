@@ -1006,6 +1006,23 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 slice 10d (mixture PT single-phase flash):
+  `mixture_flash.rs` ports the single-phase lambda of PT_flash_mixtures (SRK
+  roots for both phases decide the branches; both valid -> solve both HEOS
+  densities, pick lowest gibbsmolar_nocache; one/none -> primary/fallback
+  chain), the mixture branches of solver_rho_Tp (SRK seed; ideal-gas fallback
+  for gas-like; liquid -> Householder4 from 3*rhor; gas stability retry at
+  1e-6; supercritical Brent catch), solver_rho_Tp_SRK (quadratic vdW mixing,
+  k_ij = 0, EOS.reduce constants, upstream's corrupted Omega literals verbatim),
+  and the homogeneous mixture properties (p, h, s, u, cv, cp, w, g, molar
+  mass) over MixtureModel with R_mix. `_Q = -1`, `_phase = rho < rhor ?
+  gas : liquid` as upstream. Verified: 696 goldens (six pairs, three
+  compositions, compressed-liquid/superheated-gas/supercritical states placed
+  via the wheel's own bubble/dew pressures, eight outputs) at 1e-9 through the
+  wheel's REAL PT update — stability machinery included, states the wheel
+  labels two-phase skipped. DEFERRAL (documented in the module doc): until
+  10f, in-dome PT returns the metastable single-phase root instead of
+  upstream's stability-tested two-phase split.
 - 2026-08-07 — Phase 10 slice 10c (mixture Helmholtz assembly):
   `rustprop_heos::mixture::MixtureModel` — corresponding-states sum
   (sum_i x_i alphar_i at the MIXTURE tau/delta) plus the excess term

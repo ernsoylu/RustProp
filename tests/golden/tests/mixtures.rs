@@ -165,3 +165,63 @@ fn mixture_helmholtz_matches_oracle() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn mixture_pt_flash_matches_oracle() {
+    // Slice 10d: PT single-phase flash (SRK seed, lowest-Gibbs root pick) and
+    // homogeneous mixture properties. Solver tier: 1e-9.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_pt.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 696);
+
+    let mut models: std::collections::HashMap<String, rustprop_heos::mixture::MixtureModel> =
+        std::collections::HashMap::new();
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let (f1, f2) = rec.fluid.split_once('&').expect("pair fluid string");
+        let model = models.entry(rec.fluid.clone()).or_insert_with(|| {
+            rustprop_heos::mixture::MixtureModel::new(
+                &[fluid(f1), fluid(f2)],
+                rustprop_data::mixtures::MIX_BINARY_PAIRS,
+                rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+            )
+            .expect("model builds")
+        });
+        let x = [rec.val3, 1.0 - rec.val3];
+        let (t, p) = (rec.val1, rec.val2);
+        let state = match model.pt_flash(&x, t, p) {
+            Ok(s) => s,
+            Err(e) => {
+                failures.push(format!(
+                    "{} x1={}: {} flash failed: {e:?}",
+                    rec.fluid,
+                    rec.val3,
+                    rec.id()
+                ));
+                continue;
+            }
+        };
+        let rho = state.rhomolar;
+        let actual = match rec.out.as_str() {
+            "Dmolar" => rho,
+            "Hmolar" => model.hmolar(&x, t, rho),
+            "Smolar" => model.smolar(&x, t, rho),
+            "Umolar" => model.umolar(&x, t, rho),
+            "Cpmolar" => model.cpmolar(&x, t, rho),
+            "Cvmolar" => model.cvmolar(&x, t, rho),
+            "speed_of_sound" => model.speed_sound(&x, t, rho),
+            "Gmolar" => model.gibbsmolar_nocache(&x, t, rho),
+            other => panic!("unknown out {other}"),
+        };
+        if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-9) {
+            failures.push(format!("{} x1={}: {e}", rec.fluid, rec.val3));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture PT records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}

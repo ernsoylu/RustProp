@@ -697,6 +697,70 @@ def gen_mixture_helmholtz():
     return rows
 
 
+def gen_mixture_pt():
+    """Slice 10d: the mixture PT single-phase flash (SRK-seeded lowest-Gibbs
+    root selection) + homogeneous mixture properties, via the wheel's real
+    PT update (stability machinery included). Points are placed off the dome
+    using the wheel's own bubble/dew pressures; any state the wheel labels
+    two-phase is skipped (10f territory). x rides name3/val3 as x1."""
+    pairs = [
+        ("Methane", "Ethane"),
+        ("Methane", "Nitrogen"),
+        ("CarbonDioxide", "Water"),
+        ("R32", "R125"),
+        ("Helium", "Argon"),
+        ("Nitrogen", "Oxygen"),
+    ]
+    outs = [
+        ("Dmolar", "rhomolar"), ("Hmolar", "hmolar"), ("Smolar", "smolar"),
+        ("Umolar", "umolar"), ("Cpmolar", "cpmolar"), ("Cvmolar", "cvmolar"),
+        ("speed_of_sound", "speed_sound"), ("Gmolar", "gibbsmolar"),
+    ]
+    rows = []
+    for f1, f2 in pairs:
+        state = CP.AbstractState("HEOS", f"{f1}&{f2}")
+        for x1 in (0.25, 0.5, 0.75):
+            state.set_mole_fractions([x1, 1.0 - x1])
+            tr = state.T_reducing()
+            # Candidate (T, p) states: compressed liquid above the bubble
+            # pressure, superheated gas below the dew pressure, supercritical.
+            cands = []
+            for tfac in (0.6, 0.75):
+                t = tfac * tr
+                try:
+                    state.update(CP.QT_INPUTS, 0, t)
+                    p_bubble = state.p()
+                    cands.append((t, 2.0 * p_bubble))
+                except Exception:
+                    pass
+                try:
+                    state.update(CP.QT_INPUTS, 1, t)
+                    p_dew = state.p()
+                    cands.append((t, 0.5 * p_dew))
+                except Exception:
+                    pass
+            cands.append((1.3 * tr, 2.0e7))
+            cands.append((1.3 * tr, 1.0e5))
+            for t, p in cands:
+                try:
+                    state.update(CP.PT_INPUTS, p, t)
+                    if state.phase() == CP.iphase_twophase:
+                        continue
+                    vals = [(out, getattr(state, acc)()) for out, acc in outs]
+                except Exception:
+                    continue
+                for out, val in vals:
+                    rows.append({
+                        "backend": "HEOS-MIX", "fluid": f"{f1}&{f2}",
+                        "out": out,
+                        "name1": "T", "val1": t,
+                        "name2": "P", "val2": p,
+                        "name3": "x1", "val3": x1,
+                        "expected": val,
+                    })
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1358,6 +1422,7 @@ def main():
     write_jsonl("incompressible.jsonl", gen_incompressible())
     write_jsonl("humid_air.jsonl", gen_humid_air())
     write_jsonl("mixture_helmholtz.jsonl", gen_mixture_helmholtz())
+    write_jsonl("mixture_pt.jsonl", gen_mixture_pt())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
