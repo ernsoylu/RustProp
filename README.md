@@ -19,10 +19,21 @@ Fidelity is the rule: the same algorithms and the same fluid data as upstream Co
 | `crates/rustprop-svdsbtl` | SVD-compressed tabular lookup, new in v8 (upstream `src/Backends/SVDSBTL`). |
 | `crates/rustprop-humid-air` | Humid air / psychrometrics (`HAPropsSI`). |
 | `crates/rustprop` | Facade: `PropsSI`-style API; every engine behind a Cargo feature, `default = []`. |
+| `crates/rustprop-wasm` | wasm-bindgen bindings: JS-facing `props_si` / `ha_props_si` plus a `Float64Array` batch path. |
 | `apps/rustprop-cli` | Example CLI exposing the libraries and calculations over stdout. |
 | `tools/rustprop-datagen` | Codegen: upstream CoolProp JSON → Rust data modules in `rustprop-data`. |
+| `tools/rustprop-svdgen` | Converts upstream `.svd.bin.z` surfaces into the flat `.svds` blobs `rustprop-svdsbtl` reads. |
 
-A `rustprop-wasm` bindings crate (wasm-bindgen, prebuilt `.wasm` release artifacts) is planned once the first engine works.
+### WASM bundle sizes
+
+Engine and fluid selection is a compile-time choice, so a bundle carries only what
+the application asked for. Measured bytes per feature set are in
+[WASM-SIZES.md](WASM-SIZES.md) — IF97 alone is 124 KB, HEOS with Water 304 KB, and
+everything at once 4.2 MB. Regenerate with `tools/wasm-size-table.sh`.
+
+```bash
+wasm-pack build crates/rustprop-wasm --target web --features heos,water
+```
 
 ## Building
 

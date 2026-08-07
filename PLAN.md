@@ -83,7 +83,7 @@ are not a fidelity target.
       both exist and real usage forces the shape (karpathy rule 2).
       → verify: no `trait` in `rustprop-core` at this phase's gate.
 
-**Phase gate 1.**
+**Phase gate 1: PASSED** — verification infrastructure: pinned upstream checkout, the golden-fixture oracle, the comparison harness, CI.
 
 ## Phase 2 — IF97 engine: first end-to-end vertical slice
 
@@ -130,7 +130,7 @@ that needs no fluid data files.
       code can never drift from the generator or the pinned upstream data.
       → verify: CI step passes; a deliberate local edit of `water.rs` makes it fail.
 
-**Phase gate 3.**
+**Phase gate 3: PASSED** — IF97 fully ported and golden-verified, plus the fluid-data pipeline (JSON dumped verbatim, datagen, regeneration guard).
 
 ## Phase 4 — HEOS engine, pure fluids
 
@@ -198,7 +198,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [x] 6.2 Surface tension.
       → verify: goldens for `I` along the saturation curve.
 
-**Phase gate 6.**
+**Phase gate 6: PASSED** — every transport class ported (61 fluids viscosity, 58 conductivity) and 104 surface-tension curves.
 
 ## Phase 7 — Cubics engine
 
@@ -208,7 +208,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [x] 7.2 v8 Chebyshev superancillary saturation for cubics.
       → verify: saturation goldens vs upstream cubic backends across the dome.
 
-**Phase gate 7.**
+**Phase gate 7: PASSED** — SRK and Peng-Robinson with the Chebyshev superancillaries, 2,328 goldens.
 
 ## Phase 8 — Incompressible engine
 
@@ -216,7 +216,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
       and solution fluids with concentration input).
       → verify: goldens vs `INCOMP::` backend including concentration-bearing names.
 
-**Phase gate 8.**
+**Phase gate 8: PASSED** — 126 incompressible fluids, 935 goldens, direct evaluations bit-identical.
 
 ## Phase 9 — Humid air
 
@@ -227,7 +227,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [x] 9.2 CLI `ha` subcommand mirroring `HAPropsSI` argument order.
       → verify: CLI e2e vs goldens.
 
-**Phase gate 9.**
+**Phase gate 9: PASSED** — HAPropsSI on the RP-1485 virials, 897 goldens.
 
 ## Phase 10 — HEOS mixtures
 
@@ -250,7 +250,7 @@ Hardest phase; sub-steps land separately like 4.x did.
       transport mixing; DP/DQ carry upstream's own NotImplemented; phase-envelope
       machinery is PropsSI-dead upstream and unported.
 
-**Phase gate 10.**
+**Phase gate 10: PASSED** — HEOS mixtures end to end: reducing functions, departure terms, PT/QT/PQ, Michelsen stability and split, all ten sweep pairs, 154 predefined blends, transport.
 
 ## Phase 11 — PC-SAFT engine
 
@@ -258,7 +258,7 @@ Hardest phase; sub-steps land separately like 4.x did.
       → verify: goldens vs `PCSAFT::` backend. ✅ 180 fluids + 140 kij; all five
       term families; PT/QT/PQ/DmolarT flashes; 80 kernel + 164 flash goldens.
 
-**Phase gate 11.**
+**Phase gate 11: PASSED** — PC-SAFT: 180 fluids, the five term families, fugacity and density solvers, the inside-out flashes, and the PropsSI route.
 
 ## Phase 12 — Tabular engine (TTSE / bicubic)
 
@@ -1738,3 +1738,12 @@ Append-only; newest last. Seeded entries:
   verbatim, so the difference is root conditioning inside the residual, not
   solver structure. The test asserts the divergence STILL REPRODUCES — a
   known divergence that silently heals is still a lie in the test.
+
+---
+
+## Status: all fifteen phases complete
+
+Every checkbox above is ticked and every phase gate has passed. What remains is
+not implementation: claiming the crates.io names and adding the
+`CARGO_REGISTRY_TOKEN` secret, then tagging `v0.1.0`. Both need the owner's
+credentials, and publication cannot be undone.
