@@ -121,7 +121,14 @@ fn pcsaft_error_conditions() {
         other => panic!("wrong variant {other:?}"),
     }
     // Missing kij pair fails at construction
-    match err(props_si("P", "T", 300.0, "Q", 0.0, "PCSAFT::PROPANE[0.5]&WATER[0.5]")) {
+    match err(props_si(
+        "P",
+        "T",
+        300.0,
+        "Q",
+        0.0,
+        "PCSAFT::PROPANE[0.5]&WATER[0.5]",
+    )) {
         Error::Value(m) => assert!(m.contains("Could not match the binary pair"), "got {m}"),
         other => panic!("wrong variant {other:?}"),
     }

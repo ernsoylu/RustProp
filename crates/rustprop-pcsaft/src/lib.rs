@@ -2192,8 +2192,7 @@ impl PcsaftBackend {
                 } else {
                     k[i] = 0.0;
                 }
-                satl.mole_fractions[i] =
-                    self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+                satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
                 xl_sum += satl.mole_fractions[i];
                 satv.mole_fractions[i] =
                     k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
@@ -2372,8 +2371,7 @@ impl PcsaftBackend {
             }
             satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
             xl_sum += satl.mole_fractions[i];
-            satv.mole_fractions[i] =
-                k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+            satv.mole_fractions[i] = k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
             xv_sum += satv.mole_fractions[i];
         }
         if xv_sum != 1.0 {
@@ -2584,8 +2582,7 @@ impl PcsaftBackend {
             }
             satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
             xl_sum += satl.mole_fractions[i];
-            satv.mole_fractions[i] =
-                k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+            satv.mole_fractions[i] = k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
             xv_sum += satv.mole_fractions[i];
         }
         if xv_sum != 1.0 {
@@ -3108,8 +3105,8 @@ impl PcsaftBackend {
                     } else if self.rhomolar <= rho_bub && self.rhomolar >= rho_dew {
                         phase = PcsaftPhase::TwoPhase;
                         self.p = p_bub;
-                        self.q = 1.0
-                            - (self.rhomolar - satv.rhomolar) / (satl.rhomolar - satv.rhomolar);
+                        self.q =
+                            1.0 - (self.rhomolar - satv.rhomolar) / (satl.rhomolar - satv.rhomolar);
                     }
                 }
                 Ok(phase)
