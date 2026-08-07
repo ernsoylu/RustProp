@@ -167,7 +167,7 @@ impl PtFlash {
     /// `limits.Tmin` with it, ignoring the document's chemical `Ttriple`
     /// key (they differ for 27 of the 130 fluids, e.g. CycloPropane
     /// 145.7 K vs 273.0 K).
-    pub(crate) fn t_triple(&self) -> f64 {
+    pub fn t_triple(&self) -> f64 {
         self.fluid.eos.sat_min_liquid.t
     }
     fn p_triple(&self) -> f64 {

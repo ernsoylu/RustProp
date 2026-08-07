@@ -1012,6 +1012,37 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 12 slice 12b (table construction): `rustprop-tabular`
+  ports `PureFluidSaturationTableData::build` (1000 log-spaced pressures from
+  the triple point to 0.9999*p_critical, both branches per point with the
+  liquid failure skipping the whole point, the last row taken from ONE
+  PQ(p_critical, Q=1) state so the L and V rows are identical there) and
+  `SinglePhaseGriddedTableData::build` for both layouts —
+  LogPH (x = hmolar linear, y = p log; xmax = max of the ideal-gas-limit and
+  pmax enthalpies on the 1.499*Tmax isotherm) and LogPT (x = T linear to
+  1.499*Tmax, y = p log) — on upstream's 200x200 default grid, with the
+  same in-loop spacing expressions, two-phase cells left as `_HUGE` holes,
+  transport failures leaving holes while the rest of the cell stands, and
+  `make_good_neighbors` (including its strict `0 < i < Nx-1` bound on BOTH
+  ends, which excludes the outer ring from ever being a neighbour).
+  DELIBERATE DEVIATION: upstream's msgpack+zlib disk cache under
+  ~/.CoolProp/Tabular is NOT ported — a WASM-first library has no home
+  directory and the cache only ever holds what the builder can regenerate;
+  the cost is that a LogPH table rebuild runs ~100 s per process (40k HP
+  flashes), which is exactly the cost that motivated upstream's cache.
+  Transport is injected through a `TransportSource` trait because the ECS
+  conformal-state resolver needs the fluid registry, which lives above this
+  crate. PERFORMANCE (not a fidelity change): `StateDerivs` now evaluates
+  the Helmholtz terms once per state instead of once per derivative query —
+  upstream gets the same from AbstractState's caches; identical expressions
+  on identical operands, so bitwise identical results, and the LogPT build
+  went 50 s -> 3.2 s. Verified: 140 goldens — every grid limit for three
+  fluids against limits recomputed from the wheel by upstream's own
+  set_limits recipe, plus node values on a 20x20 LogPT grid. Nodes sitting
+  ON the saturation line are excluded: the phase there is decided by the
+  +-100*DBL_EPSILON band around Tsat(p) that BOTH codes carry, so the
+  outcome is ulp-level Tsat-inversion noise rather than algorithm (verified
+  by inspection that the band logic matches upstream exactly).
 - 2026-08-07 — Phase 12 slice 12a (generic partial derivatives): the
   Tabular table build calls `first_partial_deriv(iT, xkey, ykey)` /
   `second_partial_deriv(...)` for every grid node, so the (T, rho)-basis

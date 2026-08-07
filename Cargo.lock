@@ -101,6 +101,7 @@ dependencies = [
  "rustprop-data",
  "rustprop-heos",
  "rustprop-pcsaft",
+ "rustprop-tabular",
  "serde",
  "serde_json",
 ]
@@ -155,6 +156,7 @@ name = "rustprop-tabular"
 version = "0.1.0"
 dependencies = [
  "rustprop-core",
+ "rustprop-heos",
 ]
 
 [[package]]

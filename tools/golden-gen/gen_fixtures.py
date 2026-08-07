@@ -1161,6 +1161,71 @@ def gen_partial_derivs():
     return rows
 
 
+def gen_tabular_tables():
+    """Phase 12 slice 12b: the table GRIDS — limits computed exactly as
+    upstream's LogPHTable/LogPTTable::set_limits, plus node values at
+    sampled grid coordinates (which are plain source-backend evaluations).
+    out names: "xmin"/"xmax"/"ymin"/"ymax" carry the limits with the grid
+    kind in name1; node records carry the node's (x, y) in val1/val2."""
+    rows = []
+    for fluid in ["Water", "n-Propane", "CarbonDioxide"]:
+        hf = f"HEOS::{fluid}"
+        AS = CP.AbstractState("HEOS", fluid)
+        Tmin = max(PropsSI("Ttriple", "", 0, "", 0, hf), PropsSI("Tmin", "", 0, "", 0, hf))
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        pmax = PropsSI("pmax", "", 0, "", 0, hf)
+        AS.update(CP.QT_INPUTS, 0, Tmin)
+        h_satL, p_triple = AS.hmolar(), AS.p()
+
+        # LogPH limits
+        AS.update(CP.DmolarT_INPUTS, 1e-10, 1.499 * Tmax)
+        xmax1 = AS.hmolar()
+        AS.update(CP.PT_INPUTS, pmax, 1.499 * Tmax)
+        xmax2 = AS.hmolar()
+        ph = {"xmin": h_satL, "xmax": max(xmax1, xmax2), "ymin": p_triple, "ymax": pmax}
+        pt = {"xmin": Tmin, "xmax": Tmax * 1.499, "ymin": p_triple, "ymax": pmax}
+        for kind, lim in (("LogPH", ph), ("LogPT", pt)):
+            for k, v in lim.items():
+                rows.append({
+                    "backend": "TABULAR", "fluid": fluid, "out": k,
+                    "name1": kind, "val1": 0.0, "name2": "", "val2": 0.0,
+                    "expected": v,
+                })
+        # Node values on a coarse 20x20 LogPT grid (x linear in T, y log in p)
+        nx = ny = 20
+        for i in (0, 7, 13, 19):
+            x = pt["xmin"] + (pt["xmax"] - pt["xmin"]) / (nx - 1) * i
+            for j in (0, 9, 19):
+                import math
+                y = math.exp(math.log(pt["ymin"]) + math.log(pt["ymax"] / pt["ymin"]) / (ny - 1) * j)
+                try:
+                    # Nodes sitting ON the saturation line are decided by the
+                    # +-100*DBL_EPSILON band around Tsat(p) — i.e. by ulp-level
+                    # inversion noise, not by the algorithm. Both codes carry
+                    # the identical band; skip the knife edge.
+                    AS.update(CP.PQ_INPUTS, y, 0)
+                    if abs(AS.T() - x) / x < 1e-12:
+                        continue
+                except Exception:
+                    pass
+                try:
+                    AS.update(CP.PT_INPUTS, y, x)
+                    if 0.0 <= AS.Q() <= 1.0:
+                        continue
+                    vals = [("Dmolar", AS.rhomolar()), ("Hmolar", AS.hmolar()),
+                            ("Smolar", AS.smolar()), ("Umolar", AS.umolar())]
+                except Exception:
+                    continue
+                for out, v in vals:
+                    rows.append({
+                        "backend": "TABULAR", "fluid": fluid, "out": out,
+                        "name1": "LogPT_node", "val1": x, "name2": "P", "val2": y,
+                        "expected": v,
+                    })
+    print(f"tabular tables: {len(rows)} records")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1831,6 +1896,7 @@ def main():
     write_jsonl("pcsaft_terms.jsonl", gen_pcsaft_terms())
     write_jsonl("pcsaft_flash.jsonl", gen_pcsaft_flash())
     write_jsonl("partial_derivs.jsonl", gen_partial_derivs())
+    write_jsonl("tabular_tables.jsonl", gen_tabular_tables())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
