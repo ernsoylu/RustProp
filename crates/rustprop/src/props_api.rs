@@ -54,6 +54,24 @@ pub fn props_si(
     match backend {
         "IF97" => if97_route(output, name1, prop1, name2, prop2, fluid),
         "HEOS" | "?" => heos_route(output, name1, prop1, name2, prop2, fluid),
+        "SRK" => cubic_route(
+            CubicRouteKind::Srk,
+            output,
+            name1,
+            prop1,
+            name2,
+            prop2,
+            fluid,
+        ),
+        "PR" => cubic_route(
+            CubicRouteKind::PengRobinson,
+            output,
+            name1,
+            prop1,
+            name2,
+            prop2,
+            fluid,
+        ),
         other => Err(Error::Value(format!(
             "Invalid backend name [{other}] to factory function"
         ))),
@@ -498,6 +516,215 @@ fn trivial_output(flash: &PtFlash, data: &'static FluidData, out: Param) -> Resu
         other => {
             return Err(Error::NotImplemented(format!(
                 "trivial output parameter {} is not ported yet",
+                other.short_name()
+            )));
+        }
+    })
+}
+
+/// Backend selector for the cubic route (kept separate from the engine enum
+/// so the non-cubics build still compiles the dispatch arm).
+#[derive(Clone, Copy)]
+enum CubicRouteKind {
+    Srk,
+    PengRobinson,
+}
+
+#[cfg(not(feature = "cubics"))]
+#[allow(clippy::too_many_arguments)]
+fn cubic_route(
+    _: CubicRouteKind,
+    _: &str,
+    _: &str,
+    _: f64,
+    _: &str,
+    _: f64,
+    _: &str,
+) -> Result<f64> {
+    Err(Error::NotImplemented(
+        "the `cubics` feature is not enabled".into(),
+    ))
+}
+
+/// PropsSI route for `SRK::` / `PR::` (upstream `AbstractCubicBackend`
+/// through the string API): PT / QT / PQ flashes, trivial outputs, and
+/// upstream's error conditions for everything else.
+#[cfg(feature = "cubics")]
+#[allow(clippy::too_many_arguments)]
+fn cubic_route(
+    kind: CubicRouteKind,
+    output: &str,
+    name1: &str,
+    prop1: f64,
+    name2: &str,
+    prop2: f64,
+    fluid: &str,
+) -> Result<f64> {
+    use rustprop_core::params::Phase;
+    use rustprop_cubics::{CubicEos, CubicKind, CubicSatState};
+
+    let kind = match kind {
+        CubicRouteKind::Srk => CubicKind::Srk,
+        CubicRouteKind::PengRobinson => CubicKind::PengRobinson,
+    };
+    // Upstream CubicsLibrary::get: uppercase name first, then alias (the
+    // JSON aliases are stored uppercase already).
+    let upper = fluid.to_uppercase();
+    let data = rustprop_data::cubics::CUBIC_FLUIDS
+        .iter()
+        .find(|f| f.name == upper || f.aliases.contains(&upper.as_str()))
+        .ok_or_else(|| {
+            Error::Value(format!(
+                "fluid name [{fluid}] is not the name of a cubic fluid"
+            ))
+        })?;
+
+    // One engine per (kind, fluid), leaked once (same pattern as the HEOS
+    // per-fluid flash cache).
+    let eos: &'static CubicEos = {
+        use std::collections::HashMap;
+        use std::sync::{Mutex, OnceLock};
+        static CACHE: OnceLock<Mutex<HashMap<(u8, &'static str), &'static CubicEos>>> =
+            OnceLock::new();
+        let key = (matches!(kind, CubicKind::PengRobinson) as u8, data.name);
+        let mut map = CACHE
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap();
+        map.entry(key)
+            .or_insert_with(|| Box::leak(Box::new(CubicEos::new(kind, data))))
+    };
+
+    let out = Param::parse(output).ok_or_else(|| {
+        Error::Value(format!(
+            "Output parameter parsing failed; error: Output string is invalid [{output}]"
+        ))
+    })?;
+
+    // Trivial outputs never need a state (upstream trivial_keyed_output).
+    let trivial = |out: Param| -> Option<f64> {
+        Some(match out {
+            Param::TCritical => data.tc,
+            Param::PCritical => data.pc,
+            Param::AcentricFactor => data.acentric,
+            Param::RhomolarCritical => eos.rhomolar_critical(),
+            Param::RhomassCritical => eos.rhomolar_critical() * data.molemass,
+            Param::MolarMass => data.molemass,
+            Param::GasConstant => eos.gas_constant(),
+            _ => return None,
+        })
+    };
+    let keys = (Param::parse(name1), Param::parse(name2));
+    let pair = match keys {
+        (Some(k1), Some(k2)) => generate_update_pair(k1, prop1, k2, prop2),
+        _ => None,
+    };
+    let Some((pair, v1, v2)) = pair else {
+        if let Some(v) = trivial(out) {
+            return Ok(v);
+        }
+        return Err(Error::Value(
+            "Input pair variable is invalid and output(s) are non-trivial; cannot do state update"
+                .into(),
+        ));
+    };
+    if let Some(v) = trivial(out) {
+        return Ok(v);
+    }
+
+    // Mass-basis inputs convert exactly as the HEOS route.
+    let mm = data.molemass;
+    let (pair, v1, v2) = match pair {
+        InputPair::QmassT => (InputPair::QT, v1, v2),
+        InputPair::PQmass => (InputPair::PQ, v1, v2),
+        other => (other, v1, v2),
+    };
+
+    enum CubicState {
+        Single {
+            t: f64,
+            rho: f64,
+            p: f64,
+            phase: Phase,
+        },
+        TwoPhase(CubicSatState),
+    }
+    let state = match pair {
+        InputPair::PT => {
+            let (rho, phase) = eos.pt_flash(v2, v1)?;
+            CubicState::Single {
+                t: v2,
+                rho,
+                p: v1,
+                phase,
+            }
+        }
+        // Upstream's cubic update applies NO quality-range validation.
+        InputPair::QT => CubicState::TwoPhase(eos.qt_flash(v2, v1)?),
+        InputPair::PQ => CubicState::TwoPhase(eos.pq_flash(v1, v2)?),
+        InputPair::DmolarT | InputPair::DmassT => {
+            return Err(Error::NotImplemented(
+                "the (D,T) cubic route needs the cubic superancillary (PLAN 7.2)".into(),
+            ));
+        }
+        // Upstream delegates every other pair to the HEOS flash routines,
+        // which fail on the fabricated cubic fluid's unset ancillaries.
+        _ => {
+            return Err(Error::Value("type not set".into()));
+        }
+    };
+
+    let (t, p, rho, q, phase) = match &state {
+        CubicState::Single { t, rho, p, phase } => (*t, *p, *rho, -1.0, *phase),
+        CubicState::TwoPhase(s) => (s.t, s.p, s.rhomolar, s.q, Phase::Twophase),
+    };
+    // Two-phase caloric outputs mix the saturated branches by quality.
+    let mix = |f: &dyn Fn(f64, f64) -> f64| -> f64 {
+        match &state {
+            CubicState::Single { t, rho, .. } => f(*t, *rho),
+            CubicState::TwoPhase(s) => q * f(s.t, s.rho_v) + (1.0 - q) * f(s.t, s.rho_l),
+        }
+    };
+    Ok(match out {
+        Param::T => t,
+        Param::P => p,
+        Param::Dmolar => rho,
+        Param::Dmass => rho * mm,
+        Param::Q => q,
+        Param::Phase => f64::from(phase.index()),
+        Param::Hmolar => mix(&|t, r| eos.hmolar(t, r)),
+        Param::Hmass => mix(&|t, r| eos.hmolar(t, r)) / mm,
+        Param::Smolar => mix(&|t, r| eos.smolar(t, r)),
+        Param::Smass => mix(&|t, r| eos.smolar(t, r)) / mm,
+        Param::Umolar => mix(&|t, r| eos.umolar(t, r)),
+        Param::Umass => mix(&|t, r| eos.umolar(t, r)) / mm,
+        Param::Cpmolar => match &state {
+            CubicState::Single { t, rho, .. } => eos.cpmolar(*t, *rho),
+            CubicState::TwoPhase(_) => {
+                return Err(Error::Value(
+                    "Input is two-phase and cp is not defined".into(),
+                ));
+            }
+        },
+        Param::Cvmolar => match &state {
+            CubicState::Single { t, rho, .. } => eos.cvmolar(*t, *rho),
+            CubicState::TwoPhase(_) => {
+                return Err(Error::Value(
+                    "Input is two-phase and cv is not defined".into(),
+                ));
+            }
+        },
+        Param::SpeedSound => match &state {
+            CubicState::Single { t, rho, .. } => eos.speed_sound(*t, *rho),
+            CubicState::TwoPhase(_) => {
+                return Err(Error::Value(
+                    "Input is two-phase and the speed of sound is not defined".into(),
+                ));
+            }
+        },
+        other => {
+            return Err(Error::NotImplemented(format!(
+                "output parameter {} is not ported for the cubic backends yet",
                 other.short_name()
             )));
         }

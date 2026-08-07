@@ -32,7 +32,7 @@ jobs:
       - name: wasm size report
         run: |
           echo "### wasm size report (rustprop-wasm-size-probe, release)"
-          for feats in "" if97 heos-water heos-all-fluids all-backends; do
+          for feats in "" if97 heos-water heos-all-fluids cubics all-backends; do
             if [ -n "$feats" ]; then
               cargo build -q -p rustprop-wasm-size-probe --target wasm32-unknown-unknown --release --features "$feats"
             else

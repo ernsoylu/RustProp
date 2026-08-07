@@ -10,3 +10,6 @@
 pub use rustprop_core::UPSTREAM_VERSION;
 
 pub mod fluids;
+
+#[cfg(feature = "cubic-fluids")]
+pub mod cubics;

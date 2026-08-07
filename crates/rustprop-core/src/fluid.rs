@@ -853,3 +853,31 @@ pub struct States {
     /// `STATES.triple_vapor`
     pub triple_vapor: StatePoint,
 }
+
+/// One fluid of the cubic backend's library (upstream
+/// `CubicsLibrary::CubicsValues`, loaded from `dev/cubics/all_cubic_fluids.json`).
+/// SRK and Peng-Robinson share this data; only Tc, pc, acentric, and the
+/// ideal-gas `alpha0` terms enter the equations of state.
+pub struct CubicFluid {
+    /// `.name`
+    pub name: &'static str,
+    /// `.CAS`
+    pub cas: &'static str,
+    /// `.aliases`
+    pub aliases: &'static [&'static str],
+    /// `.Tc` [K]
+    pub tc: f64,
+    /// `.pc` [Pa]
+    pub pc: f64,
+    /// `.rhomolarc` [mol/m^3] — the JSON critical density; used ONLY for the
+    /// alpha0 reduced variables (the `rhomolar_critical` OUTPUT is upstream's
+    /// Kazakov curve fit, a different number).
+    pub rhomolarc: f64,
+    /// `.acentric`
+    pub acentric: f64,
+    /// `.molemass` [kg/mol]
+    pub molemass: f64,
+    /// `.alpha0` — same term families and parse normalizations as the HEOS
+    /// fluid library (upstream shares `parse_alpha0`).
+    pub alpha0: &'static [Alpha0Term],
+}

@@ -202,7 +202,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 
 ## Phase 7 — Cubics engine
 
-- [ ] 7.1 Datagen for `dev/cubics/` data; SRK and Peng-Robinson EOS with upstream's alpha
+- [x] 7.1 Datagen for `dev/cubics/` data; SRK and Peng-Robinson EOS with upstream's alpha
       functions and departure formulations; cubic root selection per upstream.
       → verify: goldens vs `SRK::` / `PR::` backends on PT grids, rel ≤ 1e-9.
 - [ ] 7.2 v8 Chebyshev superancillary saturation for cubics.
@@ -904,3 +904,27 @@ Append-only; newest last. Seeded entries:
   supercritical, QT boundaries, PQ across the glide incl. q=0.4 — Air's PQ mid-glide
   density matches the oracle to the last digit), error parity verbatim (fractional-Q QT,
   in-band PT), first-run green.
+- 2026-08-07 — Phase 7.1 (cubic engine core) complete: `rustprop-cubics` (the scaffold
+  placeholder crate, now real) ports upstream's pure-fluid `AbstractCubic`/`CubicBackend`
+  path. Load-bearing upstream facts encoded: the cubic backend's reducing state is
+  T_r = 1 K / rho_r = 1 (tau = 1/T, delta = rho); the SRK Omega_a/Omega_b literals carry
+  upstream's two corrupted digits (~4e-10 vs exact — reproduced verbatim); alpha0 is
+  evaluated at (Tc/T, rho/rhomolarc_JSON) and rescaled; `rhomolar_critical` is the
+  Kazakov curve fit; the residual's 15 derivatives are products of three 5-vectors
+  (psi_minus/psi_plus/tau_times_a — the batched BasicMathiasCopeman alpha terms).
+  UPSTREAM DEFECT ported deliberately (oracle-verified): `calc_smolar` ALONE reads the
+  batched alpha0 evaluator whose cubic output is the tau*-derivative without the rescale,
+  then multiplies by the cubic tau — the entropy datum is shifted by R*(tau*-tau)*da0';
+  h/u/cv/cp/w use the rescaled accessors and are consistent. Flashes: PT with cubic-in-rho
+  root selection (3 roots below pc run an inner PQ flash for Tsat and pick the branch);
+  QT/PQ via the equal-Gibbs secant with Pitzer seeds (BoundedSecant ported; the residual's
+  outside-dome flat zero reproduced as upstream). Datagen emits the 116-fluid table
+  (dev/cubics copy, attributed) behind ONE `cubic-fluids` feature (~the rodata of one
+  HEOS fluid — logged size decision); alpha0 rendering and the ideal-container build were
+  extracted for reuse (`render_alpha0`, `Alpha0Eval` — upstream shares parse_alpha0 the
+  same way). PropsSI `SRK::`/`PR::` routes: PT/QT/PQ (no Q-range validation, as
+  upstream), trivials, uppercase name/alias resolution, "type not set" parity for the
+  delegated pairs, (D,T) loudly deferred to 7.2. 1,608 goldens over 12 fluids x 2
+  backends first-run green after the smolar discovery (direct evaluations bit-identical;
+  1e-9 policy). Wasm: cubics-only = 146 KB total for both engines + all 116 fluids
+  (CI size report row added).

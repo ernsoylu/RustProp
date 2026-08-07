@@ -97,9 +97,66 @@ pub(crate) fn householder4<R: Resid1D>(f: &mut R, x0: f64, ftol: f64, maxiter: i
     Ok(x)
 }
 
+/// Upstream `BoundedSecant`: secant with hard bounds — a step past a bound
+/// goes half the way to it instead.
+pub fn bounded_secant<F: FnMut(f64) -> f64>(
+    mut call: F,
+    x0: f64,
+    xmin: f64,
+    xmax: f64,
+    dx: f64,
+    tol: f64,
+    maxiter: i32,
+) -> Result<f64> {
+    let mut x1 = 0.0;
+    let mut x2 = 0.0;
+    let mut y1 = 0.0;
+    let mut x;
+    let mut fval: f64 = 999.0;
+    let mut iter = 1;
+    if dx.abs() == 0.0 {
+        return Err(Error::Value("dx cannot be zero".into()));
+    }
+    while iter <= 3 || fval.abs() > tol {
+        if iter == 1 {
+            x1 = x0;
+            x = x1;
+        } else if iter == 2 {
+            x2 = x0 + dx;
+            x = x2;
+        } else {
+            x = x2;
+        }
+        fval = call(x);
+        if iter == 1 {
+            y1 = fval;
+        } else {
+            let y2 = fval;
+            let mut x3 = x2 - y2 / (y2 - y1) * (x2 - x1);
+            // Check bounds, go half the way to the limit if limit is exceeded
+            if x3 < xmin {
+                x3 = (xmin + x2) / 2.0;
+            }
+            if x3 > xmax {
+                x3 = (xmax + x2) / 2.0;
+            }
+            y1 = y2;
+            x1 = x2;
+            x2 = x3;
+        }
+        if iter > maxiter {
+            return Err(Error::Solution(format!(
+                "BoundedSecant reached maximum number of iterations of {maxiter}"
+            )));
+        }
+        iter += 1;
+    }
+    Ok(x2)
+}
+
 /// Upstream `Secant` (omega = 1; the `input_not_in_range` hook is unused by
 /// the ported callers).
-pub(crate) fn secant<F: FnMut(f64) -> f64>(
+pub fn secant<F: FnMut(f64) -> f64>(
     mut call: F,
     x0: f64,
     dx: f64,
@@ -161,7 +218,7 @@ pub(crate) fn secant<F: FnMut(f64) -> f64>(
 }
 
 /// Upstream `Brent` (the ALGOL-derived variant with all its guards).
-pub(crate) fn brent<F: FnMut(f64) -> f64>(
+pub fn brent<F: FnMut(f64) -> f64>(
     mut call: F,
     mut a: f64,
     mut b: f64,
@@ -291,7 +348,7 @@ pub(crate) fn brent<F: FnMut(f64) -> f64>(
 }
 
 /// Upstream `solve_cubic` (CPnumerics.cpp): roots of a*x^3+b*x^2+c*x+d.
-pub(crate) fn solve_cubic(a: f64, b: f64, c: f64, d: f64) -> (i32, f64, f64, f64) {
+pub fn solve_cubic(a: f64, b: f64, c: f64, d: f64) -> (i32, f64, f64, f64) {
     if a.abs() < 10.0 * f64::EPSILON {
         if b.abs() < 10.0 * f64::EPSILON {
             return (1, -d / c, f64::NAN, f64::NAN);

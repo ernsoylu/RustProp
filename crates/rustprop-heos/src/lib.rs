@@ -13,7 +13,7 @@ pub mod flash_px;
 pub mod melting;
 pub mod props;
 pub mod saturation;
-mod solvers;
+pub mod solvers;
 pub mod superancillary;
 pub mod transport;
 

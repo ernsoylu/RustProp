@@ -5,6 +5,7 @@
   "platform": "Linux-x86_64",
   "files": [
     "conductivity.jsonl",
+    "cubics.jsonl",
     "flash_pairs_extra.jsonl",
     "fluid_resolution.jsonl",
     "heos_all_smoke.jsonl",

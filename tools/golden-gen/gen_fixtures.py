@@ -905,6 +905,53 @@ def gen_melting():
     return rows
 
 
+CUBIC_FLUIDS = ["n-Propane", "Water", "CarbonDioxide", "Nitrogen", "R134a",
+                "Methane", "Ammonia", "n-Decane", "Benzene", "R32",
+                "Isopentane", "MD2M"]
+
+
+def gen_cubics():
+    """Cubic-backend goldens (PLAN 7.1): SRK:: and PR:: PT states
+    (liquid/gas/supercritical), QT at Q=0/1, PQ across quality, and the
+    trivial outputs, for a structurally diverse fluid set."""
+    rows, skipped = [], 0
+    for be in ["SRK", "PR"]:
+        for fluid in CUBIC_FLUIDS:
+            bf = f"{be}::{fluid}"
+            Tc = PropsSI("Tcrit", "", 0, "", 0, bf)
+            pc = PropsSI("pcrit", "", 0, "", 0, bf)
+
+            def rec(out, n1, v1, n2, v2):
+                nonlocal skipped
+                r = try_record(out, n1, v1, n2, v2, be, fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+
+            # Trivials
+            for out in ["Tcrit", "pcrit", "acentric", "rhomolar_critical",
+                        "molemass", "gas_constant"]:
+                rec(out, "", 0.0, "", 0.0)
+            # QT at the dome
+            for x in [0.55, 0.75, 0.9]:
+                T = x * Tc
+                for q in [0.0, 1.0]:
+                    for out in ["P", "Dmolar", "Hmolar", "Smolar"]:
+                        rec(out, "T", T, "Q", q)
+            # PQ across quality
+            psat_mid = PropsSI("P", "T", 0.7 * Tc, "Q", 0, bf)
+            for q in [0.0, 0.35, 1.0]:
+                for out in ["T", "Dmolar", "Hmolar", "Umolar"]:
+                    rec(out, "P", psat_mid, "Q", q)
+            # PT: liquid, gas, supercritical(s)
+            psat_l = PropsSI("P", "T", 0.6 * Tc, "Q", 0, bf)
+            for (T, p_) in [(0.6 * Tc, 3.0 * psat_l), (0.85 * Tc, 0.3 * psat_l),
+                            (1.2 * Tc, 1.5 * pc), (1.2 * Tc, 0.5 * pc),
+                            (0.7 * Tc, 2.0 * pc)]:
+                for out in ["Dmolar", "Hmolar", "Smolar", "Cpmolar", "A"]:
+                    rec(out, "T", T, "P", p_)
+    print(f"cubics: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 PSEUDO_PURE = ["Air", "R404A", "R407C", "R410A", "R507A", "SES36"]
 
 
@@ -1134,6 +1181,7 @@ def main():
     write_jsonl("flash_pairs_extra.jsonl", gen_flash_pairs_extra())
     write_jsonl("melting.jsonl", gen_melting())
     write_jsonl("pseudo_pure.jsonl", gen_pseudo_pure())
+    write_jsonl("cubics.jsonl", gen_cubics())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

@@ -447,6 +447,107 @@ fn emit_superancillary(sa: &SuperAncJson, w: &mut String) {
     writeln!(w, "        }}),").unwrap();
 }
 
+fn render_alpha0(w: &mut String, terms: &[Alpha0Json], indent: &str) {
+    writeln!(w, "{indent}alpha0: &[").unwrap();
+    for term in terms {
+        match term {
+            Alpha0Json::Lead { a1, a2 } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::Lead {{ a1: {}, a2: {} }},",
+                    f(*a1),
+                    f(*a2)
+                )
+                .unwrap();
+            }
+            Alpha0Json::LogTau { a } => {
+                writeln!(w, "{indent}    Alpha0Term::LogTau {{ a: {} }},", f(*a)).unwrap();
+            }
+            Alpha0Json::PlanckEinstein { n, t } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::PlanckEinstein {{ n: {}, t: {} }},",
+                    slice(n),
+                    slice(t)
+                )
+                .unwrap();
+            }
+            Alpha0Json::PlanckEinsteinFunctionT { n, v, tcrit } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::PlanckEinsteinFunctionT {{ n: {}, v: {}, tcrit: {} }},",
+                    slice(n),
+                    slice(v),
+                    f(*tcrit)
+                )
+                .unwrap();
+            }
+            Alpha0Json::EnthalpyEntropyOffset { a1, a2, reference } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::EnthalpyEntropyOffset {{ a1: {}, a2: {}, reference: {:?} }},",
+                    f(*a1),
+                    f(*a2),
+                    reference
+                )
+                .unwrap();
+            }
+            Alpha0Json::Power { n, t } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::Power {{ n: {}, t: {} }},",
+                    slice(n),
+                    slice(t)
+                )
+                .unwrap();
+            }
+            Alpha0Json::PlanckEinsteinGeneralized { n, t, c, d } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::PlanckEinsteinGeneralized {{ n: {}, t: {}, c: {}, d: {} }},",
+                    slice(n),
+                    slice(t),
+                    slice(c),
+                    slice(d)
+                )
+                .unwrap();
+            }
+            Alpha0Json::Cp0Constant { cp_over_r, tc, t0 } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::Cp0Constant {{ cp_over_r: {}, tc: {}, t0: {} }},",
+                    f(*cp_over_r),
+                    f(*tc),
+                    f(*t0)
+                )
+                .unwrap();
+            }
+            Alpha0Json::Cp0PolyT { c, t, tc, t0 } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::Cp0PolyT {{ c: {}, t: {}, tc: {}, t0: {} }},",
+                    slice(c),
+                    slice(t),
+                    f(*tc),
+                    f(*t0)
+                )
+                .unwrap();
+            }
+            Alpha0Json::Cp0AlyLee { c, tc, t0 } => {
+                writeln!(
+                    w,
+                    "{indent}    Alpha0Term::Cp0AlyLee {{ c: {}, tc: {}, t0: {} }},",
+                    slice(c),
+                    f(*tc),
+                    f(*t0)
+                )
+                .unwrap();
+            }
+        }
+    }
+    writeln!(w, "{indent}],").unwrap();
+}
+
 fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     let _ = &doc.eos;
     let mut out = String::new();
@@ -556,104 +657,7 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
             None => writeln!(w, "        {field}: None,").unwrap(),
         }
     }
-    writeln!(w, "        alpha0: &[").unwrap();
-    for term in &eos.alpha0 {
-        match term {
-            Alpha0Json::Lead { a1, a2 } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::Lead {{ a1: {}, a2: {} }},",
-                    f(*a1),
-                    f(*a2)
-                )
-                .unwrap();
-            }
-            Alpha0Json::LogTau { a } => {
-                writeln!(w, "            Alpha0Term::LogTau {{ a: {} }},", f(*a)).unwrap();
-            }
-            Alpha0Json::PlanckEinstein { n, t } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::PlanckEinstein {{ n: {}, t: {} }},",
-                    slice(n),
-                    slice(t)
-                )
-                .unwrap();
-            }
-            Alpha0Json::PlanckEinsteinFunctionT { n, v, tcrit } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::PlanckEinsteinFunctionT {{ n: {}, v: {}, tcrit: {} }},",
-                    slice(n),
-                    slice(v),
-                    f(*tcrit)
-                )
-                .unwrap();
-            }
-            Alpha0Json::EnthalpyEntropyOffset { a1, a2, reference } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::EnthalpyEntropyOffset {{ a1: {}, a2: {}, reference: {:?} }},",
-                    f(*a1),
-                    f(*a2),
-                    reference
-                )
-                .unwrap();
-            }
-            Alpha0Json::Power { n, t } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::Power {{ n: {}, t: {} }},",
-                    slice(n),
-                    slice(t)
-                )
-                .unwrap();
-            }
-            Alpha0Json::PlanckEinsteinGeneralized { n, t, c, d } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::PlanckEinsteinGeneralized {{ n: {}, t: {}, c: {}, d: {} }},",
-                    slice(n),
-                    slice(t),
-                    slice(c),
-                    slice(d)
-                )
-                .unwrap();
-            }
-            Alpha0Json::Cp0Constant { cp_over_r, tc, t0 } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::Cp0Constant {{ cp_over_r: {}, tc: {}, t0: {} }},",
-                    f(*cp_over_r),
-                    f(*tc),
-                    f(*t0)
-                )
-                .unwrap();
-            }
-            Alpha0Json::Cp0PolyT { c, t, tc, t0 } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::Cp0PolyT {{ c: {}, t: {}, tc: {}, t0: {} }},",
-                    slice(c),
-                    slice(t),
-                    f(*tc),
-                    f(*t0)
-                )
-                .unwrap();
-            }
-            Alpha0Json::Cp0AlyLee { c, tc, t0 } => {
-                writeln!(
-                    w,
-                    "            Alpha0Term::Cp0AlyLee {{ c: {}, tc: {}, t0: {} }},",
-                    slice(c),
-                    f(*tc),
-                    f(*t0)
-                )
-                .unwrap();
-            }
-        }
-    }
-    writeln!(w, "        ],").unwrap();
+    render_alpha0(w, &eos.alpha0, "        ");
     writeln!(w, "        alphar: &[").unwrap();
     for term in &eos.alphar {
         match term {
@@ -1253,6 +1257,62 @@ fn render_viscosity(v: &serde_json::Map<String, serde_json::Value>) -> String {
 // Driver
 // ---------------------------------------------------------------------------
 
+#[derive(Deserialize)]
+struct CubicFluidJson {
+    name: String,
+    #[serde(rename = "CAS")]
+    cas: String,
+    aliases: Vec<String>,
+    #[serde(rename = "Tc")]
+    tc: f64,
+    pc: f64,
+    rhomolarc: f64,
+    acentric: f64,
+    molemass: f64,
+    alpha0: Vec<Alpha0Json>,
+}
+
+/// Emit `crates/rustprop-data/src/cubics.rs` from
+/// `data/cubics/all_cubic_fluids.json` (upstream `CubicsLibrary` contents),
+/// behind the single `cubic-fluids` feature: the whole 116-fluid table costs
+/// about one HEOS fluid's worth of rodata, so per-fluid gating buys nothing.
+fn emit_cubics(root: &Path) -> Result<(), String> {
+    let path = root.join("data/cubics/all_cubic_fluids.json");
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let fluids: Vec<CubicFluidJson> =
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut w = String::from(
+        "//! GENERATED by rustprop-datagen from data/cubics/all_cubic_fluids.json — DO NOT EDIT.\n//! Regenerate: cargo run -p rustprop-datagen\n\n#![cfg_attr(rustfmt, rustfmt::skip)]\n#![allow(clippy::approx_constant)]\n\nuse rustprop_core::fluid::{Alpha0Term, CubicFluid};\n\n",
+    );
+    writeln!(
+        w,
+        "/// Upstream `CubicsLibrary` contents, in file order.\npub static CUBIC_FLUIDS: &[CubicFluid] = &["
+    )
+    .unwrap();
+    for fl in &fluids {
+        writeln!(w, "    CubicFluid {{").unwrap();
+        writeln!(w, "        name: {:?},", fl.name).unwrap();
+        writeln!(w, "        cas: {:?},", fl.cas).unwrap();
+        let aliases: Vec<String> = fl.aliases.iter().map(|a| format!("{a:?}")).collect();
+        writeln!(w, "        aliases: &[{}],", aliases.join(", ")).unwrap();
+        writeln!(w, "        tc: {},", f(fl.tc)).unwrap();
+        writeln!(w, "        pc: {},", f(fl.pc)).unwrap();
+        writeln!(w, "        rhomolarc: {},", f(fl.rhomolarc)).unwrap();
+        writeln!(w, "        acentric: {},", f(fl.acentric)).unwrap();
+        writeln!(w, "        molemass: {},", f(fl.molemass)).unwrap();
+        render_alpha0(&mut w, &fl.alpha0, "        ");
+        writeln!(w, "    }},").unwrap();
+    }
+    writeln!(w, "];").unwrap();
+    std::fs::write(root.join("crates/rustprop-data/src/cubics.rs"), w)
+        .map_err(|e| e.to_string())?;
+    println!(
+        "generated crates/rustprop-data/src/cubics.rs ({} fluids)",
+        fluids.len()
+    );
+    Ok(())
+}
+
 fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -1332,6 +1392,7 @@ fn run() -> Result<(), String> {
     registry.push_str("    v\n}\n");
     mod_rs.push_str(&registry);
     std::fs::write(out_dir.join("mod.rs"), mod_rs).map_err(|e| e.to_string())?;
+    emit_cubics(&root)?;
     Ok(())
 }
 

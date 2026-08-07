@@ -45,6 +45,141 @@ pub struct HelmholtzDerivs {
     pub d04: f64,
 }
 
+/// Standalone ideal-gas Helmholtz evaluator over a document's `alpha0` term
+/// list — shared with the cubic backend exactly as upstream shares
+/// `parse_alpha0` / `IdealHelmholtzContainer` between the fluid libraries.
+pub struct Alpha0Eval {
+    ideal: IdealContainer,
+}
+
+impl Alpha0Eval {
+    pub fn new(terms: &[Alpha0Term]) -> Self {
+        Alpha0Eval {
+            ideal: build_ideal(terms),
+        }
+    }
+
+    /// All ideal-gas derivatives at the caller's (tau, delta).
+    pub fn all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        let mut derivs = HelmholtzDerivs::default();
+        self.ideal.all(tau, delta, &mut derivs);
+        derivs
+    }
+}
+
+/// Build the ideal container from a document's `alpha0` term list —
+/// upstream `parse_alpha0`'s normalizations (PlanckEinstein theta sign flip,
+/// Aly-Lee split, offset accumulation) happen here.
+fn build_ideal(terms: &[Alpha0Term]) -> IdealContainer {
+    let mut ideal = IdealContainer::default();
+    for term in terms {
+        match term {
+            Alpha0Term::Lead { a1, a2 } => ideal.lead = Some((*a1, *a2)),
+            Alpha0Term::LogTau { a } => ideal.log_tau = Some(*a),
+            Alpha0Term::Power { n, t } => {
+                // Upstream throws on a second Power term.
+                assert!(ideal.power.is_none(), "duplicate IdealGasHelmholtzPower");
+                ideal.power = Some((n.to_vec(), t.to_vec()));
+            }
+            Alpha0Term::EnthalpyEntropyOffset { a1, a2, .. } => {
+                // Upstream `set()`: first call stores, later calls increment.
+                match &mut ideal.offset_core {
+                    None => ideal.offset_core = Some((*a1, *a2)),
+                    Some((c1, c2)) => {
+                        *c1 += *a1;
+                        *c2 += *a2;
+                    }
+                }
+            }
+            Alpha0Term::PlanckEinstein { n, t } => {
+                // Upstream FluidLibrary.h: flip the sign of theta; c = 1, d = -1.
+                let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                pe.n.extend_from_slice(n);
+                pe.theta.extend(t.iter().map(|v| -v));
+                pe.c.extend(std::iter::repeat_n(1.0, n.len()));
+                pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
+            }
+            Alpha0Term::PlanckEinsteinFunctionT { n, v, tcrit } => {
+                // Upstream FluidLibrary.h: theta = -v/Tcrit; c = 1, d = -1.
+                let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                pe.n.extend_from_slice(n);
+                pe.theta.extend(v.iter().map(|x| -x / tcrit));
+                pe.c.extend(std::iter::repeat_n(1.0, n.len()));
+                pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
+            }
+            Alpha0Term::PlanckEinsteinGeneralized { n, t, c, d } => {
+                // Direct generalized form: t is theta already.
+                let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                pe.n.extend_from_slice(n);
+                pe.theta.extend_from_slice(t);
+                pe.c.extend_from_slice(c);
+                pe.d.extend_from_slice(d);
+            }
+            Alpha0Term::Cp0Constant { cp_over_r, tc, t0 } => {
+                // Upstream throws on a second CP0Constant term.
+                assert!(
+                    ideal.cp0_constant.is_none(),
+                    "duplicate IdealGasHelmholtzCP0Constant"
+                );
+                ideal.cp0_constant = Some((*cp_over_r, *tc, *t0));
+            }
+            Alpha0Term::Cp0PolyT { c, t, tc, t0 } => {
+                // Upstream throws on a second CP0PolyT term (AlyLee may
+                // extend an existing one below, but not vice versa).
+                assert!(
+                    ideal.cp0_polyt.is_none(),
+                    "duplicate IdealGasHelmholtzCP0PolyT"
+                );
+                ideal.cp0_polyt = Some((c.to_vec(), t.to_vec(), *tc, *t0));
+            }
+            Alpha0Term::Cp0AlyLee {
+                c: constants,
+                tc,
+                t0,
+            } => {
+                // Upstream FluidLibrary.h converts Aly-Lee at parse time:
+                // nonzero constant -> CP0PolyT (extend if present),
+                // sinh -> PE (n=B, theta=-2C/Tc, c=1, d=-1),
+                // cosh -> PE (n=-D, theta=-2E/Tc, c=1, d=+1).
+                if constants[0].abs() > 1e-14 {
+                    match &mut ideal.cp0_polyt {
+                        Some((pc, pt, _, _)) => {
+                            pc.push(constants[0]);
+                            pt.push(0.0);
+                        }
+                        None => {
+                            ideal.cp0_polyt = Some((vec![constants[0]], vec![0.0], *tc, *t0));
+                        }
+                    }
+                }
+                let mut n = Vec::new();
+                let mut t = Vec::new();
+                let mut cc = Vec::new();
+                let mut dd = Vec::new();
+                if constants[1].abs() > 1e-14 {
+                    n.push(constants[1]);
+                    t.push(-2.0 * constants[2] / tc);
+                    cc.push(1.0);
+                    dd.push(-1.0);
+                }
+                if constants[3].abs() > 1e-14 {
+                    n.push(-constants[3]);
+                    t.push(-2.0 * constants[4] / tc);
+                    cc.push(1.0);
+                    dd.push(1.0);
+                }
+                let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
+                pe.n.extend_from_slice(&n);
+                pe.theta.extend_from_slice(&t);
+                pe.c.extend_from_slice(&cc);
+                pe.d.extend_from_slice(&dd);
+            }
+        }
+    }
+
+    ideal
+}
+
 /// Upstream `powInt` (CPnumerics.cpp): sequential multiplication.
 fn pow_int(x: f64, y: i32) -> f64 {
     if y == 0 {
@@ -1238,111 +1373,7 @@ impl HelmholtzEos {
         }
         genexp.finish();
 
-        let mut ideal = IdealContainer::default();
-        for term in fluid.eos.alpha0 {
-            match term {
-                Alpha0Term::Lead { a1, a2 } => ideal.lead = Some((*a1, *a2)),
-                Alpha0Term::LogTau { a } => ideal.log_tau = Some(*a),
-                Alpha0Term::Power { n, t } => {
-                    // Upstream throws on a second Power term.
-                    assert!(ideal.power.is_none(), "duplicate IdealGasHelmholtzPower");
-                    ideal.power = Some((n.to_vec(), t.to_vec()));
-                }
-                Alpha0Term::EnthalpyEntropyOffset { a1, a2, .. } => {
-                    // Upstream `set()`: first call stores, later calls increment.
-                    match &mut ideal.offset_core {
-                        None => ideal.offset_core = Some((*a1, *a2)),
-                        Some((c1, c2)) => {
-                            *c1 += *a1;
-                            *c2 += *a2;
-                        }
-                    }
-                }
-                Alpha0Term::PlanckEinstein { n, t } => {
-                    // Upstream FluidLibrary.h: flip the sign of theta; c = 1, d = -1.
-                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
-                    pe.n.extend_from_slice(n);
-                    pe.theta.extend(t.iter().map(|v| -v));
-                    pe.c.extend(std::iter::repeat_n(1.0, n.len()));
-                    pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
-                }
-                Alpha0Term::PlanckEinsteinFunctionT { n, v, tcrit } => {
-                    // Upstream FluidLibrary.h: theta = -v/Tcrit; c = 1, d = -1.
-                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
-                    pe.n.extend_from_slice(n);
-                    pe.theta.extend(v.iter().map(|x| -x / tcrit));
-                    pe.c.extend(std::iter::repeat_n(1.0, n.len()));
-                    pe.d.extend(std::iter::repeat_n(-1.0, n.len()));
-                }
-                Alpha0Term::PlanckEinsteinGeneralized { n, t, c, d } => {
-                    // Direct generalized form: t is theta already.
-                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
-                    pe.n.extend_from_slice(n);
-                    pe.theta.extend_from_slice(t);
-                    pe.c.extend_from_slice(c);
-                    pe.d.extend_from_slice(d);
-                }
-                Alpha0Term::Cp0Constant { cp_over_r, tc, t0 } => {
-                    // Upstream throws on a second CP0Constant term.
-                    assert!(
-                        ideal.cp0_constant.is_none(),
-                        "duplicate IdealGasHelmholtzCP0Constant"
-                    );
-                    ideal.cp0_constant = Some((*cp_over_r, *tc, *t0));
-                }
-                Alpha0Term::Cp0PolyT { c, t, tc, t0 } => {
-                    // Upstream throws on a second CP0PolyT term (AlyLee may
-                    // extend an existing one below, but not vice versa).
-                    assert!(
-                        ideal.cp0_polyt.is_none(),
-                        "duplicate IdealGasHelmholtzCP0PolyT"
-                    );
-                    ideal.cp0_polyt = Some((c.to_vec(), t.to_vec(), *tc, *t0));
-                }
-                Alpha0Term::Cp0AlyLee {
-                    c: constants,
-                    tc,
-                    t0,
-                } => {
-                    // Upstream FluidLibrary.h converts Aly-Lee at parse time:
-                    // nonzero constant -> CP0PolyT (extend if present),
-                    // sinh -> PE (n=B, theta=-2C/Tc, c=1, d=-1),
-                    // cosh -> PE (n=-D, theta=-2E/Tc, c=1, d=+1).
-                    if constants[0].abs() > 1e-14 {
-                        match &mut ideal.cp0_polyt {
-                            Some((pc, pt, _, _)) => {
-                                pc.push(constants[0]);
-                                pt.push(0.0);
-                            }
-                            None => {
-                                ideal.cp0_polyt = Some((vec![constants[0]], vec![0.0], *tc, *t0));
-                            }
-                        }
-                    }
-                    let mut n = Vec::new();
-                    let mut t = Vec::new();
-                    let mut cc = Vec::new();
-                    let mut dd = Vec::new();
-                    if constants[1].abs() > 1e-14 {
-                        n.push(constants[1]);
-                        t.push(-2.0 * constants[2] / tc);
-                        cc.push(1.0);
-                        dd.push(-1.0);
-                    }
-                    if constants[3].abs() > 1e-14 {
-                        n.push(-constants[3]);
-                        t.push(-2.0 * constants[4] / tc);
-                        cc.push(1.0);
-                        dd.push(1.0);
-                    }
-                    let pe = ideal.planck_einstein.get_or_insert_with(Default::default);
-                    pe.n.extend_from_slice(&n);
-                    pe.theta.extend_from_slice(&t);
-                    pe.c.extend_from_slice(&cc);
-                    pe.d.extend_from_slice(&dd);
-                }
-            }
-        }
+        let ideal = build_ideal(fluid.eos.alpha0);
 
         HelmholtzEos {
             genexp,

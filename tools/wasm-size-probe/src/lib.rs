@@ -40,3 +40,16 @@ pub extern "C" fn probe_heos(t: f64, p: f64) -> f64 {
     }
     acc
 }
+
+/// Exercises the cubic engine over the whole 116-fluid table (SRK PT flash
+/// + enthalpy) so the linker keeps the engine and the `cubic-fluids` data.
+#[cfg(feature = "cubics")]
+#[unsafe(no_mangle)]
+pub extern "C" fn probe_cubics(t: f64, p: f64) -> f64 {
+    let mut acc = 0.0;
+    for out in ["D", "Hmolar", "Smolar"] {
+        acc += rustprop::props_si(out, "T", t, "P", p, "SRK::n-Propane").unwrap_or(f64::NAN);
+        acc += rustprop::props_si(out, "T", t, "P", p, "PR::Water").unwrap_or(f64::NAN);
+    }
+    acc
+}

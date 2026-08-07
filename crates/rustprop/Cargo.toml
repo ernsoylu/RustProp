@@ -22,7 +22,7 @@ rustprop-humid-air = { workspace = true, optional = true }
 [features]
 default = []
 heos = ["dep:rustprop-heos", "dep:rustprop-data"]
-cubics = ["dep:rustprop-cubics"]
+cubics = ["dep:rustprop-cubics", "dep:rustprop-data", "rustprop-data/cubic-fluids"]
 if97 = ["dep:rustprop-if97"]
 incompressible = ["dep:rustprop-incompressible"]
 pcsaft = ["dep:rustprop-pcsaft"]
