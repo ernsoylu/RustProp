@@ -1166,7 +1166,7 @@ fn heos_mixture_route(
     }
 
     let state = mixture_update(model, &z, pair, v1, v2)?;
-    mixture_keyed_output(model, &z, &state, out)
+    mixture_keyed_output(model, &components, &z, &state, out)
 }
 
 /// Upstream trivial outputs for mixtures: mole-fraction-weighted limits,
@@ -1390,6 +1390,7 @@ fn mix_sweep_state(
 #[cfg(feature = "heos-mixtures")]
 fn mixture_keyed_output(
     model: &MixtureModel,
+    components: &[&'static FluidData],
     z: &[f64],
     state: &MixState,
     out: Param,
@@ -1446,12 +1447,66 @@ fn mixture_keyed_output(
                 "surface tension not implemented for mixtures".into(),
             ));
         }
-        Param::Viscosity | Param::Conductivity => {
-            // Upstream evaluates mixture transport through the ECS mixture
-            // models — not ported yet (documented deviation).
-            return Err(Error::NotImplemented(
-                "transport properties are not ported for mixtures yet".into(),
-            ));
+        Param::Viscosity => {
+            // Upstream's "highly approximate" mixture model: log-linear
+            // mixing of PURE-component viscosities, each evaluated as a
+            // pure fluid at the BULK (rhomolar, T).
+            let mut summer = 0.0_f64;
+            for (i, comp) in components.iter().enumerate() {
+                let flash = fluid_flash(comp);
+                let p_pure = flash.eos.pressure(t, rhomolar);
+                let v = viscosity_model(comp)?;
+                let eta = rustprop_heos::transport::viscosity(
+                    &flash.eos,
+                    comp,
+                    v,
+                    t,
+                    rhomolar,
+                    p_pure,
+                    Some(&ecs_resolver),
+                )?;
+                summer += z[i] * eta.ln();
+            }
+            summer.exp()
+        }
+        Param::Conductivity => {
+            // Linear mixing of pure-component conductivities at bulk state.
+            let mut summer = 0.0;
+            for (i, comp) in components.iter().enumerate() {
+                let flash = fluid_flash(comp);
+                let p_pure = flash.eos.pressure(t, rhomolar);
+                let tr = comp.transport.as_ref().ok_or_else(|| {
+                    Error::Value(
+                        "Thermal conductivity model is not available for this fluid".into(),
+                    )
+                })?;
+                let c = match &tr.conductivity {
+                    rustprop_core::fluid::TransportModel::Absent => {
+                        return Err(Error::Value(
+                            "Thermal conductivity model is not available for this fluid".into(),
+                        ));
+                    }
+                    rustprop_core::fluid::TransportModel::Unported => {
+                        return Err(Error::NotImplemented(
+                            "this fluid's conductivity model class is not ported yet".into(),
+                        ));
+                    }
+                    rustprop_core::fluid::TransportModel::Model(c) => c,
+                };
+                let v = viscosity_model(comp).ok();
+                let lambda = rustprop_heos::transport::conductivity(
+                    &flash.eos,
+                    comp,
+                    c,
+                    v,
+                    t,
+                    rhomolar,
+                    p_pure,
+                    Some(&ecs_resolver),
+                )?;
+                summer += z[i] * lambda;
+            }
+            summer
         }
         other => {
             return Err(Error::NotImplemented(format!(

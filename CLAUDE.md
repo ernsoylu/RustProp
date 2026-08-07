@@ -107,8 +107,10 @@ PT_flash_mixtures glue; 192 in-dome goldens at 1e-6 (Q conditioning documented).
 pairs (DHSU_T/HSU_P/HSU_D with upstream's fast paths + verify gates) — 138
 goldens (weekly CI job, #[ignore]d). Boost TOMS748 ported verbatim after
 bisection walked into a wrong-root pocket the wheel reproduces bitwise (its
-TOMS748 interpolates past). Phase 10 remaining: mixture transport (ECS mixing).
-Next: Phase 11 PC-SAFT.
+TOMS748 interpolates past). Mixture transport done (log-linear
+eta / linear lambda over pure components at bulk state, 24 goldens bitwise).
+**PHASE 10 COMPLETE** (phase-envelope machinery is PropsSI-dead upstream and
+unported by design). Next: Phase 11 PC-SAFT (survey in scratchpad).
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

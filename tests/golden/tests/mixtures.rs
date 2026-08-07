@@ -350,7 +350,7 @@ fn mixture_propssi_matches_oracle() {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_propssi.jsonl");
     let recs = rustprop_golden_tests::load_jsonl(&path);
-    assert_eq!(recs.len(), 284);
+    assert_eq!(recs.len(), 308);
     let mut failures = Vec::new();
     for rec in &recs {
         let fluid = format!("HEOS::{}", rec.fluid);

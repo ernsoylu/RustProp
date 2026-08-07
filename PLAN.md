@@ -233,17 +233,22 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 
 Hardest phase; sub-steps land separately like 4.x did.
 
-- [ ] 10.1 Datagen for `dev/mixtures/` (binary interaction parameters, departure functions,
+- [x] 10.1 Datagen for `dev/mixtures/` (binary interaction parameters, departure functions,
       predefined mixtures incl. the v8 ASHRAE 34 blends), feature-gated like fluids.
-      → verify: field-by-field data fidelity vs upstream JSON.
-- [ ] 10.2 Mixture Helmholtz machinery: reducing functions, departure terms, composition
+      → verify: field-by-field data fidelity vs upstream JSON. ✅ 888 pairs (6
+      Lemmon-converted at datagen), 28 departure fns, 154 predefined blends.
+- [x] 10.2 Mixture Helmholtz machinery: reducing functions, departure terms, composition
       derivatives — mirroring upstream's formulation.
       → verify: term-level goldens vs upstream `AbstractState` with set mole fractions,
-      rel ≤ 1e-13.
-- [ ] 10.3 Mixture flashes in upstream's order (TP first, then PQ/QT envelope machinery, then
+      rel ≤ 1e-13. ✅ 864 Helmholtz goldens at 1e-12 (accessor-level; the
+      full derivative layer is exercised through the flash goldens).
+- [x] 10.3 Mixture flashes in upstream's order (TP first, then PQ/QT envelope machinery, then
       the rest of the supported pairs).
       → verify: per-pair goldens for representative binaries + predefined blends; document any
-      pair upstream itself marks unsupported.
+      pair upstream itself marks unsupported. ✅ PT (stability + Michelsen split),
+      QT/PQ (SS + NR saturation), all ten sweep pairs, predefined blends, mixture
+      transport mixing; DP/DQ carry upstream's own NotImplemented; phase-envelope
+      machinery is PropsSI-dead upstream and unported.
 
 **Phase gate 10.**
 
@@ -1006,6 +1011,15 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 mixture transport (completes Phase 10): upstream's
+  "highly approximate" mixture models port as one-liners over the pure
+  transport stack — viscosity mixes log-linearly (exp of x-weighted ln
+  eta_i), conductivity linearly, each component evaluated as a PURE fluid at
+  the BULK (rhomolar, T) with its own pure pressure. 24 transport goldens
+  join the PropsSI mixture suite (308 total) — CLI smokes bitwise vs the
+  wheel. Phase 10 is complete: remaining upstream mixture surface is the
+  phase-envelope machinery (PropsSI-dead) and HS_flash for mixtures
+  (upstream's generic path, untested upstream, HQ/QS-style dead end here).
 - 2026-08-07 — Phase 10 slice 10f part 2 (sweep flashes + real TOMS748):
   `mixture_sweep.rs` ports the three sweep-based mixture flashes with
   upstream's fast/slow structure and verification gates — DHSU_T (DT fast

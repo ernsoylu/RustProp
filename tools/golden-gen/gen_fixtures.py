@@ -849,6 +849,11 @@ def gen_mixture_propssi():
         # input echo + swapped order
         rec(mix, "T", "T", 1.3 * tr, "P", 1e5)
         rec(mix, "Dmolar", "P", 1e5, "T", 1.3 * tr)
+        # mixture transport (log-linear viscosity / linear conductivity of
+        # pure components at the bulk state)
+        for t, p in [(1.3 * tr, 5e6), (1.3 * tr, 1e5), (0.7 * tr, 2e5)]:
+            rec(mix, "viscosity", "T", t, "P", p)
+            rec(mix, "conductivity", "T", t, "P", p)
         # QT / PQ two-phase
         t_sat = 0.7 * tr
         for q in (0.0, 1.0, 0.4):
