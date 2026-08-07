@@ -62,6 +62,16 @@ pub extern "C" fn probe_incomp(t: f64, p: f64) -> f64 {
         + rustprop::props_si("H", "T", t, "P", p, "INCOMP::MEG[0.4]").unwrap_or(f64::NAN)
 }
 
+/// Exercises the HEOS mixture route (PT + QT flashes over Methane&Ethane):
+/// the delta over `heos-data` + two fluids is the mixture-table cost.
+#[cfg(feature = "heos-mixtures")]
+#[unsafe(no_mangle)]
+pub extern "C" fn probe_heos_mixtures(t: f64, p: f64) -> f64 {
+    let mix = "HEOS::Methane[0.6]&Ethane[0.4]";
+    rustprop::props_si("Dmolar", "T", t, "P", p, mix).unwrap_or(f64::NAN)
+        + rustprop::props_si("P", "T", t, "Q", 0.0, mix).unwrap_or(f64::NAN)
+}
+
 /// Exercises the humid-air engine (pulls HEOS Water + Air + IF97).
 #[cfg(feature = "humid-air")]
 #[unsafe(no_mangle)]

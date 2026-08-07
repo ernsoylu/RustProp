@@ -821,6 +821,53 @@ def gen_mixture_vle():
     return rows
 
 
+def gen_mixture_propssi():
+    """Mixture PropsSI routing goldens: the real string API end to end —
+    trivials (weighted limits, reducing values), PT/QT/PQ states with molar
+    and mass bases, input echo, swapped order. Error conditions live in the
+    Rust test (variant + message asserted, not oracle-recorded)."""
+    rows, skipped = [], 0
+
+    def rec(fluid, out, n1, v1, n2, v2):
+        nonlocal skipped
+        r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+        rows.append(r) if r else (skipped := skipped + 1)
+
+    for f1, f2, x1 in [("Methane", "Ethane", 0.6), ("Methane", "Ethane", 0.25),
+                       ("R32", "R125", 0.7), ("Nitrogen", "Oxygen", 0.79)]:
+        mix = f"{f1}[{x1}]&{f2}[{1.0 - x1}]"
+        hm = f"HEOS::{mix}"
+        for out in ["molemass", "gas_constant", "Tmax", "Tmin", "Ttriple",
+                    "pmax", "ptriple", "T_reducing", "rhomolar_reducing"]:
+            rec(mix, out, "", 0, "", 0)
+        tr = PropsSI("T_reducing", "", 0, "", 0, hm)
+        # Supercritical + gas PT states (single-phase on both sides)
+        for t, p in [(1.3 * tr, 5e6), (1.3 * tr, 1e5)]:
+            for out in ["Dmolar", "Hmolar", "Smolar", "Umolar", "Cpmolar",
+                        "Cvmolar", "speed_of_sound", "D", "H", "S", "C", "O"]:
+                rec(mix, out, "T", t, "P", p)
+        # input echo + swapped order
+        rec(mix, "T", "T", 1.3 * tr, "P", 1e5)
+        rec(mix, "Dmolar", "P", 1e5, "T", 1.3 * tr)
+        # QT / PQ two-phase
+        t_sat = 0.7 * tr
+        for q in (0.0, 1.0, 0.4):
+            for out in ["P", "Dmolar", "Hmolar", "Smolar", "D", "H", "S", "Q"]:
+                rec(mix, out, "T", t_sat, "Q", q)
+        try:
+            p_mid = PropsSI("P", "T", t_sat, "Q", 0, hm)
+            for q in (0.0, 1.0, 0.5):
+                for out in ["T", "Dmolar", "Hmolar", "Smolar"]:
+                    rec(mix, out, "P", 0.8 * p_mid, "Q", q)
+            # NOTE: mass-basis INPUT records (Hmass&P, P&Smass, Dmass&T)
+            # would route into the sweep flashes deferred with slice 10f —
+            # they join the fixture when those land.
+        except Exception:
+            skipped += 1
+    print(f"mixture propssi: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1484,6 +1531,7 @@ def main():
     write_jsonl("mixture_helmholtz.jsonl", gen_mixture_helmholtz())
     write_jsonl("mixture_pt.jsonl", gen_mixture_pt())
     write_jsonl("mixture_vle.jsonl", gen_mixture_vle())
+    write_jsonl("mixture_propssi.jsonl", gen_mixture_propssi())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

@@ -23,10 +23,12 @@ if97 = ["rustprop/if97"]
 heos-data = ["rustprop/heos", "dep:rustprop-heos", "dep:rustprop-data"]
 heos-water = ["heos-data", "rustprop-data/water"]
 heos-all-fluids = ["heos-data", "rustprop-data/all-fluids"]
+# Mixture support on top of two fluids: the pair/departure-table data cost.
+heos-mixtures = ["heos-data", "rustprop/heos-mixtures", "rustprop-data/methane", "rustprop-data/ethane"]
 cubics = ["rustprop/cubics"]
 incompressible = ["rustprop/incompressible"]
 humid-air = ["rustprop/humid-air"]
-all-backends = ["if97", "heos-all-fluids", "cubics", "incompressible", "humid-air", "rustprop/all-backends"]
+all-backends = ["if97", "heos-all-fluids", "heos-mixtures", "cubics", "incompressible", "humid-air", "rustprop/all-backends"]
 
 [lints]
 workspace = true

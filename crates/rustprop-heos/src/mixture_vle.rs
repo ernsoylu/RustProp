@@ -1082,6 +1082,8 @@ pub struct MixtureTwoPhase {
     pub hmolar_vap: f64,
     pub smolar_liq: f64,
     pub smolar_vap: f64,
+    pub umolar_liq: f64,
+    pub umolar_vap: f64,
 }
 
 impl MixtureModel {
@@ -1154,6 +1156,8 @@ impl MixtureModel {
             hmolar_vap: satv.hmolar(),
             smolar_liq: satl.smolar(),
             smolar_vap: satv.smolar(),
+            umolar_liq: self.umolar(&satl.x, satl.t, satl.rhomolar),
+            umolar_vap: self.umolar(&satv.x, satv.t, satv.rhomolar),
             x_liq: satl.x.clone(),
             y_vap: satv.x.clone(),
             rhomolar_liq: satl.rhomolar,
@@ -1181,6 +1185,17 @@ impl MixtureTwoPhase {
             self.hmolar_vap
         } else {
             self.q * self.hmolar_vap + (1.0 - self.q) * self.hmolar_liq
+        }
+    }
+
+    /// Lever-rule bulk internal energy.
+    pub fn umolar(&self) -> f64 {
+        if self.q.abs() < f64::EPSILON {
+            self.umolar_liq
+        } else if (self.q - 1.0).abs() < f64::EPSILON {
+            self.umolar_vap
+        } else {
+            self.q * self.umolar_vap + (1.0 - self.q) * self.umolar_liq
         }
     }
 

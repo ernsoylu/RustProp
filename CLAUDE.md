@@ -91,8 +91,12 @@ seeds, successive_substitution (Peneloux SRK seed, hardcoded R=8.3144598),
 newton_raphson_saturation (XN_DEPENDENT Jacobian, Gaussian solve for Eigen QR),
 full MixtureDerivatives fugacity layer — 720 goldens at 1e-8, Q in {0,0.3,0.5,1}.
 Fixed latent 10b bug: d2Yrdxidxj lacked the Gernert Table S1 XN_DEPENDENT
-branches (FD regression test added). Next: PropsSI mixture routing, predefined
-blends, 10f.
+branches (FD regression test added). PropsSI mixture routing shipped behind the
+opt-in `heos-mixtures` facade feature (~358 KB wasm): extract_fractions verbatim,
+PT/QT/PQ + weighted trivials + mass basis + error parity, 284 goldens. Deviations
+until 10f: sweep-based pairs (DmolarT/HmolarP/...) and mixture transport error
+loudly where upstream computes them. Next: predefined blends, 10f stability +
+sweep flashes.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

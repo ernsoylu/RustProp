@@ -1006,6 +1006,29 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10: PropsSI mixture routing (`heos-mixtures` facade
+  feature; opt-in because the pair/departure tables + VLE machinery cost
+  ~358 KB of wasm over two bare fluids — 530 KB total for
+  Methane&Ethane+mixtures vs 172 KB without). extract_fractions ported
+  verbatim (entries must end ']', fraction in [0,1], "not converted fully",
+  components <= 10*DBL_EPSILON silently dropped, single-name strings collapse
+  to the pure route); no-fraction `A&B` reproduces the factory size-mismatch
+  message with upstream's "[ 1.0000000000 ]" formatting. Routing: PT/QT/PQ
+  (Q range-validated), trivials (mole-fraction-weighted
+  Tmax/Tmin/Ttriple/pmax/ptriple — oracle-verified weighting; Tr/rhor;
+  M/R), critical-family trivials -> "No outputs were able to be calculated"
+  (upstream's underlying exceptions are swallowed by the PropsSI boundary),
+  input echo, mass<->molar with M_mix, DP/DQ upstream NotImplemented
+  verbatim, HQ/QS invalid-pair parity, two-phase Cp/Cv/w/G guards.
+  DOCUMENTED DEVIATIONS (until 10f + a transport-mixture slice): the
+  sweep-based pairs upstream computes (DmolarT/HmolarP/PSmolar/...) error
+  loudly — their upstream implementations P/T-sweep with the full
+  stability-tested PT flash inside; mixture viscosity/conductivity (upstream
+  ECS mixing) error loudly; surface tension carries upstream's verbatim "not
+  implemented for mixtures". Verified: 284 PropsSI-level goldens (trivials
+  1e-12, states 1e-8, four pair/composition combos) + variant-and-message
+  error-condition tests + a bitwise CLI/oracle smoke; CI wasm report gains a
+  heos-mixtures row.
 - 2026-08-07 — Phase 10 slice 10e (mixture QT/PQ VLE):
   `mixture_vle.rs` ports the blind flash chain — saturation_preconditioner
   (mole-fraction-weighted ln(p)-vs-T interpolation on STATES.critical /

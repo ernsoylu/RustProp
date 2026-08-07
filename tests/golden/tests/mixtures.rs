@@ -342,3 +342,133 @@ fn reducing_derivatives_consistent_dependent() {
         "d_ndrhorbardni_dxj dep: fd {fd_ndr} vs analytic {an_ndr}"
     );
 }
+
+#[test]
+fn mixture_propssi_matches_oracle() {
+    // PropsSI mixture-string routing end to end: trivials at 1e-12 (direct
+    // arithmetic), states at 1e-8 (solver tier).
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_propssi.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 284);
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let fluid = format!("HEOS::{}", rec.fluid);
+        match rustprop::props_si(&rec.out, &rec.name1, rec.val1, &rec.name2, rec.val2, &fluid) {
+            Ok(actual) => {
+                let rtol = if rec.name1.is_empty() { 1e-12 } else { 1e-8 };
+                if let Err(e) = rustprop_golden_tests::check(rec, actual, rtol) {
+                    failures.push(e);
+                }
+            }
+            Err(e) => failures.push(format!("{}: error {e:?}", rec.id())),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture PropsSI records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn mixture_propssi_error_conditions() {
+    use rustprop::props_si;
+    use rustprop_core::Error;
+    let err = |r: rustprop_core::Result<f64>| r.unwrap_err();
+    let mix = "HEOS::Methane[0.6]&Ethane[0.4]";
+
+    // Fraction parsing errors (verbatim upstream messages)
+    match err(props_si(
+        "T",
+        "P",
+        1e5,
+        "Q",
+        0.0,
+        "HEOS::Methane[0.6]&Ethane",
+    )) {
+        Error::Value(m) => assert_eq!(m, "Fluid entry [Ethane] must end with ']' character"),
+        other => panic!("wrong variant {other:?}"),
+    }
+    match err(props_si(
+        "T",
+        "P",
+        1e5,
+        "Q",
+        0.0,
+        "HEOS::Methane[1.2]&Ethane[-0.2]",
+    )) {
+        Error::Value(m) => assert_eq!(
+            m,
+            "fraction [1.2] was not converted to a value between 0 and 1 inclusive"
+        ),
+        other => panic!("wrong variant {other:?}"),
+    }
+    match err(props_si(
+        "T",
+        "P",
+        1e5,
+        "Q",
+        0.0,
+        "HEOS::Methane[abc]&Ethane[0.4]",
+    )) {
+        Error::Value(m) => assert_eq!(m, "fraction [abc] was not converted fully"),
+        other => panic!("wrong variant {other:?}"),
+    }
+    // No fractions with '&': the factory-size mismatch
+    match err(props_si("T", "P", 1e5, "Q", 0.0, "HEOS::Methane&Ethane")) {
+        Error::Value(m) => assert!(m.contains(
+            "size of mole fraction vector [1] does not equal that of component vector [2]"
+        )),
+        other => panic!("wrong variant {other:?}"),
+    }
+    // Upstream's own mixture dead ends (verbatim)
+    match err(props_si("T", "Dmolar", 100.0, "P", 1e5, mix)) {
+        Error::NotImplemented(m) => assert_eq!(m, "DP_flash not ready for mixtures"),
+        other => panic!("wrong variant {other:?}"),
+    }
+    match err(props_si("T", "Dmolar", 100.0, "Q", 0.5, mix)) {
+        Error::NotImplemented(m) => assert_eq!(m, "DQ_flash not ready for mixtures"),
+        other => panic!("wrong variant {other:?}"),
+    }
+    // HQ/QS: no update-pair row exists (string-API dead end, same as pure)
+    match err(props_si("T", "Hmolar", 1e4, "Q", 0.5, mix)) {
+        Error::Value(m) => assert!(m.contains("Input pair variable is invalid")),
+        other => panic!("wrong variant {other:?}"),
+    }
+    // Q out of range
+    match err(props_si("P", "T", 200.0, "Q", 1.5, mix)) {
+        Error::OutOfRange(m) => {
+            assert_eq!(m, "Input vapor quality [Q] must be between 0 and 1")
+        }
+        other => panic!("wrong variant {other:?}"),
+    }
+    // Critical-family trivials fail with PropsSI's wrapper message
+    match err(props_si("Tcrit", "", 0.0, "", 0.0, mix)) {
+        Error::Value(m) => assert_eq!(m, "No outputs were able to be calculated"),
+        other => panic!("wrong variant {other:?}"),
+    }
+    // Unmatched binary pair carries upstream's message
+    match err(props_si(
+        "T",
+        "P",
+        1e5,
+        "Q",
+        0.0,
+        "HEOS::Methanol[0.5]&Novec649[0.5]",
+    )) {
+        Error::Value(m) => assert!(m.contains("Could not match the binary pair"), "got: {m}"),
+        other => panic!("wrong variant {other:?}"),
+    }
+    // Pure-fluid collapse: single component after parsing behaves as pure
+    let pure = props_si("Dmolar", "T", 300.0, "P", 1e5, "HEOS::Water[1.0]").unwrap();
+    let direct = props_si("Dmolar", "T", 300.0, "P", 1e5, "Water").unwrap();
+    assert_eq!(pure, direct);
+    // Deferred sweep pairs error loudly (documented 10f deviation)
+    match err(props_si("P", "Dmolar", 100.0, "T", 300.0, mix)) {
+        Error::NotImplemented(m) => assert!(m.contains("deferred with slice 10f"), "got: {m}"),
+        other => panic!("wrong variant {other:?}"),
+    }
+}

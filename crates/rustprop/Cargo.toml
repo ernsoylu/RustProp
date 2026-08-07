@@ -22,6 +22,9 @@ rustprop-humid-air = { workspace = true, optional = true }
 [features]
 default = []
 heos = ["dep:rustprop-heos", "dep:rustprop-data"]
+# Mixture support (binary-pair + departure-function tables are a separate
+# data block; apps that only need pure fluids should not carry them).
+heos-mixtures = ["heos", "rustprop-data/mixture-data"]
 cubics = ["dep:rustprop-cubics", "dep:rustprop-data", "rustprop-data/cubic-fluids"]
 if97 = ["dep:rustprop-if97"]
 incompressible = ["dep:rustprop-incompressible", "dep:rustprop-data", "rustprop-data/incompressible-fluids"]
@@ -31,6 +34,7 @@ svdsbtl = ["dep:rustprop-svdsbtl"]
 humid-air = ["dep:rustprop-humid-air", "dep:rustprop-data", "rustprop-data/water", "rustprop-data/air"]
 all-backends = [
     "heos",
+    "heos-mixtures",
     "rustprop-data/all-fluids",
     "cubics",
     "if97",

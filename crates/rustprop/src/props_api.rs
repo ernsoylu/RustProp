@@ -48,12 +48,18 @@ pub fn props_si(
     fluid_name: &str,
 ) -> Result<f64> {
     let (backend, fluid) = extract_backend(fluid_name);
-    if fluid.contains('&') {
+    if fluid.contains('&') && backend != "HEOS" && backend != "?" {
         return Err(Error::NotImplemented("mixtures are not ported yet".into()));
     }
     match backend {
         "IF97" => if97_route(output, name1, prop1, name2, prop2, fluid),
-        "HEOS" | "?" => heos_route(output, name1, prop1, name2, prop2, fluid),
+        "HEOS" | "?" => {
+            if (fluid.contains('[') && fluid.contains(']')) || fluid.contains('&') {
+                heos_mixture_entry(output, name1, prop1, name2, prop2, fluid)
+            } else {
+                heos_route(output, name1, prop1, name2, prop2, fluid)
+            }
+        }
         "SRK" => cubic_route(
             CubicRouteKind::Srk,
             output,
@@ -943,6 +949,367 @@ fn incomp_route(
         other => {
             return Err(Error::NotImplemented(format!(
                 "output parameter {} is not ported for the INCOMP backend yet",
+                other.short_name()
+            )));
+        }
+    })
+}
+
+// ---------------------------------------------------------------------------
+// HEOS mixture route (upstream extract_fractions + HelmholtzEOSMixtureBackend)
+// ---------------------------------------------------------------------------
+
+/// Upstream `extract_fractions`, mole-fraction branch: split on `&`, each
+/// entry `Name[frac]`; fractions outside [0,1] and unparseable fractions
+/// throw verbatim; components at or below `10 * DBL_EPSILON` are silently
+/// dropped (unless the string names a single fluid).
+#[cfg(feature = "heos-mixtures")]
+fn extract_mole_fractions(fluid_string: &str) -> Result<(Vec<&str>, Vec<f64>)> {
+    let mut names = Vec::new();
+    let mut fractions = Vec::new();
+    let pairs: Vec<&str> = fluid_string.split('&').collect();
+    for entry in &pairs {
+        if !entry.ends_with(']') {
+            return Err(Error::Value(format!(
+                "Fluid entry [{entry}] must end with ']' character"
+            )));
+        }
+        let body = &entry[..entry.len() - 1];
+        let mut parts = body.split('[');
+        let (name, fraction) = match (parts.next(), parts.next(), parts.next()) {
+            (Some(n), Some(f), None) => (n, f),
+            _ => {
+                return Err(Error::Value(format!(
+                    "Could not break [{body}] into name/fraction"
+                )));
+            }
+        };
+        let f: f64 = fraction
+            .parse()
+            .map_err(|_| Error::Value(format!("fraction [{fraction}] was not converted fully")))?;
+        if f > 1.0 || f < 0.0 {
+            return Err(Error::Value(format!(
+                "fraction [{fraction}] was not converted to a value between 0 and 1 inclusive"
+            )));
+        }
+        if f > 10.0 * f64::EPSILON || pairs.len() == 1 {
+            fractions.push(f);
+            names.push(name);
+        }
+    }
+    Ok((names, fractions))
+}
+
+/// Entry point for HEOS fluid strings containing `&` or `[...]`: parse the
+/// composition, collapse to the pure route when a single component remains.
+#[cfg(feature = "heos-mixtures")]
+fn heos_mixture_entry(
+    output: &str,
+    name1: &str,
+    prop1: f64,
+    name2: &str,
+    prop2: f64,
+    fluid: &str,
+) -> Result<f64> {
+    let (names, fractions) = if fluid.contains('[') && fluid.contains(']') {
+        extract_mole_fractions(fluid)?
+    } else {
+        // `A&B` without fractions: upstream's default fractions vector [1.0]
+        // fails the set_mole_fractions size check inside factory init.
+        let names: Vec<&str> = fluid.split('&').collect();
+        if names.len() > 1 {
+            return Err(Error::Value(format!(
+                "Initialize failed for backend: \"HEOS\", fluid: \"{fluid}\" fractions \"[ 1.0000000000 ]\"; error: size of mole fraction vector [1] does not equal that of component vector [{}]",
+                names.len()
+            )));
+        }
+        (names, vec![1.0])
+    };
+    if names.len() == 1 {
+        return heos_route(output, name1, prop1, name2, prop2, names[0]);
+    }
+    heos_mixture_route(output, name1, prop1, name2, prop2, &names, &fractions)
+}
+
+#[cfg(feature = "heos-mixtures")]
+use rustprop_heos::mixture::MixtureModel;
+
+/// Without the `heos-mixtures` feature, mixture strings stay a loud error
+/// (the pair/departure tables are deliberately not linked in).
+#[cfg(all(feature = "heos", not(feature = "heos-mixtures")))]
+fn heos_mixture_entry(
+    _output: &str,
+    _name1: &str,
+    _prop1: f64,
+    _name2: &str,
+    _prop2: f64,
+    _fluid: &str,
+) -> Result<f64> {
+    Err(Error::NotImplemented(
+        "the `heos-mixtures` feature is not enabled".into(),
+    ))
+}
+
+/// One cached `MixtureModel` per component set (composition-independent).
+#[cfg(feature = "heos-mixtures")]
+fn mixture_model(components: &[&'static FluidData]) -> Result<&'static MixtureModel> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static MODELS: OnceLock<Mutex<HashMap<Vec<usize>, &'static MixtureModel>>> = OnceLock::new();
+    let m = MODELS.get_or_init(|| Mutex::new(HashMap::new()));
+    let key: Vec<usize> = components
+        .iter()
+        .map(|c| std::ptr::from_ref(*c) as usize)
+        .collect();
+    let mut guard = m.lock().expect("mixture model cache poisoned");
+    if let Some(model) = guard.get(&key) {
+        return Ok(model);
+    }
+    let model = MixtureModel::new(
+        components,
+        rustprop_data::mixtures::MIX_BINARY_PAIRS,
+        rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+    )?;
+    let leaked: &'static MixtureModel = Box::leak(Box::new(model));
+    guard.insert(key, leaked);
+    Ok(leaked)
+}
+
+/// The state a mixture flash publishes (single- or two-phase).
+#[cfg(feature = "heos-mixtures")]
+enum MixState {
+    Single(rustprop_heos::mixture_flash::MixtureState),
+    Two(rustprop_heos::mixture_vle::MixtureTwoPhase),
+}
+
+#[cfg(feature = "heos-mixtures")]
+fn heos_mixture_route(
+    output: &str,
+    name1: &str,
+    prop1: f64,
+    name2: &str,
+    prop2: f64,
+    names: &[&str],
+    fractions: &[f64],
+) -> Result<f64> {
+    let components: Vec<&'static FluidData> = names
+        .iter()
+        .map(|n| resolve_fluid(n))
+        .collect::<Result<_>>()?;
+    let model = mixture_model(&components)?;
+    let z = fractions.to_vec();
+
+    let out = Param::parse(output).ok_or_else(|| {
+        Error::Value(format!(
+            "Output parameter parsing failed; error: Output string is invalid [{output}]"
+        ))
+    })?;
+    let keys = (Param::parse(name1), Param::parse(name2));
+    let pair = match keys {
+        (Some(k1), Some(k2)) => generate_update_pair(k1, prop1, k2, prop2),
+        _ => None,
+    };
+    let Some((pair, v1, v2)) = pair else {
+        if out.is_trivial() {
+            return mixture_trivial_output(model, &components, &z, out);
+        }
+        return Err(Error::Value(
+            "Input pair variable is invalid and output(s) are non-trivial; cannot do state update"
+                .into(),
+        ));
+    };
+    if out.is_trivial() {
+        return mixture_trivial_output(model, &components, &z, out);
+    }
+    let (p1, p2) = pair.split();
+    if out == p1 {
+        return Ok(v1);
+    }
+    if out == p2 {
+        return Ok(v2);
+    }
+
+    let state = mixture_update(model, &z, pair, v1, v2)?;
+    mixture_keyed_output(model, &z, &state, out)
+}
+
+/// Upstream trivial outputs for mixtures: mole-fraction-weighted limits,
+/// reducing-state values, R and M; the critical/acentric family fails with
+/// PropsSI's outer wrapper message (the underlying exceptions are
+/// mixture-unsupported upstream).
+#[cfg(feature = "heos-mixtures")]
+fn mixture_trivial_output(
+    model: &MixtureModel,
+    components: &[&'static FluidData],
+    z: &[f64],
+    out: Param,
+) -> Result<f64> {
+    let weighted = |f: &dyn Fn(&'static FluidData) -> f64| -> f64 {
+        components.iter().zip(z).map(|(c, x)| f(c) * x).sum()
+    };
+    Ok(match out {
+        Param::MolarMass => model.molar_mass(z),
+        Param::GasConstant => model.gas_constant(),
+        Param::TReducing => model.reducing.tr(z),
+        Param::RhomolarReducing => model.reducing.rhormolar(z),
+        Param::TMax => weighted(&|c| c.eos.t_max),
+        Param::TMin => weighted(&|c| c.eos.sat_min_liquid.t),
+        Param::TTriple => weighted(&|c| c.eos.sat_min_liquid.t),
+        Param::PMax => weighted(&|c| c.eos.p_max),
+        Param::PTriple => weighted(&|c| c.eos.sat_min_liquid.p),
+        Param::TCritical
+        | Param::PCritical
+        | Param::RhomolarCritical
+        | Param::RhomassCritical
+        | Param::AcentricFactor => {
+            return Err(Error::Value("No outputs were able to be calculated".into()));
+        }
+        other => {
+            return Err(Error::NotImplemented(format!(
+                "trivial output {} is not ported for mixtures",
+                other.short_name()
+            )));
+        }
+    })
+}
+
+/// Upstream `HelmholtzEOSMixtureBackend::update` for mixtures: PT/QT/PQ are
+/// ported; DP/DQ throw upstream's NotImplemented verbatim; the sweep-based
+/// pairs (DmolarT, HmolarP, ...) need the 10f stability machinery and defer
+/// loudly (upstream computes them — documented deviation until 10f).
+#[cfg(feature = "heos-mixtures")]
+fn mixture_update(
+    model: &'static MixtureModel,
+    z: &[f64],
+    pair: InputPair,
+    v1: f64,
+    v2: f64,
+) -> Result<MixState> {
+    let mm = model.molar_mass(z);
+    let (pair, v1, v2) = match pair {
+        InputPair::QmassT => (InputPair::QT, v1, v2),
+        InputPair::PQmass => (InputPair::PQ, v1, v2),
+        InputPair::DmassT => (InputPair::DmolarT, v1 / mm, v2),
+        InputPair::SmassT => (InputPair::SmolarT, v1 * mm, v2),
+        InputPair::DmassP => (InputPair::DmolarP, v1 / mm, v2),
+        InputPair::HmassP => (InputPair::HmolarP, v1 * mm, v2),
+        InputPair::PSmass => (InputPair::PSmolar, v1, v2 * mm),
+        InputPair::HmassSmass => (InputPair::HmolarSmolar, v1 * mm, v2 * mm),
+        InputPair::PUmass => (InputPair::PUmolar, v1, v2 * mm),
+        InputPair::SmassUmass => (InputPair::SmolarUmolar, v1 * mm, v2 * mm),
+        InputPair::DmolarQmass => (InputPair::DmolarQ, v1, v2),
+        InputPair::DmassQmass | InputPair::DmassQ => (InputPair::DmolarQ, v1 / mm, v2),
+        InputPair::DmassHmass => (InputPair::DmolarHmolar, v1 / mm, v2 * mm),
+        InputPair::DmassSmass => (InputPair::DmolarSmolar, v1 / mm, v2 * mm),
+        InputPair::DmassUmass => (InputPair::DmolarUmolar, v1 / mm, v2 * mm),
+        other => (other, v1, v2),
+    };
+    match pair {
+        InputPair::PT => Ok(MixState::Single(model.pt_flash(z, v2, v1)?)),
+        InputPair::QT => {
+            if !(0.0..=1.0).contains(&v1) {
+                return Err(Error::OutOfRange(
+                    "Input vapor quality [Q] must be between 0 and 1".into(),
+                ));
+            }
+            Ok(MixState::Two(model.qt_flash(v1, v2, z)?))
+        }
+        InputPair::PQ => {
+            if !(0.0..=1.0).contains(&v2) {
+                return Err(Error::OutOfRange(
+                    "Input vapor quality [Q] must be between 0 and 1".into(),
+                ));
+            }
+            Ok(MixState::Two(model.pq_flash(v1, v2, z)?))
+        }
+        InputPair::DmolarP => Err(Error::NotImplemented(
+            "DP_flash not ready for mixtures".into(),
+        )),
+        InputPair::DmolarQ => Err(Error::NotImplemented(
+            "DQ_flash not ready for mixtures".into(),
+        )),
+        InputPair::HmassT | InputPair::TUmass | InputPair::SmolarUmolar => {
+            Err(Error::Value(format!(
+                "This pair of inputs [{}] is not yet supported",
+                pair.short_desc()
+            )))
+        }
+        other => Err(Error::NotImplemented(format!(
+            "mixture input pair {} needs the stability machinery; deferred with slice 10f",
+            other.short_desc()
+        ))),
+    }
+}
+
+#[cfg(feature = "heos-mixtures")]
+fn mixture_keyed_output(
+    model: &MixtureModel,
+    z: &[f64],
+    state: &MixState,
+    out: Param,
+) -> Result<f64> {
+    let mm = model.molar_mass(z);
+    let (t, p, rhomolar, q) = match state {
+        MixState::Single(s) => (s.t, s.p, s.rhomolar, s.q),
+        MixState::Two(s) => (s.t, s.p, s.rhomolar, s.q),
+    };
+    let single_phase_rho = |what: &str| -> Result<f64> {
+        match state {
+            MixState::Single(s) => Ok(s.rhomolar),
+            MixState::Two(_) => Err(Error::Value(format!(
+                "Input is two-phase and {what} is not defined"
+            ))),
+        }
+    };
+    Ok(match out {
+        Param::T => t,
+        Param::P => p,
+        Param::Q => q,
+        Param::Dmolar => rhomolar,
+        Param::Dmass => rhomolar * mm,
+        Param::Hmolar | Param::Hmass => {
+            let h = match state {
+                MixState::Single(s) => model.hmolar(z, s.t, s.rhomolar),
+                MixState::Two(s) => s.hmolar(),
+            };
+            if out == Param::Hmass { h / mm } else { h }
+        }
+        Param::Smolar | Param::Smass => {
+            let sv = match state {
+                MixState::Single(s) => model.smolar(z, s.t, s.rhomolar),
+                MixState::Two(s) => s.smolar(),
+            };
+            if out == Param::Smass { sv / mm } else { sv }
+        }
+        Param::Umolar | Param::Umass => {
+            let u = match state {
+                MixState::Single(s) => model.umolar(z, s.t, s.rhomolar),
+                MixState::Two(s) => s.umolar(),
+            };
+            if out == Param::Umass { u / mm } else { u }
+        }
+        Param::Cpmolar => model.cpmolar(z, t, single_phase_rho("cpmolar")?),
+        Param::Cpmass => model.cpmolar(z, t, single_phase_rho("cpmass")?) / mm,
+        Param::Cvmolar => model.cvmolar(z, t, single_phase_rho("cvmolar")?),
+        Param::Cvmass => model.cvmolar(z, t, single_phase_rho("cvmass")?) / mm,
+        Param::SpeedSound => model.speed_sound(z, t, single_phase_rho("speed_sound")?),
+        Param::Gmolar => model.gibbsmolar_nocache(z, t, single_phase_rho("gibbsmolar")?),
+        Param::Gmass => model.gibbsmolar_nocache(z, t, single_phase_rho("gibbsmass")?) / mm,
+        Param::SurfaceTension => {
+            return Err(Error::NotImplemented(
+                "surface tension not implemented for mixtures".into(),
+            ));
+        }
+        Param::Viscosity | Param::Conductivity => {
+            // Upstream evaluates mixture transport through the ECS mixture
+            // models — not ported yet (documented deviation).
+            return Err(Error::NotImplemented(
+                "transport properties are not ported for mixtures yet".into(),
+            ));
+        }
+        other => {
+            return Err(Error::NotImplemented(format!(
+                "output parameter {} is not ported for mixtures",
                 other.short_name()
             )));
         }
