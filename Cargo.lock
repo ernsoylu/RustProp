@@ -107,6 +107,8 @@ name = "rustprop-humid-air"
 version = "0.1.0"
 dependencies = [
  "rustprop-core",
+ "rustprop-heos",
+ "rustprop-if97",
 ]
 
 [[package]]

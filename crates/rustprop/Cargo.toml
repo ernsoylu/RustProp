@@ -28,7 +28,7 @@ incompressible = ["dep:rustprop-incompressible", "dep:rustprop-data", "rustprop-
 pcsaft = ["dep:rustprop-pcsaft"]
 tabular = ["dep:rustprop-tabular"]
 svdsbtl = ["dep:rustprop-svdsbtl"]
-humid-air = ["dep:rustprop-humid-air"]
+humid-air = ["dep:rustprop-humid-air", "dep:rustprop-data", "rustprop-data/water", "rustprop-data/air"]
 all-backends = [
     "heos",
     "rustprop-data/all-fluids",

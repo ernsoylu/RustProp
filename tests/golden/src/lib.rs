@@ -55,6 +55,11 @@ pub struct GoldenRecord {
     pub val1: f64,
     pub name2: String,
     pub val2: f64,
+    /// Third input of the humid-air triples (absent elsewhere).
+    #[serde(default)]
+    pub name3: String,
+    #[serde(default)]
+    pub val3: f64,
     pub expected: f64,
     /// Per-record override of the suite's default relative tolerance.
     #[serde(default)]
@@ -116,6 +121,8 @@ mod tests {
             val1: 101325.0,
             name2: "Q".into(),
             val2: 0.0,
+            name3: String::new(),
+            val3: 0.0,
             expected,
             rtol,
         }

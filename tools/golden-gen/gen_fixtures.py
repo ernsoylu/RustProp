@@ -1038,6 +1038,41 @@ def gen_incompressible():
     return rows
 
 
+def gen_humid_air():
+    """Humid-air goldens (PLAN 9.1): the full output set over (T, P, x)
+    grids incl. sub-freezing ice paths, plus the T-iterating input triples
+    (P,W,H), (P,R,W), (P,Tdp,R), (P,W,Twb)."""
+    from CoolProp.CoolProp import HAPropsSI
+    rows, skipped = [], 0
+
+    def rec(out, n1, v1, n2, v2, n3, v3):
+        nonlocal skipped
+        try:
+            rows.append({"backend": "HA", "fluid": "", "out": out,
+                         "name1": n1, "val1": v1, "name2": n2, "val2": v2,
+                         "name3": n3, "val3": v3,
+                         "expected": HAPropsSI(out, n1, v1, n2, v2, n3, v3)})
+        except Exception:
+            skipped += 1
+
+    outputs = ["W", "psi_w", "Tdp", "Twb", "H", "Hha", "U", "S", "Sha",
+               "V", "Vha", "mu", "k", "cp", "cp_ha", "CV", "P_w", "Z",
+               "speed_of_sound", "isentropic_exponent"]
+    for T in [253.15, 273.15, 298.15, 333.15, 393.15]:
+        for p_ in [101325.0, 5e5, 2e6]:
+            for (n3, v3) in [("R", 0.2), ("R", 0.85), ("W", 0.005)]:
+                for out in outputs:
+                    rec(out, "T", T, "P", p_, n3, v3)
+    # Inverse triples (no T given)
+    for (n2, v2, n3, v3) in [("W", 0.01, "H", 60000.0), ("R", 0.5, "W", 0.008),
+                             ("Tdp", 285.0, "R", 0.6), ("W", 0.01, "B", 295.0),
+                             ("R", 0.4, "H", 45000.0), ("W", 0.005, "S", 150.0)]:
+        for out in ["T", "W", "R", "H", "V"]:
+            rec(out, "P", 101325.0, n2, v2, n3, v3)
+    print(f"humid air: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 PSEUDO_PURE = ["Air", "R404A", "R407C", "R410A", "R507A", "SES36"]
 
 
@@ -1270,6 +1305,7 @@ def main():
     write_jsonl("cubics.jsonl", gen_cubics())
     write_jsonl("cubic_superanc.jsonl", gen_cubic_superanc())
     write_jsonl("incompressible.jsonl", gen_incompressible())
+    write_jsonl("humid_air.jsonl", gen_humid_air())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

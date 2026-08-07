@@ -5,7 +5,8 @@ use std::process::ExitCode;
 
 const USAGE: &str = "usage: rustprop-cli props <OUT> <NAME1> <val1> <NAME2> <val2> <fluid>
 examples: rustprop-cli props T P 101325 Q 0 Water
-          rustprop-cli props H T 300 P 101325 IF97::Water";
+          rustprop-cli props H T 300 P 101325 IF97::Water
+          rustprop-cli ha H T 298.15 P 101325 R 0.5";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -29,7 +30,13 @@ fn run(args: &[String]) -> Result<f64, String> {
             let v2 = parse_value(v2)?;
             rustprop::props_si(out, n1, v1, n2, v2, fluid).map_err(|e| e.to_string())
         }
-        _ => Err("expected the props command".into()),
+        [cmd, out, n1, v1, n2, v2, n3, v3] if cmd == "ha" => {
+            let v1 = parse_value(v1)?;
+            let v2 = parse_value(v2)?;
+            let v3 = parse_value(v3)?;
+            rustprop::ha_props_si(out, n1, v1, n2, v2, n3, v3).map_err(|e| e.to_string())
+        }
+        _ => Err("expected the props or ha command".into()),
     }
 }
 

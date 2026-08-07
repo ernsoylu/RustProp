@@ -47,6 +47,30 @@ pub mod props_api;
     feature = "incompressible"
 ))]
 pub use props_api::props_si;
+
+/// Upstream `HAPropsSI` (humid air). See `rustprop_humid_air` for the
+/// deliberate-reproduction notes.
+#[cfg(feature = "humid-air")]
+#[allow(clippy::too_many_arguments)]
+pub fn ha_props_si(
+    output: &str,
+    n1: &str,
+    v1: f64,
+    n2: &str,
+    v2: f64,
+    n3: &str,
+    v3: f64,
+) -> rustprop_core::Result<f64> {
+    use std::sync::OnceLock;
+    static HA: OnceLock<rustprop_humid_air::HumidAir> = OnceLock::new();
+    let ha = HA.get_or_init(|| {
+        rustprop_humid_air::HumidAir::new(
+            &rustprop_data::fluids::water::WATER,
+            &rustprop_data::fluids::air::AIR,
+        )
+    });
+    ha.ha_props_si(output, n1, v1, n2, v2, n3, v3)
+}
 #[cfg(feature = "if97")]
 pub use rustprop_if97 as if97;
 #[cfg(feature = "incompressible")]

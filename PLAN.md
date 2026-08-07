@@ -220,11 +220,11 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 
 ## Phase 9 — Humid air
 
-- [ ] 9.1 Port the humid-air module (`HAPropsSI`) with whatever water-property dependency
+- [x] 9.1 Port the humid-air module (`HAPropsSI`) with whatever water-property dependency
       upstream actually uses (confirm in source before starting; record in Decisions log).
       → verify: `HAPropsSI` goldens over T/P/humidity grids; the ASHRAE RP-1485 example table
       values where upstream's own tests use them.
-- [ ] 9.2 CLI `ha` subcommand mirroring `HAPropsSI` argument order.
+- [x] 9.2 CLI `ha` subcommand mirroring `HAPropsSI` argument order.
       → verify: CLI e2e vs goldens.
 
 **Phase gate 9.**
@@ -966,3 +966,26 @@ Append-only; newest last. Seeded entries:
   935 goldens over 22 fluids (12 pure + 10 concentration-bearing; direct evaluations
   bit-identical, back-flashes 1e-9) + message-anchored error parity, green after one
   Horner-seed fix.
+- 2026-08-07 — Phase 9 (humid air) complete: `rustprop-humid-air` ports HAPropsSI on the
+  ASHRAE RP-1485 virial model — IAPWS-06 ice-Ih (own minimal complex arithmetic), the
+  EOS virials B_aa/C_aaa/B_ww/C_www from Air/Water alphar at delta = 1e-12, the hardcoded
+  cross-virials B_aw/C_aaw/C_aww, the enhancement factor (HEOS psat inside f_factor,
+  IF97 psat97 everywhere else — upstream's asymmetry; ice/liquid split > vs >= 273.16 per
+  function; clamp f >= 1), Henry constant (N2/O2/Ar correlation), isothermal
+  compressibility (IF97-rho + Water-EOS k_T with the 3.3e-5 saturation-adjacent
+  polynomial band), the h/s/v/u molar forms with THREE distinct gas constants (8.314472 /
+  8.314371 / 8.314510, never unified) and the hardcoded 0.028966 dry-air molar mass
+  (MM_Air only in the Tsilingiris transport mixing), lazily-computed reference offsets
+  from upstream's magic anchor states, dewpoint (wrong-side dry-air guard and
+  total-pressure Tsat seed reproduced), wet-bulb (staged Brent fallbacks), and the full
+  input-resolution tree (T-given closed forms + W-secant; no-T bracketed Brent with the
+  W > Tdp > RH priority, the (Tdp,R)/(W,R)-only two-water rule, and the out-of-range
+  residual validation). All four hand-rolled secants reproduce upstream's LOOP SHAPE
+  (iter <= 3 minimum; residual-gated for volume/entropy/dewpoint, step-gated for
+  f_factor; silent 100-iteration caps) — the vbar_a absolute-tolerance secant's
+  cap-limited iterate is bit-relevant at high pressure and caught by the goldens.
+  DELIBERATE DEVIATION (logged): upstream's HAPropsSI swallows all errors into +inf with
+  a global message; our ha_props_si returns Result with the same message texts. Facade
+  `ha_props_si` + CLI `ha` subcommand (9.2). 897 goldens (5 T x 3 p x 3 humidity grids x
+  20 outputs incl. sub-freezing ice paths + 6 inverse triples) at 1e-9/1e-8 + error
+  parity — green after the loop-shape fix; the smoke matrix matched at 1e-12 first run.
