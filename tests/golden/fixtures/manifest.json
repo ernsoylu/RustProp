@@ -95,6 +95,7 @@
     "heos_water_sat.jsonl",
     "heos_water_terms.jsonl",
     "if97_water.jsonl",
+    "incompressible.jsonl",
     "melting.jsonl",
     "param_aliases.jsonl",
     "parameters.jsonl",

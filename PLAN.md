@@ -212,7 +212,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 
 ## Phase 8 — Incompressible engine
 
-- [ ] 8.1 Datagen for `dev/incompressible_liquids/`; polynomial property evaluation (mass-based
+- [x] 8.1 Datagen for `dev/incompressible_liquids/`; polynomial property evaluation (mass-based
       and solution fluids with concentration input).
       → verify: goldens vs `INCOMP::` backend including concentration-bearing names.
 
@@ -944,3 +944,25 @@ Append-only; newest last. Seeded entries:
   cubics.jsonl grew to 1,896 (DT liquid/gas/supercritical/in-dome; the oracle's own
   two-phase caloric throws try_record-dropped) and cubic_superanc.jsonl adds 432 direct
   curve records vs the wheel's `update_QT_pure_superanc` at 1e-12 — all first-run green.
+- 2026-08-07 — Phase 8.1 (incompressible engine) complete — PHASE 8 CLOSED:
+  `rustprop-incompressible` ports upstream's `IncompressibleFluid`/`IncompressibleBackend`
+  + `Polynomial2DFrac`: 2-D Horner in (T - Tbase, x - xbase) — initialized FROM the top
+  coefficient exactly as upstream, which the trivial `T_freeze` path relies on (its p is
+  the cleared -HUGE sentinel; a zero-seeded Horner would produce NaN, caught by the smoke
+  matrix) — the T-derivative, ∫c dT, and ∫c/T dT (the `fracIntCentral` D-vector with
+  binomials for Tbase != 0), the exponential/logexponential forms with the
+  pole-linearization guard, and polyoffset with upstream's live column-vector wiring
+  (ExampleSecCool's T_freeze evaluates in p — upstream's quirk, reproduced). Model:
+  h_raw = ∫c dT + p·(1/rho)(1 + (T/rho)drho/dT), s_raw = ∫c/T dT + p·drho/dT/rho^2,
+  anchored at the HARD-CODED reference (293.15 K, 101325 Pa — upstream's per-fluid
+  reference reader is commented out); u = h - p/rho; cp = cv = c. Exactly five input
+  pairs (PT, DmassP/HmassP/PSmass via Brent [Tmin,Tmax] tol 1e3*eps maxiter 10, QT with
+  Q strictly 0); checkTPX gate order (T -> freeze -> P/psat -> X) with verbatim messages.
+  DISCOVERY: the mass2input/mole2input/volume2input conversion polynomials are 100% dead
+  code in v8 (the converters are stubs) — carried as data, never evaluated; the bracket
+  fraction is a mass fraction for xid=mass, volume for xid=volume, ignored for pure.
+  PropsSI INCOMP:: route with Name / Name[x] / Name-40% parsing and the molar-output
+  NotImplemented parity. 126 fluids datagen-emitted behind `incompressible-fluids`.
+  935 goldens over 22 fluids (12 pure + 10 concentration-bearing; direct evaluations
+  bit-identical, back-flashes 1e-9) + message-anchored error parity, green after one
+  Horner-seed fix.

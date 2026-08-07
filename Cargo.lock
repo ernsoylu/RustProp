@@ -121,6 +121,7 @@ name = "rustprop-incompressible"
 version = "0.1.0"
 dependencies = [
  "rustprop-core",
+ "rustprop-heos",
 ]
 
 [[package]]

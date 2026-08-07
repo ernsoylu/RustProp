@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 rustprop-core.workspace = true
+rustprop-heos.workspace = true
 
 [lints]
 workspace = true

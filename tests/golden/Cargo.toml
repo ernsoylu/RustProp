@@ -9,7 +9,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-rustprop = { workspace = true, features = ["if97", "heos", "cubics"] }
+rustprop = { workspace = true, features = ["if97", "heos", "cubics", "incompressible"] }
 rustprop-core.workspace = true
 rustprop-data = { workspace = true, features = [
     "cubic-fluids",

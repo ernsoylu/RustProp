@@ -33,9 +33,19 @@ pub use rustprop_heos as heos;
 pub use rustprop_humid_air as humid_air;
 #[cfg(feature = "if97")]
 pub mod if97_api;
-#[cfg(any(feature = "heos", feature = "if97", feature = "cubics"))]
+#[cfg(any(
+    feature = "heos",
+    feature = "if97",
+    feature = "cubics",
+    feature = "incompressible"
+))]
 pub mod props_api;
-#[cfg(any(feature = "heos", feature = "if97", feature = "cubics"))]
+#[cfg(any(
+    feature = "heos",
+    feature = "if97",
+    feature = "cubics",
+    feature = "incompressible"
+))]
 pub use props_api::props_si;
 #[cfg(feature = "if97")]
 pub use rustprop_if97 as if97;

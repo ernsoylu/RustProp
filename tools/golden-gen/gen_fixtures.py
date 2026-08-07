@@ -989,6 +989,55 @@ def gen_cubic_superanc():
     return rows
 
 
+INCOMP_PURE = ["DowQ", "DowJ", "Water", "TVP1", "T72", "HC10", "AS10",
+               "PMS1", "NaK", "DEB", "FoodWater", "TCO"]
+INCOMP_SOLUTIONS = ["MEG[0.3]", "MEG[0.5]", "MPG[0.4]", "LiBr[0.3]", "MAM[0.2]",
+                    "MKC[0.3]", "AEG[0.25]", "VNA[0.4]", "MNA[0.2]", "ZM[0.5]"]
+
+
+def gen_incompressible():
+    """Incompressible goldens (PLAN 8.1): PT states across the range plus
+    the DmassP/HmassP/PSmass back-flashes and QT (Q=0, psat) for pure and
+    concentration-bearing fluids; trivials; V/L where defined."""
+    rows, skipped = [], 0
+    for fluid in INCOMP_PURE + INCOMP_SOLUTIONS:
+        bf = f"INCOMP::{fluid}"
+        tmin = PropsSI("Tmin", "", 0, "", 0, bf)
+        tmax = PropsSI("Tmax", "", 0, "", 0, bf)
+
+        def TL(f_):
+            return tmin + f_ * (tmax - tmin)
+
+        def rec(out, n1, v1, n2, v2):
+            nonlocal skipped
+            r = try_record(out, n1, v1, n2, v2, "INCOMP", fluid)
+            rows.append(r) if r else (skipped := skipped + 1)
+
+        rec("Tmin", "", 0.0, "", 0.0)
+        rec("Tmax", "", 0.0, "", 0.0)
+        rec("T_freeze", "", 0.0, "", 0.0)
+        for x in [0.15, 0.5, 0.85]:
+            T = TL(x)
+            for p_ in [1e5, 5e5]:
+                for out in ["D", "H", "S", "U", "C", "V", "L", "Prandtl"]:
+                    rec(out, "T", T, "P", p_)
+            # Back-flashes from the state's own values
+            try:
+                h = PropsSI("H", "T", T, "P", 1e5, bf)
+                s_ = PropsSI("S", "T", T, "P", 1e5, bf)
+                d = PropsSI("D", "T", T, "P", 1e5, bf)
+                rec("T", "H", h, "P", 1e5)
+                rec("T", "P", 1e5, "S", s_)
+                rec("T", "D", d, "P", 1e5)
+            except ValueError:
+                skipped += 3
+        # Saturated liquid (works only where a psat curve exists and
+        # T > TminPsat).
+        rec("P", "T", TL(0.9), "Q", 0.0)
+    print(f"incompressible: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
 PSEUDO_PURE = ["Air", "R404A", "R407C", "R410A", "R507A", "SES36"]
 
 
@@ -1220,6 +1269,7 @@ def main():
     write_jsonl("pseudo_pure.jsonl", gen_pseudo_pure())
     write_jsonl("cubics.jsonl", gen_cubics())
     write_jsonl("cubic_superanc.jsonl", gen_cubic_superanc())
+    write_jsonl("incompressible.jsonl", gen_incompressible())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

@@ -881,3 +881,72 @@ pub struct CubicFluid {
     /// fluid library (upstream shares `parse_alpha0`).
     pub alpha0: &'static [Alpha0Term],
 }
+
+/// One property block of an incompressible fluid (upstream
+/// `IncompressibleData`): the five coefficient forms plus the explicit
+/// "notdefined" absence every document spells out.
+pub enum IncompData {
+    /// `polynomial` — 2-D matrix, rows = T powers, cols = x powers.
+    Polynomial(&'static [&'static [f64]]),
+    /// `exppolynomial` — `exp(polynomial)`.
+    ExpPolynomial(&'static [&'static [f64]]),
+    /// `exponential` — 3 coefficients.
+    Exponential(&'static [f64]),
+    /// `logexponential` — 3 coefficients.
+    LogExponential(&'static [f64]),
+    /// `polyoffset` — 1-D vector, first entry the centering value.
+    PolyOffset(&'static [f64]),
+    /// `notdefined` (or an unknown non-vital tag).
+    NotSet,
+}
+
+/// The concentration basis of an incompressible fluid (upstream `xid`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum IncompFrac {
+    Pure,
+    Mass,
+    Volume,
+}
+
+/// One incompressible fluid (upstream `IncompressibleFluid`, loaded from
+/// `dev/incompressible_liquids/json`). The dead-in-v8 `mass2input`/
+/// `mole2input`/`volume2input` conversion polynomials are carried for
+/// data fidelity but never evaluated (upstream's converters are stubs).
+pub struct IncompFluid {
+    /// `.name`
+    pub name: &'static str,
+    /// `.Tmin` [K]
+    pub tmin: f64,
+    /// `.Tmax` [K]
+    pub tmax: f64,
+    /// `.xmin`
+    pub xmin: f64,
+    /// `.xmax`
+    pub xmax: f64,
+    /// `.xid`
+    pub xid: IncompFrac,
+    /// `.TminPsat` [K]
+    pub tmin_psat: f64,
+    /// `.Tbase` [K]
+    pub tbase: f64,
+    /// `.xbase`
+    pub xbase: f64,
+    /// `.density` (vital)
+    pub density: IncompData,
+    /// `.specific_heat` (vital)
+    pub specific_heat: IncompData,
+    /// `.conductivity`
+    pub conductivity: IncompData,
+    /// `.viscosity`
+    pub viscosity: IncompData,
+    /// `.saturation_pressure`
+    pub saturation_pressure: IncompData,
+    /// `.T_freeze`
+    pub t_freeze: IncompData,
+    /// `.mass2input` (dead in v8)
+    pub mass2input: IncompData,
+    /// `.mole2input` (dead in v8)
+    pub mole2input: IncompData,
+    /// `.volume2input` (dead in v8)
+    pub volume2input: IncompData,
+}

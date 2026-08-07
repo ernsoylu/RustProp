@@ -13,3 +13,6 @@ pub mod fluids;
 
 #[cfg(feature = "cubic-fluids")]
 pub mod cubics;
+
+#[cfg(feature = "incompressible-fluids")]
+pub mod incompressible;

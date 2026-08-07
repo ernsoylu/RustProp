@@ -72,6 +72,7 @@ pub fn props_si(
             prop2,
             fluid,
         ),
+        "INCOMP" => incomp_route(output, name1, prop1, name2, prop2, fluid),
         other => Err(Error::Value(format!(
             "Invalid backend name [{other}] to factory function"
         ))),
@@ -740,6 +741,208 @@ fn cubic_route(
         other => {
             return Err(Error::NotImplemented(format!(
                 "output parameter {} is not ported for the cubic backends yet",
+                other.short_name()
+            )));
+        }
+    })
+}
+
+#[cfg(not(feature = "incompressible"))]
+fn incomp_route(_: &str, _: &str, _: f64, _: &str, _: f64, _: &str) -> Result<f64> {
+    Err(Error::NotImplemented(
+        "the `incompressible` feature is not enabled".into(),
+    ))
+}
+
+/// PropsSI route for `INCOMP::` (upstream `IncompressibleBackend`):
+/// `Name`, `Name[x]` (bracket fraction), and `Name-40%` (percent) forms;
+/// five input pairs; mass-based outputs only.
+#[cfg(feature = "incompressible")]
+fn incomp_route(
+    output: &str,
+    name1: &str,
+    prop1: f64,
+    name2: &str,
+    prop2: f64,
+    fluid: &str,
+) -> Result<f64> {
+    use rustprop_incompressible::IncompEos;
+
+    // Upstream `extract_fractions`: bracket syntax first, then the
+    // percent/dash form (which requires BOTH '-' and '%').
+    let (name, mut x, had_fraction) = if fluid.contains('[') && fluid.contains(']') {
+        let inner = fluid.strip_suffix(']').ok_or_else(|| {
+            Error::Value(format!("Fluid entry [{fluid}] must end with ']' character"))
+        })?;
+        let (name, fraction) = inner
+            .split_once('[')
+            .ok_or_else(|| Error::Value(format!("Could not break [{inner}] into name/fraction")))?;
+        let f: f64 = fraction
+            .parse()
+            .map_err(|_| Error::Value(format!("fraction [{fraction}] was not converted fully")))?;
+        if !(0.0..=1.0).contains(&f) {
+            return Err(Error::Value(format!(
+                "fraction [{fraction}] was not converted to a value between 0 and 1 inclusive"
+            )));
+        }
+        (name.to_string(), f, true)
+    } else if fluid.contains('-') && fluid.contains('%') {
+        let parts: Vec<&str> = fluid.split('-').collect();
+        if parts.len() != 2 {
+            return Err(Error::Value(format!(
+                "Format of incompressible solution string [{fluid}] is invalid, should be like \"EG-20%\" or \"EG-0.2\" "
+            )));
+        }
+        let frac = parts[1];
+        let (num, pct) = match frac.strip_suffix('%') {
+            Some(n) => (n, true),
+            None => (frac, false),
+        };
+        let mut f: f64 = num
+            .parse()
+            .map_err(|_| Error::Value(format!("fraction [{frac}] was not converted fully")))?;
+        if pct {
+            f *= 0.01;
+        }
+        (parts[0].to_string(), f, true)
+    } else {
+        (fluid.to_string(), 1.0, false)
+    };
+
+    let data = rustprop_data::incompressible::INCOMP_FLUIDS
+        .iter()
+        .find(|f| f.name == name)
+        .ok_or_else(|| {
+            Error::Value(format!(
+                "key [{name}] was not found in string_to_index_map in JSONIncompressibleLibrary"
+            ))
+        })?;
+    let eos = IncompEos::new(data);
+
+    // Upstream fraction setters: pure fluids force x = 1.0 silently; the
+    // PropsSI default (no bracket) is also 1.0.
+    use rustprop_core::fluid::IncompFrac;
+    if data.xid == IncompFrac::Pure {
+        x = 1.0;
+    }
+    let _ = had_fraction;
+
+    let out = Param::parse(output).ok_or_else(|| {
+        Error::Value(format!(
+            "Output parameter parsing failed; error: Output string is invalid [{output}]"
+        ))
+    })?;
+
+    // Trivial outputs (no state update).
+    match out {
+        Param::TMin => return Ok(data.tmin),
+        Param::TMax => return Ok(data.tmax),
+        Param::FractionMin => return Ok(data.xmin),
+        Param::FractionMax => return Ok(data.xmax),
+        Param::TFreeze => {
+            eos.check_x(x)?;
+            // Trivial output: upstream never runs update(), so _p is the
+            // cleared sentinel (-HUGE) — inert for every poly/exppoly fit
+            // (single row) and for the exponential forms (x-based).
+            return eos.t_freeze(f64::NEG_INFINITY, x);
+        }
+        _ => {}
+    }
+
+    // Molar outputs are not defined for the mass-based INCOMP backend.
+    let molar_err = |what: &str, use_instead: &str| -> Error {
+        Error::NotImplemented(format!(
+            "{what} is not defined for the INCOMP backend; use {use_instead} instead."
+        ))
+    };
+    match out {
+        Param::MolarMass => {
+            return Err(Error::NotImplemented(
+                "Molar mass is not defined for the INCOMP (incompressible) backend; INCOMP fluids are mass-based."
+                    .into(),
+            ));
+        }
+        Param::Dmolar => return Err(molar_err("Dmolar / rhomolar", "Dmass / rhomass")),
+        Param::Hmolar => return Err(molar_err("Hmolar / hmolar", "Hmass / hmass")),
+        Param::Smolar => return Err(molar_err("Smolar / smolar", "Smass / smass")),
+        Param::Umolar => return Err(molar_err("Umolar / umolar", "Umass / umass")),
+        Param::Cpmolar => return Err(molar_err("Cpmolar / cpmolar", "Cpmass / cpmass")),
+        Param::Cvmolar => return Err(molar_err("Cvmolar / cvmolar", "Cvmass / cvmass")),
+        _ => {}
+    }
+
+    let keys = (Param::parse(name1), Param::parse(name2));
+    let pair = match keys {
+        (Some(k1), Some(k2)) => generate_update_pair(k1, prop1, k2, prop2),
+        _ => None,
+    };
+    let Some((pair, v1, v2)) = pair else {
+        return Err(Error::Value(
+            "Input pair variable is invalid and output(s) are non-trivial; cannot do state update"
+                .into(),
+        ));
+    };
+
+    // Composition gates (upstream update()).
+    if data.xid == IncompFrac::Pure {
+        // x forced to 1.0 above; always valid.
+    } else if !(0.0..=1.0).contains(&x) {
+        return Err(Error::Value(format!(
+            "{} is a solution or brine. Mass fractions must be set to a vector with one entry between 0 and 1. [{x}] is not valid.",
+            data.name
+        )));
+    }
+
+    // The five supported pairs.
+    let (t, p) = match pair {
+        InputPair::PT => (v2, v1),
+        InputPair::DmassP => (eos.t_from_rho(v1, x)?, v2),
+        InputPair::PSmass => (eos.t_from_smass(v2, v1, x)?, v1),
+        InputPair::HmassP => (eos.t_from_hmass(v1, v2, x)?, v2),
+        InputPair::QT => {
+            if v1 != 0.0 {
+                return Err(Error::Value(
+                    "Incompressible fluids can only handle saturated liquid, Q=0.".into(),
+                ));
+            }
+            (v2, eos.psat(v2, x)?)
+        }
+        other => {
+            return Err(Error::Value(format!(
+                "This pair of inputs [{}] is not yet supported",
+                other.short_desc()
+            )));
+        }
+    };
+    if p < 0.0 {
+        return Err(Error::Value("p is less than zero".into()));
+    }
+    if !p.is_finite() {
+        return Err(Error::Value("p is not a valid number".into()));
+    }
+    if t < 0.0 {
+        return Err(Error::Value("T is less than zero".into()));
+    }
+    if !t.is_finite() {
+        return Err(Error::Value("T is not a valid number".into()));
+    }
+    eos.check_tpx(t, p, x)?;
+
+    Ok(match out {
+        Param::T => t,
+        Param::P => p,
+        Param::Dmass => eos.rho(t, x)?,
+        Param::Hmass => eos.hmass(t, p, x)?,
+        Param::Smass => eos.smass(t, p, x)?,
+        Param::Umass => eos.umass(t, p, x)?,
+        Param::Cpmass | Param::Cvmass => eos.c(t, x)?,
+        Param::Viscosity => eos.visc(t, x)?,
+        Param::Conductivity => eos.cond(t, x)?,
+        Param::Prandtl => eos.c(t, x)? * eos.visc(t, x)? / eos.cond(t, x)?,
+        Param::Phase => f64::from(rustprop_core::params::Phase::Liquid.index()),
+        other => {
+            return Err(Error::NotImplemented(format!(
+                "output parameter {} is not ported for the INCOMP backend yet",
                 other.short_name()
             )));
         }
