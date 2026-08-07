@@ -53,3 +53,18 @@ pub extern "C" fn probe_cubics(t: f64, p: f64) -> f64 {
     }
     acc
 }
+
+/// Exercises the incompressible engine across the whole table.
+#[cfg(feature = "incompressible")]
+#[unsafe(no_mangle)]
+pub extern "C" fn probe_incomp(t: f64, p: f64) -> f64 {
+    rustprop::props_si("D", "T", t, "P", p, "INCOMP::DowQ").unwrap_or(f64::NAN)
+        + rustprop::props_si("H", "T", t, "P", p, "INCOMP::MEG[0.4]").unwrap_or(f64::NAN)
+}
+
+/// Exercises the humid-air engine (pulls HEOS Water + Air + IF97).
+#[cfg(feature = "humid-air")]
+#[unsafe(no_mangle)]
+pub extern "C" fn probe_ha(t: f64, p: f64) -> f64 {
+    rustprop::ha_props_si("H", "T", t, "P", p, "R", 0.5).unwrap_or(f64::NAN)
+}

@@ -24,7 +24,9 @@ heos-data = ["rustprop/heos", "dep:rustprop-heos", "dep:rustprop-data"]
 heos-water = ["heos-data", "rustprop-data/water"]
 heos-all-fluids = ["heos-data", "rustprop-data/all-fluids"]
 cubics = ["rustprop/cubics"]
-all-backends = ["if97", "rustprop/all-backends"]
+incompressible = ["rustprop/incompressible"]
+humid-air = ["rustprop/humid-air"]
+all-backends = ["if97", "heos-all-fluids", "cubics", "incompressible", "humid-air", "rustprop/all-backends"]
 
 [lints]
 workspace = true
