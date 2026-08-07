@@ -1011,6 +1011,22 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 11 slice 11c part 1 (fugacity coefficients + density
+  solver): calc_fugacity_coefficients ports the composition-derivative layer
+  of every term family (dahs/dghsii/dadisp with the a/b composition
+  derivatives, the polar dA2_dx/dA3_dx i==j/i==k case split, association
+  dXAdx via the dense solve, ion mu with the summ1/summ2 ratio) and the
+  mu -> exp(mu - ln Z) assembly; solver_rho_Tp ports the two-grid
+  reduced-density bracket scan (log 1e-8..1e-1 nu + linear 0.1..0.7405, 20
+  points each, state-mutating probes), per-bracket Brent (the verified heos
+  Brent port, threaded through the mutating residual), the liquid=last /
+  gas=first bracket pick, minimum-Gibbs multi-root selection on the (T,P)
+  basis (-ln Z conversion), and the 0-bracket best-|error| fallback that can
+  return a non-root (upstream quirk). Verified: liquid TOLUENE 1 ulp, gas
+  PROPANE bitwise vs the wheel's imposed-phase states. Remaining for 11c
+  part 2: estimate_flash_p/t, outerTQ/outerPQ (inside-out flashes),
+  flash_QT/flash_PQ sweeps, update()/phase determination, PropsSI routing +
+  goldens.
 - 2026-08-07 — Phase 11 slice 11b (PC-SAFT EOS kernels):
   `rustprop-pcsaft` ports calc_alphar / calc_dadt /
   calc_compressibility_factor and the residual caloric assemblies (hres Eq.

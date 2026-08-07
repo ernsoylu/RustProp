@@ -117,8 +117,11 @@ best-effort and put 1-ulp errors into ~140 generated files (now corrected).
 11b EOS kernels done: alphar/dadt/Z +
 residual h/s/g over all five term families (shared Prep, per-kernel XA
 tolerances 1e-15/1e-14, quirks documented) — 80 goldens, calorics bitwise.
-Next: 11c density solver + QT/PQ flashes + fugacity coefficients + PropsSI
-routing (survey in scratchpad).
+11c part 1 done: fugacity coefficients
++ solver_rho_Tp (two-grid bracket scan + Brent + min-Gibbs root pick) —
+TOLUENE 1 ulp / PROPANE bitwise. Next: 11c part 2 — estimate_flash_p/t,
+outerTQ/outerPQ inside-out flashes, flash_QT/PQ sweeps, update()/phase
+determination, PropsSI routing + goldens (survey in scratchpad).
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
