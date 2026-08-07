@@ -124,7 +124,13 @@ shipped the inside-out QT/PQ flashes (kb-shadowing quirk, _HUGE=+inf clear
 semantics), PT/DT phase determination, and the PropsSI PCSAFT route — 164
 flash goldens at 1e-7 (TOLUENE PQ 6e-15, NaCl(aq) VLE 1.2e-9). Documented
 deviation: WATER PT/DT errors loudly where upstream returns sigma-sentinel
-garbage. Next: Phase 12 Tabular (TTSE/bicubic).
+garbage. Phase 12 started: 12a done — the
+generic (T,rho) partial-derivative machinery (`rustprop_heos::derivs`:
+get_dT_drho + second derivatives + the Jacobian-ratio first/second
+partial_deriv) that the Tabular grid build calls at every node; 207 goldens
+vs the wheel's own d(X)/d(Y)|Z strings (firsts 1e-9, seconds 1e-8).
+Next: 12b table construction (LogPH/LogPT 200x200 grids + saturation table),
+12c TTSE eval, 12d bicubic, 12e inversion + PropsSI routing.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

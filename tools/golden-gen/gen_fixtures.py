@@ -1113,6 +1113,54 @@ def gen_pcsaft_flash():
     return rows
 
 
+def gen_partial_derivs():
+    """Phase 12 slice 12a: the generic (T,rho)-basis partial derivatives —
+    upstream first_partial_deriv / second_partial_deriv, which the Tabular
+    table build consumes. Probed through PropsSI derivative strings at
+    single-phase states. name3/val3 carry nothing here."""
+    rows, skipped = [], 0
+    # (Of, Wrt, Constant) triples the LogPH / LogPT table builds use, plus
+    # the common thermodynamic ones.
+    firsts = [
+        ("T", "Hmolar", "P"), ("T", "P", "Hmolar"),
+        ("P", "Hmolar", "P"), ("Dmolar", "Hmolar", "P"), ("Dmolar", "P", "Hmolar"),
+        ("Hmolar", "T", "P"), ("Hmolar", "P", "T"),
+        ("Smolar", "T", "P"), ("Smolar", "P", "T"),
+        ("Umolar", "T", "P"), ("Umolar", "P", "T"),
+        ("Dmolar", "T", "P"), ("Dmolar", "P", "T"),
+        ("P", "T", "Dmolar"), ("P", "Dmolar", "T"),
+    ]
+    seconds = [
+        ("T", "Hmolar", "P", "Hmolar", "P"),
+        ("T", "Hmolar", "P", "P", "Hmolar"),
+        ("T", "P", "Hmolar", "P", "Hmolar"),
+        ("Dmolar", "Hmolar", "P", "Hmolar", "P"),
+        ("Dmolar", "P", "Hmolar", "P", "Hmolar"),
+        ("Smolar", "T", "P", "T", "P"),
+        ("Hmolar", "T", "P", "T", "P"),
+        ("P", "Dmolar", "T", "Dmolar", "T"),
+    ]
+    for fluid in ["Water", "n-Propane", "CarbonDioxide"]:
+        hf = f"HEOS::{fluid}"
+        Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
+        Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
+        t_liq = Tt + 0.4 * (Tc - Tt)
+        p_liq = 3.0 * PropsSI("P", "T", t_liq, "Q", 0, hf)
+        t_gas = Tt + 0.85 * (Tc - Tt)
+        p_gas = 0.4 * PropsSI("P", "T", t_gas, "Q", 1, hf)
+        for (t, p) in [(t_liq, p_liq), (t_gas, p_gas), (1.3 * Tc, 5e6)]:
+            for (of, wrt, const) in firsts:
+                out = f"d({of})/d({wrt})|{const}"
+                r = try_record(out, "T", t, "P", p, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+            for (of, w1, c1, w2, c2) in seconds:
+                out = f"d(d({of})/d({w1})|{c1})/d({w2})|{c2}"
+                r = try_record(out, "T", t, "P", p, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+    print(f"partial derivs: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1782,6 +1830,7 @@ def main():
     write_jsonl("mixture_sweep.jsonl", gen_mixture_sweep())
     write_jsonl("pcsaft_terms.jsonl", gen_pcsaft_terms())
     write_jsonl("pcsaft_flash.jsonl", gen_pcsaft_flash())
+    write_jsonl("partial_derivs.jsonl", gen_partial_derivs())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

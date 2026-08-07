@@ -1012,6 +1012,26 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 12 slice 12a (generic partial derivatives): the
+  Tabular table build calls `first_partial_deriv(iT, xkey, ykey)` /
+  `second_partial_deriv(...)` for every grid node, so the (T, rho)-basis
+  derivative machinery is a hard prerequisite and lands first.
+  `rustprop_heos::derivs` ports `get_dT_drho` (T, P, Dmolar/Dmass,
+  Hmolar/Hmass, Smolar/Smass, Umolar/Umass, Gmolar/Gmass, Tau, Delta — every
+  case the tables consume, including upstream's Gmolar drho quirk that adds
+  dalphar_dDelta TWICE, reproduced verbatim), `get_dT_drho_second_derivatives`
+  (upstream itself only supports T/D/Tau/Delta/P/H/S/U — exactly the table
+  set), and the Jacobian-ratio assemblies `calc_first_partial_deriv` /
+  `calc_second_partial_deriv` (numerator/denominator N,D with their rho- and
+  T-partials). Upstream's Cvmolar/Cpmolar/speed_sound `get_dT_drho` cases are
+  reachable only through PropsSI derivative-output STRINGS, which are not
+  ported — they error loudly and are noted in the module doc. Verified: 207
+  goldens over three fluids at liquid/gas/supercritical states, probed
+  through the wheel's own `d(X)/d(Y)|Z` and `d(d(X)/d(Y)|Z)/d(W)|V` outputs —
+  first derivatives at 1e-9, second at 1e-8 (both sides consume the PT
+  flash's density, whose ~1e-9 convergence the second derivative
+  differentiates once more; compressed-liquid CO2 d2(Smolar)/dT2|P observes
+  2.4e-9). The formulas themselves are bitwise.
 - 2026-08-07 — Phase 11 slice 11c part 2 (flashes + PropsSI; completes
   Phase 11): estimate_flash_p/t (Raoult-seeded log-log extrapolation with the
   2e5-Pa density-collision bumps; the water sigma/dielc block sits OUTSIDE
