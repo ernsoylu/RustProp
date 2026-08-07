@@ -1013,6 +1013,57 @@ def gen_mixture_sweep():
     return rows
 
 
+def gen_pcsaft_terms():
+    """Phase 11 slice 11b: PC-SAFT kernel values (alphar, Z via P,
+    Hmolar_residual, Smolar_residual, Gmolar_residual) at fixed (Dmolar, T)
+    with the phase imposed (the wheel's DmolarT phase determination runs
+    fragile TQ flashes). Fluid coverage: plain, polar, associating, water
+    (runtime sigma), ion system, and a kij mixture."""
+    cases = [
+        ("TOLUENE", None, [(9033.114359706229, 320.0), (39.44490805826904, 325.0), (8983.377722763931, 325.0)]),
+        ("PROPANE", None, [(13000.0, 250.0), (100.0, 300.0)]),
+        ("ACETONE", None, [(12000.0, 300.0), (200.0, 350.0)]),
+        ("METHANOL", None, [(24000.0, 300.0), (500.0, 400.0)]),
+        ("WATER", None, [(50000.0, 300.0), (1000.0, 400.0)]),
+        ("METHANOL&CYCLOHEXANE", [0.3, 0.7], [(9000.0, 320.0), (300.0, 350.0)]),
+        ("METHANE&N-BUTANE", [0.6, 0.4], [(15000.0, 200.0), (400.0, 300.0)]),
+        ("Na+&Cl-&WATER", [0.0907304774758426, 0.0907304774758426, 0.818539045048315],
+         [(50000.0, 298.15)]),
+    ]
+    outs = ["P", "alphar", "Hmolar_residual", "Smolar_residual", "Gmolar_residual"]
+    rows, skipped = [], 0
+    for names, x, states in cases:
+        AS = CP.AbstractState("PCSAFT", names)
+        if x is not None:
+            AS.set_mole_fractions(x)
+        AS.specify_phase(CP.iphase_liquid)
+        for rho, t in states:
+            try:
+                AS.update(CP.DmolarT_INPUTS, rho, t)
+                vals = [("P", AS.p()), ("alphar", AS.alphar()),
+                        ("Hmolar_residual", AS.hmolar_residual()),
+                        ("Smolar_residual", AS.smolar_residual()),
+                        ("Gmolar_residual", AS.gibbsmolar_residual())]
+            except Exception:
+                skipped += 1
+                continue
+            x1 = x[0] if x is not None else 1.0
+            for out, val in vals:
+                r = {
+                    "backend": "PCSAFT", "fluid": names, "out": out,
+                    "name1": "Dmolar", "val1": rho, "name2": "T", "val2": t,
+                    "name3": "x1", "val3": x1,
+                    "expected": val,
+                }
+                if out == "P":
+                    # P = Z*kb*T*den amplifies Z's cancellation by ~1/Z
+                    # (liquid Z ~ 1e-3 from O(10) terms).
+                    r["rtol"] = 1e-9
+                rows.append(r)
+    print(f"pcsaft terms: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1680,6 +1731,7 @@ def main():
     write_jsonl("mixture_predefined.jsonl", gen_mixture_predefined())
     write_jsonl("mixture_pt_twophase.jsonl", gen_mixture_pt_twophase())
     write_jsonl("mixture_sweep.jsonl", gen_mixture_sweep())
+    write_jsonl("pcsaft_terms.jsonl", gen_pcsaft_terms())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

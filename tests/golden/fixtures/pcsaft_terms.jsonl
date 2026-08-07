@@ -1,0 +1,80 @@
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "P", "name1": "Dmolar", "val1": 9033.11435970623, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 1.0, "expected": 101324.99999982133, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "alphar", "name1": "Dmolar", "val1": 9033.11435970623, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 1.0, "expected": -6.7181639656670225}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 9033.11435970623, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 1.0, "expected": -37063.854751584826}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 9033.11435970623, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 1.0, "expected": -51.68721364281312}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 9033.11435970623, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 1.0, "expected": -20523.94638588463}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "P", "name1": "Dmolar", "val1": 39.44490805826904, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": 101324.98871089125, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "alphar", "name1": "Dmolar", "val1": 39.44490805826904, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -0.04960504146394054}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 39.44490805826904, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -362.6834127836748}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 39.44490805826904, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -0.29296196872492897}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 39.44490805826904, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -267.47077294807286}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "P", "name1": "Dmolar", "val1": 8983.377722763931, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": 101312.81714649848, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "alphar", "name1": "Dmolar", "val1": 8983.377722763931, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -6.514520665046666}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 8983.377722763931, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -36809.976659310305}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 8983.377722763931, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -50.81696643159278}
+{"backend": "PCSAFT", "fluid": "TOLUENE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 8983.377722763931, "name2": "T", "val2": 325.0, "name3": "x1", "val3": 1.0, "expected": -20294.462569042647}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "P", "name1": "Dmolar", "val1": 13000.0, "name2": "T", "val2": 250.0, "name3": "x1", "val3": 1.0, "expected": 11342014.1718288, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "alphar", "name1": "Dmolar", "val1": 13000.0, "name2": "T", "val2": 250.0, "name3": "x1", "val3": 1.0, "expected": -3.876254146675315}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 13000.0, "name2": "T", "val2": 250.0, "name3": "x1", "val3": 1.0, "expected": -17863.840111259415}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 13000.0, "name2": "T", "val2": 250.0, "name3": "x1", "val3": 1.0, "expected": -34.401778140299875}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 13000.0, "name2": "T", "val2": 250.0, "name3": "x1", "val3": 1.0, "expected": -9263.395576184443}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "P", "name1": "Dmolar", "val1": 100.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": 240284.51430877633, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "alphar", "name1": "Dmolar", "val1": 100.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -0.03686537079200342}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 100.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -256.17361931013596}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 100.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -0.24241750915195173}
+{"backend": "PCSAFT", "fluid": "PROPANE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 100.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -183.44836656455038}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "P", "name1": "Dmolar", "val1": 12000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -53232655.91012414, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "alphar", "name1": "Dmolar", "val1": 12000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -5.7153420617642405}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 12000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -33324.489352038356}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 12000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -40.46032176888694}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 12000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -21186.39282137228}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "P", "name1": "Dmolar", "val1": 200.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 1.0, "expected": 508354.1925545472, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "alphar", "name1": "Dmolar", "val1": 200.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 1.0, "expected": -0.1289105860929508}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 200.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 1.0, "expected": -1050.7326340675354}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 200.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 1.0, "expected": -0.8780111236648984}
+{"backend": "PCSAFT", "fluid": "ACETONE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 200.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 1.0, "expected": -743.4287407848209}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "P", "name1": "Dmolar", "val1": 24000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -16333098.796221068, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "alphar", "name1": "Dmolar", "val1": 24000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -7.183258619297895}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 24000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -37608.51201103966}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "Smolar_residual", "name1": "Dmolar", "val1": 24000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -55.05382287471329}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 24000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -21092.365148625668}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "P", "name1": "Dmolar", "val1": 500.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": 1147480.796934563, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "alphar", "name1": "Dmolar", "val1": 500.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -0.3957767988232618}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 500.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -7837.780760068502}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "Smolar_residual", "name1": "Dmolar", "val1": 500.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -13.726721867742462}
+{"backend": "PCSAFT", "fluid": "METHANOL", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 500.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -2347.092012971516}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "P", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -291356357.7386855, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "alphar", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -9.347437332257881}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -47470.779657444284}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "Smolar_residual", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -52.77879411616047}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 1.0, "expected": -31637.14142259614}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "P", "name1": "Dmolar", "val1": 1000.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": 2433380.002021473, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "alphar", "name1": "Dmolar", "val1": 1000.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -0.30086005400874966}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 1000.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -4960.519937800815}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "Smolar_residual", "name1": "Dmolar", "val1": 1000.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -7.668797559051164}
+{"backend": "PCSAFT", "fluid": "WATER", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 1000.0, "name2": "T", "val2": 400.0, "name3": "x1", "val3": 1.0, "expected": -1893.0009141803484}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "P", "name1": "Dmolar", "val1": 9000.0, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 0.3, "expected": -43755931.00772066, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "alphar", "name1": "Dmolar", "val1": 9000.0, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 0.3, "expected": -4.7879638213253495}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 9000.0, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 0.3, "expected": -33320.62357616828}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 9000.0, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 0.3, "expected": -40.810108247989845}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 9000.0, "name2": "T", "val2": 320.0, "name3": "x1", "val3": 0.3, "expected": -20261.388936811523}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "P", "name1": "Dmolar", "val1": 300.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 0.3, "expected": 681074.7372578329, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "alphar", "name1": "Dmolar", "val1": 300.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 0.3, "expected": -0.23268729628500512}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 300.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 0.3, "expected": -2779.5751021607116}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 300.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 0.3, "expected": -4.1789367733187595}
+{"backend": "PCSAFT", "fluid": "METHANOL&CYCLOHEXANE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 300.0, "name2": "T", "val2": 350.0, "name3": "x1", "val3": 0.3, "expected": -1316.9472314991453}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "P", "name1": "Dmolar", "val1": 15000.0, "name2": "T", "val2": 200.0, "name3": "x1", "val3": 0.6, "expected": -10475719.729301801, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "alphar", "name1": "Dmolar", "val1": 15000.0, "name2": "T", "val2": 200.0, "name3": "x1", "val3": 0.6, "expected": -3.682524135778977}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 15000.0, "name2": "T", "val2": 200.0, "name3": "x1", "val3": 0.6, "expected": -13984.185331829323}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 15000.0, "name2": "T", "val2": 200.0, "name3": "x1", "val3": 0.6, "expected": -27.49634819717807}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 15000.0, "name2": "T", "val2": 200.0, "name3": "x1", "val3": 0.6, "expected": -8484.915692393708}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "P", "name1": "Dmolar", "val1": 400.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 0.6, "expected": 921923.8173111354, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "alphar", "name1": "Dmolar", "val1": 400.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 0.6, "expected": -0.07715519753439379}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 400.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 0.6, "expected": -553.1167455757726}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "Smolar_residual", "name1": "Dmolar", "val1": 400.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 0.6, "expected": -0.5704543389961833}
+{"backend": "PCSAFT", "fluid": "METHANE&N-BUTANE", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 400.0, "name2": "T", "val2": 300.0, "name3": "x1", "val3": 0.6, "expected": -381.98044387691766}
+{"backend": "PCSAFT", "fluid": "Na+&Cl-&WATER", "out": "P", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 298.15, "name3": "x1", "val3": 0.0907304774758426, "expected": -334469974.6223291, "rtol": 1e-09}
+{"backend": "PCSAFT", "fluid": "Na+&Cl-&WATER", "out": "alphar", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 298.15, "name3": "x1", "val3": 0.0907304774758426, "expected": -8.054377948960793}
+{"backend": "PCSAFT", "fluid": "Na+&Cl-&WATER", "out": "Hmolar_residual", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 298.15, "name3": "x1", "val3": 0.0907304774758426, "expected": -42965.31805066006}
+{"backend": "PCSAFT", "fluid": "Na+&Cl-&WATER", "out": "Smolar_residual", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 298.15, "name3": "x1", "val3": 0.0907304774758426, "expected": -46.387740040114906}
+{"backend": "PCSAFT", "fluid": "Na+&Cl-&WATER", "out": "Gmolar_residual", "name1": "Dmolar", "val1": 50000.0, "name2": "T", "val2": 298.15, "name3": "x1", "val3": 0.0907304774758426, "expected": -29134.813357699797}

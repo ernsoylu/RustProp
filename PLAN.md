@@ -1011,6 +1011,26 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 11 slice 11b (PC-SAFT EOS kernels):
+  `rustprop-pcsaft` ports calc_alphar / calc_dadt /
+  calc_compressibility_factor and the residual caloric assemblies (hres Eq.
+  A.46, sres, gres on the T,V basis per upstream #1943) over all five term
+  families — hard-chain, dispersion (verbatim 7x3 universal tables),
+  Gross-Vrabec polar (5x3 tables, conv = 7242.702976750923, m_ij/m_ijk caps
+  at 2, the A2 != 0 exact-equality guard), Huang-Radosz association (scheme
+  site charges, site matrix, damped-SS XA with upstream's per-kernel
+  tolerance INCONSISTENCY — 1e-15 in alphar/dadt, 1e-14 in Z — and no
+  convergence check; dXAdt/dXAdx dense LU solves), and the ePC-SAFT ion term
+  (like-charge e_ij zeroing, T-independent ion diameters, Debye kappa).
+  Upstream's four-fold structural duplication of the prep block collapses
+  into one shared Prep with arithmetic order preserved; deliberately
+  reproduced quirks are documented in the module doc (water sigma sentinel +
+  runtime replacement with mismatched guard bounds, dielc_water evaluating
+  its polynomials at the live _T rather than its argument, dJ2_dt's
+  e_ij[jj] where J2 uses e_ij[ij]). Verified: 80 kernel goldens at 1e-12
+  (P records at 1e-9 — the 1/Z cancellation amplification is documented in
+  the fixture) across plain/polar/associating/water/kij-mixture/ionic
+  systems; hres/sres/gres agree BITWISE with the wheel at the probe states.
 - 2026-08-07 — Phase 11 slice 11a (PC-SAFT data) + serde_json float fix:
   `dev/pcsaft/*.json` vendored verbatim (180 fluids: 18 associating, 66
   polar, 26 ionic; 140 kij records, 2 with kijT); datagen emits

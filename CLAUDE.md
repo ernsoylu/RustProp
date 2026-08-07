@@ -114,7 +114,11 @@ unported by design). Phase 11 started: 11a data done (180
 fluids + 140 CAS-sorted kij behind `pcsaft-fluids`, python-verified bitwise).
 Workspace serde_json now enables `float_roundtrip` — its DEFAULT parse is
 best-effort and put 1-ulp errors into ~140 generated files (now corrected).
-Next: 11b PC-SAFT Helmholtz terms (survey in scratchpad).
+11b EOS kernels done: alphar/dadt/Z +
+residual h/s/g over all five term families (shared Prep, per-kernel XA
+tolerances 1e-15/1e-14, quirks documented) — 80 goldens, calorics bitwise.
+Next: 11c density solver + QT/PQ flashes + fugacity coefficients + PropsSI
+routing (survey in scratchpad).
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

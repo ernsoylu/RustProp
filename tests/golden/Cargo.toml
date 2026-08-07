@@ -9,8 +9,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-rustprop = { workspace = true, features = ["if97", "heos", "heos-mixtures", "cubics", "incompressible", "humid-air"] }
+rustprop = { workspace = true, features = ["if97", "heos", "heos-mixtures", "cubics", "incompressible", "humid-air", "pcsaft"] }
 rustprop-core.workspace = true
+rustprop-pcsaft.workspace = true
 rustprop-data = { workspace = true, features = [
     "mixture-data",
     "cubic-fluids",
@@ -21,6 +22,7 @@ rustprop-data = { workspace = true, features = [
     "r134a",
     "n_propane",
     "ammonia",
+    "pcsaft-fluids",
 ] }
 rustprop-cubics = { workspace = true }
 rustprop-heos.workspace = true

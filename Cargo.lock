@@ -91,6 +91,7 @@ dependencies = [
  "rustprop-cubics",
  "rustprop-data",
  "rustprop-heos",
+ "rustprop-pcsaft",
  "serde",
  "serde_json",
 ]
