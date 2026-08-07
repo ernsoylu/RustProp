@@ -161,7 +161,23 @@ CLOSEST TO the node instead. More upstream quirks reproduced: QT's
 `(void)`-discarded `is_inside` (p = +inf instead of an error) and
 `bisect_segmented_vector_slice` sizing itself on `mat[j]`. Tolerance 1e-9
 except density-keyed bicubic inversions at 1e-5 (LogPH nodes come from
-iterative (h, p) flashes; worst observed 2.0e-6). Next: Phase 14 WASM bindings.
+iterative (h, p) flashes; worst observed 2.0e-6). Next: Phase 15 release pipeline.
+
+**Phase 14 (WASM bindings) is DONE**: `crates/rustprop-wasm` exports
+`props_si` / `ha_props_si` / `upstream_version` plus the typed fast path
+`props_si_many` (both input vectors as `Float64Array`; a failing state yields
+NaN in its slot rather than aborting the batch). Errors cross as thrown JS
+exceptions. `wasm-bindgen` is the first and only external dependency in a
+shipped crate. `tests/wasm-smoke/smoke.mjs` runs 61 checks from Node against
+the same committed fixtures the Rust suite uses; CI builds with wasm-pack and
+runs it. `WASM-SIZES.md` (from `tools/wasm-size-table.sh`) records what a
+browser downloads: IF97 124 KB, HEOS+Water 304 KB, HEOS+4 refrigerants
+380 KB, humid air 230 KB, cubics 151 KB, incompressible 183 KB, HEOS+all 130
+fluids 3.59 MB, all-backends 4.21 MB. Build gotchas fixed and documented:
+wasm-opt 117 needs `--enable-bulk-memory --enable-nontrapping-float-to-int`
+for what rustc now emits; feature forwarding must name BOTH this crate's
+features and the facade's (an `all-backends` bundle otherwise came out at
+13 KB with no exports).
 
 **Phase 13 (SVDSBTL) is DONE.** 13.1's study overturned the phase's premise:
 measured against the wheel, one fluid's two MVP surfaces are 26.4 MB — eight

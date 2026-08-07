@@ -1,0 +1,59 @@
+[package]
+name = "rustprop-wasm"
+description = "wasm-bindgen bindings for rustprop — JS-facing PropsSI / HAPropsSI with build-time engine selection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rustprop.workspace = true
+# The one external dependency in a shipped crate, and unavoidable: this IS
+# the JS binding layer. Every other rustprop crate stays dependency-free.
+wasm-bindgen = "0.2"
+# Present only so per-fluid data features are addressable from here, the
+# same way tools/wasm-size-probe does it; the facade pulls the real one.
+rustprop-data = { workspace = true, optional = true }
+
+[features]
+default = []
+heos = ["rustprop/heos"]
+heos-mixtures = ["rustprop/heos-mixtures"]
+cubics = ["rustprop/cubics"]
+if97 = ["rustprop/if97"]
+incompressible = ["rustprop/incompressible"]
+pcsaft = ["rustprop/pcsaft"]
+humid-air = ["rustprop/humid-air"]
+# Fluid data is opt-in exactly as it is for the facade: a build that wants
+# HEOS Water asks for `heos` + `water`, not for all 130 fluids.
+water = ["dep:rustprop-data", "rustprop-data/water"]
+all-fluids = ["dep:rustprop-data", "rustprop-data/all-fluids"]
+# Must enable THIS crate's features too, not just the facade's — the cfg
+# gates on the bindings below read rustprop-wasm's own feature set.
+all-backends = [
+    "heos",
+    "heos-mixtures",
+    "cubics",
+    "if97",
+    "incompressible",
+    "pcsaft",
+    "humid-air",
+    "all-fluids",
+    "rustprop/all-backends",
+]
+
+[lints]
+workspace = true
+
+# Rust emits bulk-memory and non-trapping float conversions by default for
+# wasm32; wasm-pack's bundled wasm-opt 117 rejects them unless the features
+# are named explicitly. Without this, `wasm-pack build` fails validation.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false

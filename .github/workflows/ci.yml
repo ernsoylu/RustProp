@@ -29,6 +29,16 @@ jobs:
           git diff --exit-code
       - run: cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown --release
       - run: cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water
+      # The JS deliverable: build it, then check it from Node against the
+      # same oracle fixtures the Rust suite uses.
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: "v0.13.1"
+      - name: wasm-pack build + Node smoke
+        run: |
+          wasm-pack build crates/rustprop-wasm --target nodejs --out-dir pkg-node \
+            --features if97,heos,water,humid-air
+          node tests/wasm-smoke/smoke.mjs
       - name: wasm size report
         run: |
           echo "### wasm size report (rustprop-wasm-size-probe, release)"

@@ -1,7 +1,11 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "tests/*", "tools/*"]
-exclude = ["tools/golden-gen", "tools/if97-extract"] # Python tooling, not crates
+exclude = [
+    "tools/golden-gen",
+    "tools/if97-extract", # Python tooling, not crates
+    "tests/wasm-smoke",   # Node smoke test for the wasm-pack output
+]
 
 [workspace.package]
 version = "0.1.0"
