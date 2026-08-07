@@ -35,6 +35,12 @@ everything at once 4.2 MB. Regenerate with `tools/wasm-size-table.sh`.
 wasm-pack build crates/rustprop-wasm --target web --features heos,water
 ```
 
+## Project status
+
+All fifteen phases of `PLAN.md` are complete — every engine ported, ~33,900
+committed oracle records, CI green. See **[NEXT-STEPS.md](NEXT-STEPS.md)** for
+current status, known divergences from upstream, and what to work on next.
+
 ## Building
 
 `~/.cargo/bin` may not be on `PATH` in this environment:

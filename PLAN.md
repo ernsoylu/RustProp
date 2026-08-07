@@ -1747,3 +1747,11 @@ Every checkbox above is ticked and every phase gate has passed. What remains is
 not implementation: claiming the crates.io names and adding the
 `CARGO_REGISTRY_TOKEN` secret, then tagging `v0.1.0`. Both need the owner's
 credentials, and publication cannot be undone.
+
+## Handoff
+
+`NEXT-STEPS.md` is the entry point for resuming work: current status, the two
+items blocked on the owner, every known divergence and by-design exclusion in
+one table each, the gate commands, the pitfalls that cost real debugging time,
+and ranked candidates for what to do next. This file stays the authoritative
+record of *why*; that one answers *what now*.
