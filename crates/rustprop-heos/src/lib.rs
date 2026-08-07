@@ -11,6 +11,7 @@ pub mod flash_hs;
 pub mod flash_pt;
 pub mod flash_px;
 pub mod melting;
+pub mod mixture;
 pub mod props;
 pub mod saturation;
 pub mod solvers;

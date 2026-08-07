@@ -12,6 +12,7 @@ repository.workspace = true
 rustprop = { workspace = true, features = ["if97", "heos", "cubics", "incompressible", "humid-air"] }
 rustprop-core.workspace = true
 rustprop-data = { workspace = true, features = [
+    "mixture-data",
     "cubic-fluids",
     "all-fluids",
     "water",

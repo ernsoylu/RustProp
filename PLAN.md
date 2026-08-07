@@ -1006,3 +1006,16 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 slice 10b (GERG-2008 reducing function):
+  `rustprop_heos::mixture::Gerg2008Reducing` ports the quadratic Yr form (x_i^2 Y_ci +
+  the 2*beta*gamma*Yc_ij*f_Y cross terms — the upstream Doxygen's x_i Y_ci^2 is a doc
+  typo; code authoritative), constructor cross terms from EOS.reducing (NOT crit), the
+  beta-antisymmetry on component swap (the shipped table is in DOCUMENT order, not
+  CAS-sorted — the lookup matches either orientation and inverts beta for the swap),
+  Tr/rhormolar, all five f_Y_ij building blocks and the first/second composition
+  derivatives with both XN conventions (Kunz-Wagner Independent, Gernert Dependent),
+  the GERG 7.57-7.59 density conversions, and the composite ndTrdni/ndrhorbardni +
+  d_nd*dni_dxj forms the flash Jacobians need. Verified: five binary reducing states
+  (GERG and Lemmon-converted pairs across compositions) match the wheel at 1e-12, and
+  every analytic derivative passes finite-difference identities. Third-order/PSI
+  machinery deferred with the phase envelope.
