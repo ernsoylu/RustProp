@@ -103,6 +103,7 @@
     "mixture_propssi.jsonl",
     "mixture_pt.jsonl",
     "mixture_pt_twophase.jsonl",
+    "mixture_sweep.jsonl",
     "mixture_vle.jsonl",
     "param_aliases.jsonl",
     "parameters.jsonl",

@@ -951,6 +951,63 @@ def gen_mixture_pt_twophase():
     return rows
 
 
+def gen_mixture_sweep():
+    """Slice 10f part 2: the sweep-based mixture flashes (DmolarT/HmolarT/
+    SmolarT/TUmolar, HmolarP/PSmolar/PUmolar, DmolarHmolar/DmolarSmolar/
+    DmolarUmolar). Targets derived from wheel PT states (single-phase gas/
+    liquid and in-dome) so both sides solve the same well-posed problems."""
+    pairs = [("Methane", "Ethane"), ("R32", "R125")]
+    rows, skipped = [], 0
+
+    def rec(mix, out, n1, v1, n2, v2):
+        nonlocal skipped
+        r = try_record(out, n1, v1, n2, v2, "HEOS", mix)
+        rows.append(r) if r else (skipped := skipped + 1)
+
+    for f1, f2 in pairs:
+        for x1 in (0.4, 0.7):
+            mix = f"{f1}[{x1}]&{f2}[{1.0 - x1}]"
+            hm = f"HEOS::{mix}"
+            tr = PropsSI("T_reducing", "", 0, "", 0, hm)
+            # Anchor states: superheated gas, compressed liquid, in-dome
+            anchors = []
+            try:
+                p_bub = PropsSI("P", "T", 0.7 * tr, "Q", 0, hm)
+                p_dew = PropsSI("P", "T", 0.7 * tr, "Q", 1, hm)
+                anchors.append((0.7 * tr, 0.5 * p_dew))          # gas
+                anchors.append((0.7 * tr, 2.0 * p_bub))          # liquid
+                anchors.append((0.7 * tr, 0.5 * (p_bub + p_dew)))  # two-phase
+            except Exception:
+                skipped += 1
+                continue
+            for t, p in anchors:
+                try:
+                    d = PropsSI("Dmolar", "T", t, "P", p, hm)
+                    h = PropsSI("Hmolar", "T", t, "P", p, hm)
+                    sm = PropsSI("Smolar", "T", t, "P", p, hm)
+                    u = PropsSI("Umolar", "T", t, "P", p, hm)
+                except Exception:
+                    skipped += 1
+                    continue
+                # DHSU_T
+                rec(mix, "P", "Dmolar", d, "T", t)
+                rec(mix, "P", "Hmolar", h, "T", t)
+                rec(mix, "P", "Smolar", sm, "T", t)
+                rec(mix, "P", "T", t, "Umolar", u)
+                rec(mix, "Q", "Dmolar", d, "T", t)
+                # HSU_P
+                rec(mix, "T", "Hmolar", h, "P", p)
+                rec(mix, "T", "P", p, "Smolar", sm)
+                rec(mix, "T", "P", p, "Umolar", u)
+                # HSU_D
+                rec(mix, "T", "Dmolar", d, "Hmolar", h)
+                rec(mix, "T", "Dmolar", d, "Smolar", sm)
+                rec(mix, "T", "Dmolar", d, "Umolar", u)
+                rec(mix, "P", "Dmolar", d, "Smolar", sm)
+    print(f"mixture sweep: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1617,6 +1674,7 @@ def main():
     write_jsonl("mixture_propssi.jsonl", gen_mixture_propssi())
     write_jsonl("mixture_predefined.jsonl", gen_mixture_predefined())
     write_jsonl("mixture_pt_twophase.jsonl", gen_mixture_pt_twophase())
+    write_jsonl("mixture_sweep.jsonl", gen_mixture_sweep())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

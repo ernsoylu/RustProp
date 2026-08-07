@@ -1303,10 +1303,87 @@ fn mixture_update(
                 pair.short_desc()
             )))
         }
+        InputPair::DmolarT => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::dhsu_t_flash_mixtures(model, z, v2, ms::SweepVar::Dmolar, v1)
+        }),
+        InputPair::HmolarT => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::dhsu_t_flash_mixtures(model, z, v2, ms::SweepVar::Hmolar, v1)
+        }),
+        InputPair::SmolarT => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::dhsu_t_flash_mixtures(model, z, v2, ms::SweepVar::Smolar, v1)
+        }),
+        InputPair::TUmolar => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::dhsu_t_flash_mixtures(model, z, v1, ms::SweepVar::Umolar, v2)
+        }),
+        InputPair::HmolarP => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::hsu_p_flash_mixtures(model, z, v2, ms::SweepVar::Hmolar, v1)
+        }),
+        InputPair::PSmolar => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::hsu_p_flash_mixtures(model, z, v1, ms::SweepVar::Smolar, v2)
+        }),
+        InputPair::PUmolar => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::hsu_p_flash_mixtures(model, z, v1, ms::SweepVar::Umolar, v2)
+        }),
+        InputPair::DmolarHmolar => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::hsu_d_flash_mixtures(model, z, v1, ms::SweepVar::Hmolar, v2)
+        }),
+        InputPair::DmolarSmolar => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::hsu_d_flash_mixtures(model, z, v1, ms::SweepVar::Smolar, v2)
+        }),
+        InputPair::DmolarUmolar => mix_sweep_state(model, {
+            use rustprop_heos::mixture_sweep as ms;
+            ms::hsu_d_flash_mixtures(model, z, v1, ms::SweepVar::Umolar, v2)
+        }),
         other => Err(Error::NotImplemented(format!(
-            "mixture input pair {} needs the stability machinery; deferred with slice 10f",
+            "mixture input pair {} is not ported yet",
             other.short_desc()
         ))),
+    }
+}
+
+/// Converts a sweep-flash publish into the props MixState (two-phase results
+/// carry per-phase compositions for the lever-rule caloric outputs).
+#[cfg(feature = "heos-mixtures")]
+fn mix_sweep_state(
+    model: &'static MixtureModel,
+    result: rustprop_core::Result<rustprop_heos::mixture_stability::PtFlashResult>,
+) -> Result<MixState> {
+    match result? {
+        rustprop_heos::mixture_stability::PtFlashResult::Single(s) => Ok(MixState::Single(s)),
+        rustprop_heos::mixture_stability::PtFlashResult::TwoPhase {
+            t,
+            p,
+            q,
+            rhomolar,
+            x,
+            y,
+            rhomolar_liq,
+            rhomolar_vap,
+        } => Ok(MixState::Two(rustprop_heos::mixture_vle::MixtureTwoPhase {
+            t,
+            p,
+            rhomolar,
+            q,
+            hmolar_liq: model.hmolar(&x, t, rhomolar_liq),
+            hmolar_vap: model.hmolar(&y, t, rhomolar_vap),
+            smolar_liq: model.smolar(&x, t, rhomolar_liq),
+            smolar_vap: model.smolar(&y, t, rhomolar_vap),
+            umolar_liq: model.umolar(&x, t, rhomolar_liq),
+            umolar_vap: model.umolar(&y, t, rhomolar_vap),
+            x_liq: x,
+            y_vap: y,
+            rhomolar_liq,
+            rhomolar_vap,
+        })),
     }
 }
 

@@ -1006,6 +1006,33 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 slice 10f part 2 (sweep flashes + real TOMS748):
+  `mixture_sweep.rs` ports the three sweep-based mixture flashes with
+  upstream's fast/slow structure and verification gates — DHSU_T (DT fast
+  path: stability at (T, P_eos); HSU_T fast path: nocache gas/liquid density
+  sweeps with the +-eps mechanical-stability FD check, the liquid-spinodal
+  scan fallback, lowest-Gibbs pick, thermo-stability confirm; slow path:
+  half-decade log P-scan + TOMS748 with the full PT flash inside), HSU_P
+  (PQ-based bracket narrowing with the exact-saturation shortcuts, endpoint
+  binary-search validity recovery, closest-endpoint fallback, 1e-6*scale
+  verify), and HSU_D (fast T-sweep at fixed rho; slow nested outer-T/inner-P
+  log scans; BOTH residuals verified). All ten sweep input pairs now route:
+  DmolarT/HmolarT/SmolarT/TUmolar/HmolarP/PSmolar/PUmolar/DmolarHmolar/
+  DmolarSmolar/DmolarUmolar. DISCOVERY that forced a solver upgrade: plain
+  bisection standing in for TOMS748 walked into a wrong-root pocket of the
+  discontinuous sweep residual (near a phase-boundary T the PT flash flips to
+  a pathological low-density root that the wheel REPRODUCES BITWISE — rho
+  8512.636136578609 at T=168.69999773390884 for Me[0.7]&Et[0.3] at 2.13 MPa —
+  upstream survives only because TOMS748's secant/cubic steps interpolate
+  past the pocket to the smooth root). Boost's toms748_solve is now ported
+  verbatim (secant/quadratic/cubic interpolation, bracket() endpoint nudges,
+  double-length secant, mu=0.5 bisection fallback, eps_tolerance semantics)
+  in solvers.rs. Verified: 138 sweep goldens (two pairs, two compositions,
+  gas/liquid/in-dome anchors, all ten pairs) at 1e-6 — the suite is
+  `#[ignore]`d (hundreds of stability-tested PT flashes per record, ~70 s
+  release) and runs in the weekly/dispatch CI sweep job alongside the
+  130-fluid smoke; per-push coverage keeps a bitwise DT assertion in the
+  error-conditions test. TOMS748 also cut the suite from 353 s to 70 s.
 - 2026-08-07 — Phase 10 slice 10f part 1 (stability + PT two-phase):
   `mixture_stability.rs` ports the Michelsen TPD stability machinery —
   `check_stability_michelsen` (feed fugacities with the SRK-seeded gas

@@ -14,6 +14,7 @@ pub mod melting;
 pub mod mixture;
 pub mod mixture_flash;
 pub mod mixture_stability;
+pub mod mixture_sweep;
 pub mod mixture_vle;
 pub mod props;
 pub mod saturation;

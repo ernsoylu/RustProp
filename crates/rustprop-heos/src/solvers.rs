@@ -404,3 +404,260 @@ pub fn solve_cubic(a: f64, b: f64, c: f64, d: f64) -> (i32, f64, f64, f64) {
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// TOMS Algorithm 748 (Boost boost/math/tools/toms748_solve.hpp, verbatim
+// port). The mixture sweep flashes need the real interpolating behavior —
+// plain bisection can step into pathological pockets of a discontinuous
+// residual that the secant/cubic steps hug past (observed: the HSU_P sweep
+// walking into the wrong-root pocket near a phase-boundary discontinuity
+// that upstream's TOMS748 sails over).
+// ---------------------------------------------------------------------------
+
+fn t748_safe_div(num: f64, denom: f64, r: f64) -> f64 {
+    if denom.abs() < 1.0 && (denom * f64::MAX).abs() <= num.abs() {
+        return r;
+    }
+    num / denom
+}
+
+fn t748_secant_interpolate(a: f64, b: f64, fa: f64, fb: f64) -> f64 {
+    let tol = f64::EPSILON * 5.0;
+    let c = a - (fa / (fb - fa)) * (b - a);
+    if c <= a + a.abs() * tol || c >= b - b.abs() * tol {
+        return (a + b) / 2.0;
+    }
+    c
+}
+
+#[allow(clippy::many_single_char_names)]
+fn t748_quadratic_interpolate(
+    a: f64,
+    b: f64,
+    d: f64,
+    fa: f64,
+    fb: f64,
+    fd: f64,
+    count: u32,
+) -> f64 {
+    let big_b = t748_safe_div(fb - fa, b - a, f64::MAX);
+    let mut big_a = t748_safe_div(fd - fb, d - b, f64::MAX);
+    big_a = t748_safe_div(big_a - big_b, d - a, 0.0);
+
+    if big_a == 0.0 {
+        return t748_secant_interpolate(a, b, fa, fb);
+    }
+    let mut c = if big_a.signum() * fa.signum() > 0.0 {
+        a
+    } else {
+        b
+    };
+    for _ in 1..=count {
+        c -= t748_safe_div(
+            fa + (big_b + big_a * (c - b)) * (c - a),
+            big_b + big_a * (2.0 * c - a - b),
+            1.0 + c - a,
+        );
+    }
+    if c <= a || c >= b {
+        c = t748_secant_interpolate(a, b, fa, fb);
+    }
+    c
+}
+
+#[allow(clippy::too_many_arguments)]
+fn t748_cubic_interpolate(
+    a: f64,
+    b: f64,
+    d: f64,
+    e: f64,
+    fa: f64,
+    fb: f64,
+    fd: f64,
+    fe: f64,
+) -> f64 {
+    let q11 = (d - e) * fd / (fe - fd);
+    let q21 = (b - d) * fb / (fd - fb);
+    let q31 = (a - b) * fa / (fb - fa);
+    let d21 = (b - d) * fd / (fd - fb);
+    let d31 = (a - b) * fb / (fb - fa);
+    let q22 = (d21 - q11) * fb / (fe - fb);
+    let q32 = (d31 - q21) * fa / (fd - fa);
+    let d32 = (d31 - q21) * fd / (fd - fa);
+    let q33 = (d32 - q22) * fa / (fe - fa);
+    let c = q31 + q32 + q33 + a;
+    if c <= a || c >= b {
+        return t748_quadratic_interpolate(a, b, d, fa, fb, fd, 3);
+    }
+    c
+}
+
+/// Boost `detail::bracket`: evaluate at (adjusted) c and shrink [a,b],
+/// tracking the ejected third-best point in (d, fd).
+#[allow(clippy::too_many_arguments)]
+fn t748_bracket<F: FnMut(f64) -> Result<f64>>(
+    f: &mut F,
+    a: &mut f64,
+    b: &mut f64,
+    mut c: f64,
+    fa: &mut f64,
+    fb: &mut f64,
+    d: &mut f64,
+    fd: &mut f64,
+) -> Result<()> {
+    let tol = f64::EPSILON * 2.0;
+    if (*b - *a) < 2.0 * tol * *a {
+        c = *a + (*b - *a) / 2.0;
+    } else if c <= *a + a.abs() * tol {
+        c = *a + a.abs() * tol;
+    } else if c >= *b - b.abs() * tol {
+        c = *b - b.abs() * tol;
+    }
+    let fc = f(c)?;
+    if fc == 0.0 {
+        *a = c;
+        *fa = 0.0;
+        *d = 0.0;
+        *fd = 0.0;
+        return Ok(());
+    }
+    if fa.signum() * fc.signum() < 0.0 {
+        *d = *b;
+        *fd = *fb;
+        *b = c;
+        *fb = fc;
+    } else {
+        *d = *a;
+        *fd = *fa;
+        *a = c;
+        *fa = fc;
+    }
+    Ok(())
+}
+
+/// `boost::math::tools::toms748_solve` with `eps_tolerance<double>(bits)`;
+/// returns the midpoint of the final bracket (as every upstream call site
+/// takes `(bracket.first + bracket.second) / 2`).
+pub(crate) fn toms748_solve<F: FnMut(f64) -> Result<f64>>(
+    f: &mut F,
+    ax: f64,
+    bx: f64,
+    fax: f64,
+    fbx: f64,
+    bits: u32,
+    max_iter: u32,
+) -> Result<f64> {
+    let eps = (2.0_f64.powi(1 - (bits as i32))).max(4.0 * f64::EPSILON);
+    let tol = |a: f64, b: f64| (a - b).abs() <= eps * a.abs().min(b.abs());
+    let mu = 0.5;
+
+    let mut count = max_iter;
+    let (mut a, mut b, mut fa, mut fb) = (ax, bx, fax, fbx);
+    if a >= b {
+        return Err(Error::Value("Parameters a and b out of order".into()));
+    }
+    if tol(a, b) || fa == 0.0 || fb == 0.0 {
+        if fa == 0.0 {
+            b = a;
+        } else if fb == 0.0 {
+            a = b;
+        }
+        return Ok((a + b) / 2.0);
+    }
+    if fa.signum() * fb.signum() > 0.0 {
+        return Err(Error::Value(
+            "Parameters a and b do not bracket the root".into(),
+        ));
+    }
+    let (mut d, mut fd, mut e, mut fe) = (0.0_f64, 1e5_f64, 1e5_f64, 1e5_f64);
+    let mut c;
+
+    if fa != 0.0 {
+        c = t748_secant_interpolate(a, b, fa, fb);
+        t748_bracket(f, &mut a, &mut b, c, &mut fa, &mut fb, &mut d, &mut fd)?;
+        count -= 1;
+        if count > 0 && fa != 0.0 && !tol(a, b) {
+            c = t748_quadratic_interpolate(a, b, d, fa, fb, fd, 2);
+            e = d;
+            fe = fd;
+            t748_bracket(f, &mut a, &mut b, c, &mut fa, &mut fb, &mut d, &mut fd)?;
+            count -= 1;
+        }
+    }
+
+    while count > 0 && fa != 0.0 && !tol(a, b) {
+        let a0 = a;
+        let b0 = b;
+        let min_diff = f64::MIN_POSITIVE * 32.0;
+        let prof = (fa - fb).abs() < min_diff
+            || (fa - fd).abs() < min_diff
+            || (fa - fe).abs() < min_diff
+            || (fb - fd).abs() < min_diff
+            || (fb - fe).abs() < min_diff
+            || (fd - fe).abs() < min_diff;
+        c = if prof {
+            t748_quadratic_interpolate(a, b, d, fa, fb, fd, 2)
+        } else {
+            t748_cubic_interpolate(a, b, d, e, fa, fb, fd, fe)
+        };
+        e = d;
+        fe = fd;
+        t748_bracket(f, &mut a, &mut b, c, &mut fa, &mut fb, &mut d, &mut fd)?;
+        count -= 1;
+        if count == 0 || fa == 0.0 || tol(a, b) {
+            break;
+        }
+
+        let prof = (fa - fb).abs() < min_diff
+            || (fa - fd).abs() < min_diff
+            || (fa - fe).abs() < min_diff
+            || (fb - fd).abs() < min_diff
+            || (fb - fe).abs() < min_diff
+            || (fd - fe).abs() < min_diff;
+        c = if prof {
+            t748_quadratic_interpolate(a, b, d, fa, fb, fd, 3)
+        } else {
+            t748_cubic_interpolate(a, b, d, e, fa, fb, fd, fe)
+        };
+        t748_bracket(f, &mut a, &mut b, c, &mut fa, &mut fb, &mut d, &mut fd)?;
+        count -= 1;
+        if count == 0 || fa == 0.0 || tol(a, b) {
+            break;
+        }
+
+        // Double-length secant step
+        let (u, fu) = if fa.abs() < fb.abs() {
+            (a, fa)
+        } else {
+            (b, fb)
+        };
+        c = u - 2.0 * (fu / (fb - fa)) * (b - a);
+        if (c - u).abs() > (b - a) / 2.0 {
+            c = a + (b - a) / 2.0;
+        }
+        e = d;
+        fe = fd;
+        t748_bracket(f, &mut a, &mut b, c, &mut fa, &mut fb, &mut d, &mut fd)?;
+        count -= 1;
+        if count == 0 || fa == 0.0 || tol(a, b) {
+            break;
+        }
+
+        if (b - a) < mu * (b0 - a0) {
+            continue;
+        }
+        // Not converging fast enough: bisection
+        e = d;
+        fe = fd;
+        let mid = a + (b - a) / 2.0;
+        t748_bracket(f, &mut a, &mut b, mid, &mut fa, &mut fb, &mut d, &mut fd)?;
+        count -= 1;
+    }
+
+    if fa == 0.0 {
+        b = a;
+    } else if fb == 0.0 {
+        a = b;
+    }
+    Ok((a + b) / 2.0)
+}

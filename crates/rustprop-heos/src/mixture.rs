@@ -521,6 +521,9 @@ pub struct MixtureModel {
     triple_t: Vec<f64>,
     /// `EOS().sat_min_liquid.p` per component (upstream `iP_triple`).
     triple_p: Vec<f64>,
+    /// `EOS().limits.Tmax` / `pmax` per component (weighted mixture limits).
+    t_max: Vec<f64>,
+    p_max: Vec<f64>,
     /// `EOS().R_u` per component.
     r_component: Vec<f64>,
     /// `(EOS().reduce.T, EOS().reduce.p, EOS().acentric)` per component —
@@ -587,6 +590,8 @@ impl MixtureModel {
             crit_p: components.iter().map(|c| c.states.critical.p).collect(),
             triple_t: components.iter().map(|c| c.eos.sat_min_liquid.t).collect(),
             triple_p: components.iter().map(|c| c.eos.sat_min_liquid.p).collect(),
+            t_max: components.iter().map(|c| c.eos.t_max).collect(),
+            p_max: components.iter().map(|c| c.eos.p_max).collect(),
             r_component: components.iter().map(|c| c.eos.gas_constant).collect(),
             srk_consts: components
                 .iter()
@@ -625,6 +630,12 @@ impl MixtureModel {
     }
     pub(crate) fn triple_p(&self) -> &[f64] {
         &self.triple_p
+    }
+    pub(crate) fn t_max(&self) -> &[f64] {
+        &self.t_max
+    }
+    pub(crate) fn p_max(&self) -> &[f64] {
+        &self.p_max
     }
 
     /// Component i's pure alphar derivatives at the mixture (tau, delta).

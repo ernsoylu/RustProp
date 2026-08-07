@@ -466,11 +466,10 @@ fn mixture_propssi_error_conditions() {
     let pure = props_si("Dmolar", "T", 300.0, "P", 1e5, "HEOS::Water[1.0]").unwrap();
     let direct = props_si("Dmolar", "T", 300.0, "P", 1e5, "Water").unwrap();
     assert_eq!(pure, direct);
-    // Deferred sweep pairs error loudly (documented 10f deviation)
-    match err(props_si("P", "Dmolar", 100.0, "T", 300.0, mix)) {
-        Error::NotImplemented(m) => assert!(m.contains("deferred with slice 10f"), "got: {m}"),
-        other => panic!("wrong variant {other:?}"),
-    }
+    // The sweep pairs are live (10f part 2): DmolarT routes through
+    // DHSU_T_flash and matches the wheel (oracle value for this state).
+    let p_dt = props_si("P", "Dmolar", 100.0, "T", 300.0, mix).unwrap();
+    assert!((p_dt - 247281.45645226256).abs() / 247281.45645226256 < 1e-9);
 }
 
 #[test]
@@ -547,6 +546,37 @@ fn mixture_pt_twophase_matches_oracle() {
     assert!(
         failures.is_empty(),
         "{} of {} in-dome PT records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+#[ignore = "sweep flashes run hundreds of stability-tested PT flashes per record (~6 min release); weekly/dispatch CI job"]
+fn mixture_sweep_matches_oracle() {
+    // Slice 10f part 2: sweep-based flashes (DHSU_T, HSU_P, HSU_D) through
+    // the string API. Both sides verify their solutions to 1e-6*scale; the
+    // returned states agree to the sweep solvers' much tighter convergence.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_sweep.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 138);
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let fluid = format!("HEOS::{}", rec.fluid);
+        match rustprop::props_si(&rec.out, &rec.name1, rec.val1, &rec.name2, rec.val2, &fluid) {
+            Ok(actual) => {
+                if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-6) {
+                    failures.push(e);
+                }
+            }
+            Err(e) => failures.push(format!("{}: error {e:?}", rec.id())),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture sweep records failed:\n{}",
         failures.len(),
         recs.len(),
         failures.join("\n")

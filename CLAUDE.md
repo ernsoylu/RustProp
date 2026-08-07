@@ -103,7 +103,12 @@ stability (SS+GDEM, minimize_tpd trust-region), Wilson cross-check split,
 solver_rho_Tp_global (spinodal finder, omega-Halley ladder), PTflash_twophase
 solve_michelsen (log-K RR, scaled Gibbs Newton, Jacobi min-eigenvalue) — full
 PT_flash_mixtures glue; 192 in-dome goldens at 1e-6 (Q conditioning documented).
-Next: 10f part 2 sweep flashes (DmolarT/HmolarP/HSU_D), mixture transport.
+10f part 2 done: all ten sweep
+pairs (DHSU_T/HSU_P/HSU_D with upstream's fast paths + verify gates) — 138
+goldens (weekly CI job, #[ignore]d). Boost TOMS748 ported verbatim after
+bisection walked into a wrong-root pocket the wheel reproduces bitwise (its
+TOMS748 interpolates past). Phase 10 remaining: mixture transport (ECS mixing).
+Next: Phase 11 PC-SAFT.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
