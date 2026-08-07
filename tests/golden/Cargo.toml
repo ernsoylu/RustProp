@@ -12,6 +12,7 @@ repository.workspace = true
 rustprop = { workspace = true, features = ["if97", "heos", "cubics"] }
 rustprop-core.workspace = true
 rustprop-data = { workspace = true, features = [
+    "cubic-fluids",
     "all-fluids",
     "water",
     "nitrogen",
@@ -20,6 +21,7 @@ rustprop-data = { workspace = true, features = [
     "n_propane",
     "ammonia",
 ] }
+rustprop-cubics = { workspace = true }
 rustprop-heos.workspace = true
 serde.workspace = true
 serde_json.workspace = true

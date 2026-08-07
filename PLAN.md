@@ -205,7 +205,7 @@ ancillaries → saturation → single-phase solvers → flash routines → all f
 - [x] 7.1 Datagen for `dev/cubics/` data; SRK and Peng-Robinson EOS with upstream's alpha
       functions and departure formulations; cubic root selection per upstream.
       → verify: goldens vs `SRK::` / `PR::` backends on PT grids, rel ≤ 1e-9.
-- [ ] 7.2 v8 Chebyshev superancillary saturation for cubics.
+- [x] 7.2 v8 Chebyshev superancillary saturation for cubics.
       → verify: saturation goldens vs upstream cubic backends across the dome.
 
 **Phase gate 7.**
@@ -928,3 +928,19 @@ Append-only; newest last. Seeded entries:
   backends first-run green after the smolar discovery (direct evaluations bit-identical;
   1e-9 policy). Wasm: cubics-only = 146 KB total for both engines + all 116 fluids
   (CI size report row added).
+- 2026-08-07 — Phase 7.2 (cubic superancillary) complete — PHASE 7 CLOSED: the six generic
+  Chebyshev tables (SRK/PR x p/rhoL/rhoV, 99 intervals, order 18) extracted verbatim from
+  upstream's header-only `cubicsuperancillary.h` by a committed script
+  (tools/golden-gen/extract_cubic_superanc.py); evaluation = Clenshaw + Knuth-midpoint
+  lookup with upstream's out-of-domain messages. The reduction folds the fluid in through
+  a(T) and b only: Ttilde = R*T*b/a(T), p = ptilde*a/b^2, rho = rhotilde/b;
+  `superanc_Tmax` inverts Ttilde_max analytically (alpha(Tc) = 1). `update_DmolarT`
+  ported: T >= Tmax single phase; rho >= rhoL liquid / <= rhoV gas; interior = saturation
+  pressure + lever-rule quality. UPSTREAM QUIRK ported (oracle-verified): the (D,T) dome
+  branch fills SatL/SatV with `update_TDmolarP_unchecked` (no pre_update), leaving the
+  sub-states' reducing cache zeroed — every two-phase (D,T) caloric read throws
+  "calc_alpha0_deriv_nocache returned invalid number ... tau: inf" while P/T/D/Q remain
+  readable; QT/PQ two-phase calorics work (their sub-states get full updates). Goldens:
+  cubics.jsonl grew to 1,896 (DT liquid/gas/supercritical/in-dome; the oracle's own
+  two-phase caloric throws try_record-dropped) and cubic_superanc.jsonl adds 432 direct
+  curve records vs the wheel's `update_QT_pure_superanc` at 1e-12 — all first-run green.

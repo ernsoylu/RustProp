@@ -88,6 +88,7 @@ version = "0.1.0"
 dependencies = [
  "rustprop",
  "rustprop-core",
+ "rustprop-cubics",
  "rustprop-data",
  "rustprop-heos",
  "serde",

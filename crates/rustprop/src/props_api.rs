@@ -637,6 +637,7 @@ fn cubic_route(
     let (pair, v1, v2) = match pair {
         InputPair::QmassT => (InputPair::QT, v1, v2),
         InputPair::PQmass => (InputPair::PQ, v1, v2),
+        InputPair::DmassT => (InputPair::DmolarT, v1 / mm, v2),
         other => (other, v1, v2),
     };
 
@@ -648,6 +649,12 @@ fn cubic_route(
             phase: Phase,
         },
         TwoPhase(CubicSatState),
+        /// A two-phase (D,T) state: upstream's `update_DmolarT` dome branch
+        /// fills SatL/SatV with `update_TDmolarP_unchecked`, which skips
+        /// `pre_update` — the sub-states' reducing cache stays zeroed and
+        /// every caloric read through them throws (tau = inf). P/T/D/Q
+        /// remain readable. Oracle-verified.
+        TwoPhaseDt(CubicSatState),
     }
     let state = match pair {
         InputPair::PT => {
@@ -662,11 +669,12 @@ fn cubic_route(
         // Upstream's cubic update applies NO quality-range validation.
         InputPair::QT => CubicState::TwoPhase(eos.qt_flash(v2, v1)?),
         InputPair::PQ => CubicState::TwoPhase(eos.pq_flash(v1, v2)?),
-        InputPair::DmolarT | InputPair::DmassT => {
-            return Err(Error::NotImplemented(
-                "the (D,T) cubic route needs the cubic superancillary (PLAN 7.2)".into(),
-            ));
-        }
+        InputPair::DmolarT => match eos.dmolar_t_flash(v1, v2)? {
+            rustprop_cubics::CubicDtState::Single { t, rho, p, phase } => {
+                CubicState::Single { t, rho, p, phase }
+            }
+            rustprop_cubics::CubicDtState::TwoPhase(s) => CubicState::TwoPhaseDt(s),
+        },
         // Upstream delegates every other pair to the HEOS flash routines,
         // which fail on the fabricated cubic fluid's unset ancillaries.
         _ => {
@@ -676,13 +684,20 @@ fn cubic_route(
 
     let (t, p, rho, q, phase) = match &state {
         CubicState::Single { t, rho, p, phase } => (*t, *p, *rho, -1.0, *phase),
-        CubicState::TwoPhase(s) => (s.t, s.p, s.rhomolar, s.q, Phase::Twophase),
+        CubicState::TwoPhase(s) | CubicState::TwoPhaseDt(s) => {
+            (s.t, s.p, s.rhomolar, s.q, Phase::Twophase)
+        }
     };
-    // Two-phase caloric outputs mix the saturated branches by quality.
-    let mix = |f: &dyn Fn(f64, f64) -> f64| -> f64 {
+    // Two-phase caloric outputs mix the saturated branches by quality; the
+    // (D,T) dome states reproduce upstream's broken-sub-state throw instead.
+    let mix = |f: &dyn Fn(f64, f64) -> f64| -> Result<f64> {
         match &state {
-            CubicState::Single { t, rho, .. } => f(*t, *rho),
-            CubicState::TwoPhase(s) => q * f(s.t, s.rho_v) + (1.0 - q) * f(s.t, s.rho_l),
+            CubicState::Single { t, rho, .. } => Ok(f(*t, *rho)),
+            CubicState::TwoPhase(s) => Ok(q * f(s.t, s.rho_v) + (1.0 - q) * f(s.t, s.rho_l)),
+            CubicState::TwoPhaseDt(_) => Err(Error::Value(
+                "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 1, nDelta: 0, tau: inf, delta: 0"
+                    .into(),
+            )),
         }
     };
     Ok(match out {
@@ -692,15 +707,15 @@ fn cubic_route(
         Param::Dmass => rho * mm,
         Param::Q => q,
         Param::Phase => f64::from(phase.index()),
-        Param::Hmolar => mix(&|t, r| eos.hmolar(t, r)),
-        Param::Hmass => mix(&|t, r| eos.hmolar(t, r)) / mm,
-        Param::Smolar => mix(&|t, r| eos.smolar(t, r)),
-        Param::Smass => mix(&|t, r| eos.smolar(t, r)) / mm,
-        Param::Umolar => mix(&|t, r| eos.umolar(t, r)),
-        Param::Umass => mix(&|t, r| eos.umolar(t, r)) / mm,
+        Param::Hmolar => mix(&|t, r| eos.hmolar(t, r))?,
+        Param::Hmass => mix(&|t, r| eos.hmolar(t, r))? / mm,
+        Param::Smolar => mix(&|t, r| eos.smolar(t, r))?,
+        Param::Smass => mix(&|t, r| eos.smolar(t, r))? / mm,
+        Param::Umolar => mix(&|t, r| eos.umolar(t, r))?,
+        Param::Umass => mix(&|t, r| eos.umolar(t, r))? / mm,
         Param::Cpmolar => match &state {
             CubicState::Single { t, rho, .. } => eos.cpmolar(*t, *rho),
-            CubicState::TwoPhase(_) => {
+            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
                 return Err(Error::Value(
                     "Input is two-phase and cp is not defined".into(),
                 ));
@@ -708,7 +723,7 @@ fn cubic_route(
         },
         Param::Cvmolar => match &state {
             CubicState::Single { t, rho, .. } => eos.cvmolar(*t, *rho),
-            CubicState::TwoPhase(_) => {
+            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
                 return Err(Error::Value(
                     "Input is two-phase and cv is not defined".into(),
                 ));
@@ -716,7 +731,7 @@ fn cubic_route(
         },
         Param::SpeedSound => match &state {
             CubicState::Single { t, rho, .. } => eos.speed_sound(*t, *rho),
-            CubicState::TwoPhase(_) => {
+            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
                 return Err(Error::Value(
                     "Input is two-phase and the speed of sound is not defined".into(),
                 ));

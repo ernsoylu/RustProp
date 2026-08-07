@@ -24,7 +24,9 @@
 // precision (the SRK Omega literals) — the data is bit-faithful by mandate.
 #![allow(clippy::excessive_precision)]
 
-use rustprop_core::fluid::CubicFluid;
+mod superanc_tables;
+
+use rustprop_core::fluid::{ChebyshevInterval, CubicFluid};
 use rustprop_core::params::Phase;
 use rustprop_core::{Error, Result};
 use rustprop_heos::alpha::Alpha0Eval;
@@ -471,6 +473,160 @@ impl CubicEos {
             q,
         })
     }
+}
+
+impl CubicEos {
+    fn superanc_tables(
+        &self,
+    ) -> (
+        &'static [ChebyshevInterval],
+        &'static [ChebyshevInterval],
+        &'static [ChebyshevInterval],
+    ) {
+        match self.kind {
+            CubicKind::Srk => (
+                superanc_tables::SRK_P,
+                superanc_tables::SRK_RHO_L,
+                superanc_tables::SRK_RHO_V,
+            ),
+            CubicKind::PengRobinson => (
+                superanc_tables::PR_P,
+                superanc_tables::PR_RHO_L,
+                superanc_tables::PR_RHO_V,
+            ),
+        }
+    }
+
+    /// `Ttilde = R * T * b / a(T)` — the generic-cubic reduction variable
+    /// (the fluid enters only through `a(T)` and `b`).
+    fn ttilde(&self, t: f64) -> f64 {
+        let am = self.a_terms(1.0 / t)[0];
+        R_U_CODATA * t * self.b / am
+    }
+
+    /// Upstream `calc_superanc_Tmax`: invert `Ttilde_max` analytically —
+    /// `alpha(Tc) = 1`, so `a(Tc) = a0` exactly.
+    pub fn superanc_tmax(&self) -> f64 {
+        let (_, rho_l, _) = self.superanc_tables();
+        let ttilde_max = rho_l[rho_l.len() - 1].xmax;
+        ttilde_max * self.a0 / (R_U_CODATA * self.b)
+    }
+
+    /// Saturation properties off the cubic superancillary (upstream
+    /// `calc_saturation_ancillary`): `p = ptilde * a / b^2`,
+    /// `rho = rhotilde / b`.
+    pub fn superanc_sat(&self, t: f64) -> Result<(f64, f64, f64)> {
+        let (p_tab, rho_l_tab, rho_v_tab) = self.superanc_tables();
+        let ttilde = self.ttilde(t);
+        let am = self.a_terms(1.0 / t)[0];
+        let p = superanc_eval(p_tab, ttilde)? * am / (self.b * self.b);
+        let rho_l = superanc_eval(rho_l_tab, ttilde)? / self.b;
+        let rho_v = superanc_eval(rho_v_tab, ttilde)? / self.b;
+        Ok((p, rho_l, rho_v))
+    }
+
+    /// Upstream `update_DmolarT` — pure SRK/PR path: the superancillary
+    /// brackets the dome at T; `rho >= rhoL` is liquid, `rho <= rhoV` gas,
+    /// interior states take the saturation pressure and the lever-rule
+    /// quality. At or above the superancillary Tmax the state is single
+    /// phase directly.
+    pub fn dmolar_t_flash(&self, rho: f64, t: f64) -> Result<CubicDtState> {
+        if t >= self.superanc_tmax() {
+            let p = self.pressure(t, rho);
+            return Ok(CubicDtState::Single {
+                t,
+                rho,
+                p,
+                phase: self.singlephase_phase(t, p, rho),
+            });
+        }
+        let (p_sat, rho_l_sat, rho_v_sat) = self.superanc_sat(t)?;
+        if rho >= rho_l_sat {
+            let p = self.pressure(t, rho);
+            Ok(CubicDtState::Single {
+                t,
+                rho,
+                p,
+                phase: Phase::Liquid,
+            })
+        } else if rho <= rho_v_sat {
+            let p = self.pressure(t, rho);
+            Ok(CubicDtState::Single {
+                t,
+                rho,
+                p,
+                phase: Phase::Gas,
+            })
+        } else {
+            // Inside the dome: lever rule 1/rho = (1-Q)/rhoL + Q/rhoV.
+            let q = (rho_v_sat * (rho_l_sat - rho)) / (rho * (rho_l_sat - rho_v_sat));
+            Ok(CubicDtState::TwoPhase(CubicSatState {
+                t,
+                p: p_sat,
+                rho_l: rho_l_sat,
+                rho_v: rho_v_sat,
+                rhomolar: rho,
+                q,
+            }))
+        }
+    }
+}
+
+/// A (Dmolar, T) cubic state.
+pub enum CubicDtState {
+    Single {
+        t: f64,
+        rho: f64,
+        p: f64,
+        phase: Phase,
+    },
+    TwoPhase(CubicSatState),
+}
+
+/// Clenshaw + Knuth-midpoint interval lookup over one superancillary table
+/// (upstream `cubicsuperancillary.h`'s header-local implementations), with
+/// upstream's out-of-domain errors.
+fn superanc_eval(table: &[ChebyshevInterval], ttilde: f64) -> Result<f64> {
+    let lo = table[0].xmin;
+    let hi = table[table.len() - 1].xmax;
+    if ttilde < lo {
+        return Err(Error::Value(format!(
+            "Ttilde ({ttilde}) is below the minimum of {lo}"
+        )));
+    }
+    if ttilde > hi {
+        return Err(Error::Value(format!(
+            "Ttilde ({ttilde}) is above the maximum of {hi}"
+        )));
+    }
+    // Knuth-midpoint bisection on xmin.
+    let midpoint_knuth = |a: i32, b: i32| (a & b) + ((a ^ b) >> 1);
+    let mut il = 0i32;
+    let mut ir = table.len() as i32 - 1;
+    while ir - il > 1 {
+        let im = midpoint_knuth(il, ir);
+        if ttilde >= table[im as usize].xmin {
+            il = im;
+        } else {
+            ir = im;
+        }
+    }
+    let e = if ttilde < table[il as usize].xmax {
+        &table[il as usize]
+    } else {
+        &table[ir as usize]
+    };
+    // Clenshaw.
+    let xscaled = (2.0 * ttilde - (e.xmax + e.xmin)) / (e.xmax - e.xmin);
+    let norder = e.coef.len() - 1;
+    let mut u_kp1 = e.coef[norder];
+    let mut u_kp2 = 0.0;
+    for k in (1..norder).rev() {
+        let u_k = 2.0 * xscaled * u_kp1 - u_kp2 + e.coef[k];
+        u_kp2 = u_kp1;
+        u_kp1 = u_k;
+    }
+    Ok(e.coef[0] + xscaled * u_kp1 - u_kp2)
 }
 
 /// A converged cubic saturation state (both branch densities at one T, p).

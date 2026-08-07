@@ -13,7 +13,7 @@ use std::path::Path;
 fn cubic_backends_match_upstream() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/cubics.jsonl");
     let records = load_jsonl(&path);
-    assert_eq!(records.len(), 1608);
+    assert_eq!(records.len(), 1896);
 
     let mut failures = Vec::new();
     let mut combos = std::collections::HashSet::new();
@@ -75,12 +75,15 @@ fn cubic_error_conditions() {
         Error::Value(msg) => assert!(msg.contains("type not set"), "unexpected message: {msg}"),
         other => panic!("expected Value error, got {other:?}"),
     }
-    // (D,T) works upstream through the cubic superancillary — PLAN 7.2;
-    // until then it is a loud NotImplemented here.
-    assert!(matches!(
-        props_si("P", "Dmolar", 100.0, "T", 300.0, "PR::n-Propane").unwrap_err(),
-        Error::NotImplemented(_)
-    ));
+    // Two-phase (D,T) caloric reads reproduce upstream's broken-sub-state
+    // throw (P/T/D/Q remain readable — golden-covered).
+    match props_si("Hmolar", "Dmolar", 5000.0, "T", 300.0, "SRK::n-Propane").unwrap_err() {
+        Error::Value(msg) => assert!(
+            msg.contains("calc_alpha0_deriv_nocache returned invalid number"),
+            "unexpected message: {msg}"
+        ),
+        other => panic!("expected Value error, got {other:?}"),
+    }
     // Unknown cubic fluid.
     assert!(matches!(
         props_si("D", "T", 300.0, "P", 1e5, "SRK::NotAFluid").unwrap_err(),

@@ -108,6 +108,14 @@ NotImplemented for pseudo-pure (upstream serves them through legacy solvers that
 dead code for the 130 superancillary fluids). 330 goldens + verbatim error parity.
 ~16,500 committed oracle records overall. Tier-2 deferral list: EMPTY.
 
+**Phase 7 (cubics) is DONE**: `rustprop-cubics` ports SRK/Peng-Robinson per upstream
+(T_r = 1/rho_r = 1 so tau = 1/T, delta = rho; SRK Omega literals verbatim incl. upstream's
+corrupted digits; Kazakov rhomolar_critical; the smolar tau*-rescale DEFECT reproduced;
+QT/PQ equal-Gibbs secant with Pitzer seeds; PT cubic-root selection with the inner PQ
+branch pick; DmolarT via the six extracted Chebyshev superancillary tables with the
+broken-sub-state two-phase caloric throw). `SRK::`/`PR::` PropsSI routes; 116-fluid table
+behind one `cubic-fluids` feature; cubics-only wasm = 146 KB total. 2,328 cubic goldens.
+
 ## Toolchain
 
 **Gotcha:** `~/.cargo/bin` is NOT on PATH in this environment, while a stale distro `rustc 1.75` sits at `/usr/bin/rustc` (and plain `cargo` is "not found"). Start shell work with:

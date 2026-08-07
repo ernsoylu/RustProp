@@ -941,6 +941,15 @@ def gen_cubics():
             for q in [0.0, 0.35, 1.0]:
                 for out in ["T", "Dmolar", "Hmolar", "Umolar"]:
                     rec(out, "P", psat_mid, "Q", q)
+            # DmolarT (7.2, superancillary route): liquid, gas,
+            # supercritical, and in-dome states — upstream's two-phase (D,T)
+            # caloric reads throw (broken sub-states), so try_record keeps
+            # P/Q there and drops H/S automatically.
+            rhoc_kaz = PropsSI("rhomolar_critical", "", 0, "", 0, bf)
+            for (rho, T) in [(2.2 * rhoc_kaz, 0.62 * Tc), (0.02 * rhoc_kaz, 0.8 * Tc),
+                             (1.5 * rhoc_kaz, 1.3 * Tc), (0.8 * rhoc_kaz, 0.7 * Tc)]:
+                for out in ["P", "Q", "Hmolar", "Smolar"]:
+                    rec(out, "Dmolar", rho, "T", T)
             # PT: liquid, gas, supercritical(s)
             psat_l = PropsSI("P", "T", 0.6 * Tc, "Q", 0, bf)
             for (T, p_) in [(0.6 * Tc, 3.0 * psat_l), (0.85 * Tc, 0.3 * psat_l),
@@ -949,6 +958,34 @@ def gen_cubics():
                 for out in ["Dmolar", "Hmolar", "Smolar", "Cpmolar", "A"]:
                     rec(out, "T", T, "P", p_)
     print(f"cubics: {len(rows)} records, {skipped} rejected")
+    return rows
+
+
+def gen_cubic_superanc():
+    """Cubic-superancillary curve goldens (PLAN 7.2): p/rhoL/rhoV from the
+    wheel's `update_QT_pure_superanc` across the dome for both backends."""
+    import CoolProp.CoolProp as CPC
+    rows = []
+    for be in ["SRK", "PR"]:
+        for fluid in CUBIC_FLUIDS:
+            AS = CPC.AbstractState(be, fluid)
+            Tc = AS.T_critical()
+            for x in [0.35, 0.5, 0.7, 0.85, 0.95, 0.99]:
+                T = x * Tc
+                try:
+                    AS.update_QT_pure_superanc(0.0, T)
+                except Exception:
+                    continue
+                rows.append({"backend": be, "fluid": fluid, "out": "sa_p",
+                             "name1": "T", "val1": T, "name2": "", "val2": 0.0,
+                             "expected": AS.p()})
+                rows.append({"backend": be, "fluid": fluid, "out": "sa_rhoL",
+                             "name1": "T", "val1": T, "name2": "", "val2": 0.0,
+                             "expected": AS.saturated_liquid_keyed_output(CPC.iDmolar)})
+                rows.append({"backend": be, "fluid": fluid, "out": "sa_rhoV",
+                             "name1": "T", "val1": T, "name2": "", "val2": 0.0,
+                             "expected": AS.saturated_vapor_keyed_output(CPC.iDmolar)})
+    print(f"cubic superanc: {len(rows)} records")
     return rows
 
 
@@ -1182,6 +1219,7 @@ def main():
     write_jsonl("melting.jsonl", gen_melting())
     write_jsonl("pseudo_pure.jsonl", gen_pseudo_pure())
     write_jsonl("cubics.jsonl", gen_cubics())
+    write_jsonl("cubic_superanc.jsonl", gen_cubic_superanc())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
