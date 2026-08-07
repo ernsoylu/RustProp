@@ -1011,6 +1011,24 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 11 slice 11a (PC-SAFT data) + serde_json float fix:
+  `dev/pcsaft/*.json` vendored verbatim (180 fluids: 18 associating, 66
+  polar, 26 ionic; 140 kij records, 2 with kijT); datagen emits
+  `rustprop_data::pcsaft::{PCSAFT_FLUIDS, PCSAFT_BINARY_PAIRS}` behind the
+  `pcsaft-fluids` feature, with upstream's exact optional-key defaults
+  (cpjson::make_pcsaft_fluid zeros) and the kij table CAS-SORTED as
+  PCSAFTLibrary::load_from_JSON stores it (absent kijT -> 0, the upstream
+  getter fallback). Python-side bitwise fidelity walk of all 320 records.
+  DISCOVERY (affects the whole data pipeline): serde_json's DEFAULT float
+  parsing is best-effort, not correctly rounded — a 17-digit literal
+  (ETHYL METHACRYLATE molemass 0.11414400000000001) parsed 1 ulp off,
+  exposed because the new walk compares against python's correctly-rounded
+  parse instead of the same serde parse on both sides. The workspace
+  serde_json now enables `float_roundtrip`; regeneration corrected last-ulp
+  values across ~140 generated files (e.g. Water triple hmolar
+  ...064 -> ...065) and the golden harness now parses fixture expectations
+  exactly as python wrote them. Full suite green (tolerances were all far
+  above ulp scale; bitwise walks were self-consistent before, exact now).
 - 2026-08-07 — Phase 10 mixture transport (completes Phase 10): upstream's
   "highly approximate" mixture models port as one-liners over the pure
   transport stack — viscosity mixes log-linearly (exp of x-weighted ln

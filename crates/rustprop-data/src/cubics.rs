@@ -190,7 +190,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: 0.0, a2: 0.0 },
             Alpha0Term::LogTau { a: -1.0 },
-            Alpha0Term::Cp0PolyT { c: &[6.378038040672545, -0.04582023302189515, 0.0002558503477107775, -3.908517142596848e-7, 2.0517466519551768e-10], t: &[0.0, 1.0, 2.0, 3.0, 4.0], tc: 398.3, t0: 298.15 },
+            Alpha0Term::Cp0PolyT { c: &[6.378038040672545, -0.04582023302189515, 0.0002558503477107775, -3.908517142596848e-7, 2.051746651955177e-10], t: &[0.0, 1.0, 2.0, 3.0, 4.0], tc: 398.3, t0: 298.15 },
             Alpha0Term::EnthalpyEntropyOffset { a1: -10.9358280454636, a2: 8.75156673092286, reference: "IIR" },
         ],
     },
@@ -223,7 +223,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
             Alpha0Term::LogTau { a: -1.0 },
             Alpha0Term::Cp0Constant { cp_over_r: -4.19725991019033, tc: 619.23462341, t0: 484.050286854327 },
             Alpha0Term::Cp0PolyT { c: &[0.223886736283434, -0.000168790032608204, 6.01361096651718e-8], t: &[1.0, 2.0, 3.0], tc: 619.23462341, t0: 484.050286854327 },
-            Alpha0Term::EnthalpyEntropyOffset { a1: 1.14677427554e-8, a2: -8.980103964996251e-9, reference: "NBP" },
+            Alpha0Term::EnthalpyEntropyOffset { a1: 1.14677427554e-8, a2: -8.98010396499625e-9, reference: "NBP" },
         ],
     },
     CubicFluid {
@@ -564,7 +564,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: 2.5822330405, a2: 1.1609103419 },
             Alpha0Term::LogTau { a: 3.0 },
-            Alpha0Term::PlanckEinstein { n: &[7.4056, 9.5772, 15.765, 12.119], t: &[0.9601390246551536, 2.409036602584989, 4.494406429890301, 9.1082871728033] },
+            Alpha0Term::PlanckEinstein { n: &[7.4056, 9.5772, 15.765, 12.119], t: &[0.9601390246551537, 2.409036602584989, 4.494406429890301, 9.108287172803301] },
         ],
     },
     CubicFluid {
@@ -609,7 +609,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: -7.756334333038524, a2: 8.304835522982922 },
             Alpha0Term::LogTau { a: -1.0 },
-            Alpha0Term::Cp0AlyLee { c: &[39.91834959574101, 93.46354164160996, 1813.8, 62.70993515884111, 795.1], tc: 599.4, t0: 467.506025761878 },
+            Alpha0Term::Cp0AlyLee { c: &[39.91834959574101, 93.46354164160995, 1813.8, 62.70993515884111, 795.1], tc: 599.4, t0: 467.506025761878 },
             Alpha0Term::EnthalpyEntropyOffset { a1: 9.28428984830427, a2: -5.60685303331121, reference: "NBP" },
         ],
     },
@@ -723,7 +723,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
             Alpha0Term::Lead { a1: -1.0, a2: 0.0 },
             Alpha0Term::LogTau { a: -1.0 },
             Alpha0Term::Cp0PolyT { c: &[9.572622290387171], t: &[0.214648], tc: 772.0, t0: 298.0 },
-            Alpha0Term::PlanckEinstein { n: &[34.92452677692582, 9.794043446174332, 57.11499178781286], t: &[1.571554404145078, 0.7496787564766839, 3.626670984455958] },
+            Alpha0Term::PlanckEinstein { n: &[34.92452677692582, 9.794043446174333, 57.11499178781286], t: &[1.571554404145078, 0.7496787564766839, 3.626670984455958] },
             Alpha0Term::EnthalpyEntropyOffset { a1: 49.2444711864376, a2: -21.5426591230667, reference: "NBP" },
         ],
     },
@@ -1297,7 +1297,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
             Alpha0Term::LogTau { a: -1.0 },
             Alpha0Term::Cp0PolyT { c: &[4.0], t: &[0.0], tc: 439.6, t0: 298.15 },
             Alpha0Term::PlanckEinstein { n: &[11.795, 8.6848], t: &[1.4331210191082802, 5.072793448589627] },
-            Alpha0Term::EnthalpyEntropyOffset { a1: -20.87215126240313, a2: 13.935740313938968, reference: "IIR" },
+            Alpha0Term::EnthalpyEntropyOffset { a1: -20.872151262403126, a2: 13.935740313938968, reference: "IIR" },
         ],
     },
     CubicFluid {
@@ -1421,7 +1421,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: 0.0, a2: 0.0 },
             Alpha0Term::LogTau { a: 3.0 },
-            Alpha0Term::PlanckEinstein { n: &[6.2641], t: &[1.750580163454747] },
+            Alpha0Term::PlanckEinstein { n: &[6.2641], t: &[1.7505801634547473] },
             Alpha0Term::EnthalpyEntropyOffset { a1: -24.691504134838297, a2: 14.217528781905427, reference: "IIR" },
         ],
     },
@@ -1437,7 +1437,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: 0.0, a2: 0.0 },
             Alpha0Term::LogTau { a: -1.0 },
-            Alpha0Term::Cp0PolyT { c: &[3.946282613411975, -0.008858129431283382, 0.0001393877086940782, -3.005436298807747e-7, 2.0502745018118919e-10], t: &[0.0, 1.0, 2.0, 3.0, 4.0], tc: 227.51, t0: 298.15 },
+            Alpha0Term::Cp0PolyT { c: &[3.946282613411975, -0.008858129431283382, 0.0001393877086940782, -3.005436298807747e-7, 2.050274501811892e-10], t: &[0.0, 1.0, 2.0, 3.0, 4.0], tc: 227.51, t0: 298.15 },
             Alpha0Term::EnthalpyEntropyOffset { a1: -14.8563435687485, a2: 20.1558709204447, reference: "OTH" },
         ],
     },
@@ -1532,7 +1532,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: 0.0, a2: 0.0 },
             Alpha0Term::LogTau { a: -1.0 },
-            Alpha0Term::Cp0PolyT { c: &[2.941888561986215, 0.01573866857206258, 4.012367529660798e-6, -3.085298103142579e-8, 2.1256776866177318e-11], t: &[0.0, 1.0, 2.0, 3.0, 4.0], tc: 451.48, t0: 298.15 },
+            Alpha0Term::Cp0PolyT { c: &[2.941888561986215, 0.01573866857206258, 4.012367529660798e-6, -3.085298103142579e-8, 2.125677686617732e-11], t: &[0.0, 1.0, 2.0, 3.0, 4.0], tc: 451.48, t0: 298.15 },
             Alpha0Term::EnthalpyEntropyOffset { a1: -19.5492777147267, a2: 12.6393155496886, reference: "IIR" },
         ],
     },
@@ -1548,7 +1548,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: -15.6587335175, a2: 11.4531412796 },
             Alpha0Term::LogTau { a: 3.0 },
-            Alpha0Term::PlanckEinstein { n: &[7.2198, 7.2692, 11.599], t: &[0.9448727609993623, 1.724537707958959, 4.315691843951075] },
+            Alpha0Term::PlanckEinstein { n: &[7.2198, 7.2692, 11.599], t: &[0.9448727609993625, 1.724537707958959, 4.315691843951075] },
         ],
     },
     CubicFluid {
@@ -1641,7 +1641,7 @@ pub static CUBIC_FLUIDS: &[CubicFluid] = &[
         alpha0: &[
             Alpha0Term::Lead { a1: -18.09410031, a2: 8.996084665 },
             Alpha0Term::LogTau { a: 7.888 },
-            Alpha0Term::PlanckEinstein { n: &[0.8843, 14.46, 5.331], t: &[1.9326585785463728, 2.5068704336751795, 6.323033268539] },
+            Alpha0Term::PlanckEinstein { n: &[0.8843, 14.46, 5.331], t: &[1.9326585785463726, 2.5068704336751795, 6.323033268539] },
         ],
     },
     CubicFluid {

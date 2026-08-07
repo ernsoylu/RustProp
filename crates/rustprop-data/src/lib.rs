@@ -19,3 +19,6 @@ pub mod incompressible;
 
 #[cfg(feature = "mixture-data")]
 pub mod mixtures;
+
+#[cfg(feature = "pcsaft-fluids")]
+pub mod pcsaft;

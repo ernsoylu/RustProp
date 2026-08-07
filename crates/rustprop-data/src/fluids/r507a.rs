@@ -12,7 +12,7 @@ pub static R507A: FluidData = FluidData {
     aliases: &["R507a"],
     eos: Eos {
         gas_constant: 8.314472,
-        molar_mass: 0.0988592,
+        molar_mass: 0.09885920000000001,
         p_max: 50000000.0,
         t_max: 500.0,
         t_triple: 200.0,
@@ -28,7 +28,7 @@ pub static R507A: FluidData = FluidData {
         sat_min_liquid: StatePoint {
             t: 200.0,
             p: 23232.992819809653,
-            rhomolar: 14129.88676815666,
+            rhomolar: 14129.886768156659,
             hmolar: 10551.80061271761,
             smolar: 59.92911954363508,
         },
@@ -127,7 +127,7 @@ pub static R507A: FluidData = FluidData {
         triple_liquid: StatePoint {
             t: 200.0,
             p: 23232.992819809653,
-            rhomolar: 14129.88676815666,
+            rhomolar: 14129.886768156659,
             hmolar: 10551.80061271761,
             smolar: 59.92911954363508,
         },
@@ -149,7 +149,7 @@ pub static R507A: FluidData = FluidData {
         })),
         conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.008656, 7.383e-5], n: &[0.0, 1.0, 2.0], b: &[1.0], m: &[0.0], t_reducing: 1.0 },
-            residual: ConductivityResidual::Polynomial { b: &[0.0137358126, 0.00738130916394, -0.004306582229626043, 0.0015131427920482103], t: &[0.0, 0.0, 0.0, 0.0], d: &[1.0, 2.0, 3.0, 4.0], t_reducing: 343.765, rhomass_reducing: 490.74 },
+            residual: ConductivityResidual::Polynomial { b: &[0.013735812600000001, 0.00738130916394, -0.004306582229626043, 0.0015131427920482105], t: &[0.0, 0.0, 0.0, 0.0], d: &[1.0, 2.0, 3.0, 4.0], t_reducing: 343.765, rhomass_reducing: 490.74 },
             critical: Some(ConductivityCritical::Hardcoded { name: "None" }),
         })),
     }),

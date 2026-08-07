@@ -110,7 +110,11 @@ bisection walked into a wrong-root pocket the wheel reproduces bitwise (its
 TOMS748 interpolates past). Mixture transport done (log-linear
 eta / linear lambda over pure components at bulk state, 24 goldens bitwise).
 **PHASE 10 COMPLETE** (phase-envelope machinery is PropsSI-dead upstream and
-unported by design). Next: Phase 11 PC-SAFT (survey in scratchpad).
+unported by design). Phase 11 started: 11a data done (180
+fluids + 140 CAS-sorted kij behind `pcsaft-fluids`, python-verified bitwise).
+Workspace serde_json now enables `float_roundtrip` — its DEFAULT parse is
+best-effort and put 1-ulp errors into ~140 generated files (now corrected).
+Next: 11b PC-SAFT Helmholtz terms (survey in scratchpad).
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

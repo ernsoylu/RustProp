@@ -40,7 +40,7 @@ pub static R407C: FluidData = FluidData {
             smolar: 167.25075151048213,
         },
         hs_anchor: StatePoint {
-            t: 395.2795,
+            t: 395.27950000000004,
             p: 7344198.397489059,
             rhomolar: 4734.0000417615975,
             hmolar: 37721.085985373546,
@@ -144,7 +144,7 @@ pub static R407C: FluidData = FluidData {
             sigma_eta: 1e99,
             dilute: ViscosityDilute::PowersOfT { a: &[-1.507e-6, 4.894e-8, -9.305e-12], t: &[0.0, 1.0, 2.0] },
             initial_density: None,
-            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-1.37752319572e-6, 6.017900799813533e-5, -8.911399521418381e-5, 7.350962141560484e-5, -2.788808852966893e-5, 4.133412533885438e-6], d1: &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], t1: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.0], d2: &[0.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 359.345, rhomolar_reduce: 5260.000046401775 },
+            higher_order: ViscosityHigherOrder::ModifiedBatschinskiHildebrand { a: &[-1.3775231957200001e-6, 6.0179007998135324e-5, -8.911399521418381e-5, 7.350962141560484e-5, -2.788808852966893e-5, 4.133412533885438e-6], d1: &[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], t1: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], gamma: &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], l: &[1.0, 1.0, 1.0, 1.0, 1.0, 1.0], f: &[0.0], d2: &[0.0], t2: &[0.0], g: &[1.0], h: &[0.0], p: &[1.0], q: &[0.0], t_reduce: 359.345, rhomolar_reduce: 5260.000046401775 },
         })),
         conductivity: TransportModel::Model(ConductivityModel::Structured(Conductivity {
             dilute: ConductivityDilute::RatioOfPolynomials { a: &[-0.009628, 7.638e-5], n: &[0.0, 1.0, 2.0], b: &[1.0], m: &[0.0], t_reducing: 1.0 },

@@ -973,6 +973,47 @@ pub struct MixBinaryPair {
 /// One mixture departure function (upstream
 /// `mixture_departure_functions.json`): the three upstream types all map
 /// onto the generalized-exponential term machinery.
+/// One PC-SAFT fluid (upstream `PCSAFTFluid` + `PCSAFTValues`, loaded from
+/// `dev/pcsaft/all_pcsaft_fluids.json`). Optional JSON keys default to 0 /
+/// empty exactly as `cpjson::make_pcsaft_fluid` does.
+pub struct PcsaftFluid {
+    pub name: &'static str,
+    pub cas: &'static str,
+    pub aliases: &'static [&'static str],
+    /// `.m` — number of segments
+    pub m: f64,
+    /// `.sigma` [Angstrom] — WATER ships the -1 sentinel (replaced at
+    /// runtime by `calc_water_sigma(T)`)
+    pub sigma: f64,
+    /// `.u` [K] — dispersion energy over k_B
+    pub u: f64,
+    /// `.molemass` [kg/mol]
+    pub molemass: f64,
+    /// `.uAB` [K] — association energy (0 when absent)
+    pub u_ab: f64,
+    /// `.volA` [Angstrom^3] — association volume (0 when absent)
+    pub vol_a: f64,
+    /// `.assocScheme` — Huang-Radosz association schemes (empty when absent)
+    pub assoc_scheme: &'static [&'static str],
+    /// `.dipm` [Debye] — dipole moment (0 when absent)
+    pub dipm: f64,
+    /// `.dipnum` — dipole count per molecule (0 when absent)
+    pub dipnum: f64,
+    /// `.charge` (upstream `z`) — ePC-SAFT ion charge (0 when absent)
+    pub z: f64,
+}
+
+/// One PC-SAFT binary-interaction record
+/// (`mixture_binary_pairs_pcsaft.json`); the library stores the pair
+/// CAS-SORTED (unlike the HEOS table, which ships document order).
+pub struct PcsaftBinaryPair {
+    pub cas1: &'static str,
+    pub cas2: &'static str,
+    pub kij: f64,
+    /// `kijT` — present on 2 records; upstream's getter returns 0 when absent.
+    pub kij_t: f64,
+}
+
 /// One predefined mixture (upstream `predefined_mixtures.json` entry; the
 /// registry key is `name + ".mix"` plus its uppercase form).
 pub struct PredefinedMixture {
