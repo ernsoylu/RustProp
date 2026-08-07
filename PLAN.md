@@ -277,11 +277,15 @@ Hardest phase; sub-steps land separately like 4.x did.
 
 ## Phase 13 — SVDSBTL engine
 
-- [ ] 13.1 Study upstream's v8 implementation (`src/Backends/SVDSBTL`, `dev/build_svd_tables.cpp`,
+- [x] 13.1 Study upstream's v8 implementation (`src/Backends/SVDSBTL`, `dev/build_svd_tables.cpp`,
       sizing harness) and record a porting design note: what is precomputed offline vs at
       runtime, and how compressed tables should ship for wasm (this is the size-critical payoff
       engine).
       → verify: design note in Decisions log reviewed against upstream source, before code.
+      DONE — and it overturns the premise: measured against the wheel, one fluid's two MVP
+      surfaces are 26.4 MB, eight times this project's entire 130-fluid HEOS wasm build.
+      SVDSBTL buys SPEED at the cost of size. See the Decisions entry for the full note and
+      the resulting design (port the evaluator, ingest the coefficients, never rebuild them).
 - [ ] 13.2 Port per that note.
       → verify: goldens vs `SVDSBTL&HEOS::` outputs within upstream's documented accuracy;
       wasm size report for a tables-only build (no HEOS) recorded.
@@ -1457,3 +1461,91 @@ Append-only; newest last. Seeded entries:
   lowest-pressure corner (rho = 9e-6 mol/m^3). The suite is `#[ignore]`d for
   runtime, not confidence: each state builds a 200x200 LogPH grid at ~100 s
   (one (h, p) flash per node). Added to the weekly CI job.
+- 2026-08-07 — Phase 13 slice 13.1 (SVDSBTL porting design note, written
+  against upstream `src/Backends/SVDSBTL/SVDSBTLBackend.cpp` (2,292 lines),
+  `include/CoolProp/{svd,sbtl,region}/*.h` (~2,700 lines), `src/SVD/
+  SVDBuilder.cpp`, and a local build of the wheel's own SVDSBTL tables).
+
+  WHAT IT IS. For one pure fluid and one input pair, upstream builds a
+  `SVDSurface`: a `RegionAtlas` over the (a, b) plane (LIQUID / VAPOR /
+  SUPER / NC, plus per-fluid splits) whose regions carry an `AxisTransform`
+  on the primary axis (LINEAR / LOG / POWER / POWER_LO) and two
+  `BoundaryCurve`s on the secondary. A point normalises to (xi, eta) in the
+  unit square, and each (region, property) pair owns a rank-r
+  `SVDDecomposition`. Evaluation is: locate the cell on each axis by binary
+  search, build the cubic-Hermite basis (Hermite1D.h, four polynomials),
+  take the rank-r dot product of the two interpolated mode vectors, and
+  optionally `exp` the result (`OutputTransform::EXP` for strictly positive
+  wide-range properties). Singular values are pre-folded into V, and the
+  per-mode slopes (natural cubic spline by default) are stored alongside, so
+  the hot path is ~40 FMAs.
+
+  RUNTIME vs OFFLINE. Everything expensive is offline: sampling the source
+  backend over an NT x NR grid per region per property, and Eigen's
+  **BDCSVD** on each sampled matrix. The result is msgpack'd + zlib'd to
+  `~/.CoolProp/SVDTables/<fluid>.<source>.<pair>.<opthash>.svd.bin.z` and
+  loaded at construction. Runtime is only: deserialize, atlas dispatch,
+  Hermite + dot product. Two-phase queries blend along the dome via a
+  `SaturationSurrogate` (or SuperAncillary); a near-critical bbox can
+  forward to a child "patch" backend.
+
+  MEASURED, on this machine, wheel 8.0.0, `AbstractState("SVDSBTL&HEOS",
+  "Water")` with default options:
+    - construction (build both MVP surfaces from HEOS): **702 s**
+    - `Water.HEOS.PT_INPUTS.*.svd.bin.z`: **13.0 MB**
+    - `Water.HEOS.HmassP_INPUTS.*.svd.bin.z`: **13.4 MB**
+    - structure per surface: 6 regions x 7 properties = 42 decompositions,
+      each NX=200, NY=800, rank=20 -> 41,020 doubles = 328 KB; 42 of them =
+      13.8 MB of f64 per surface (zlib barely compresses f64 mantissas)
+    - accuracy at (p=101325, T=400): rho 0.5549439033669895 vs HEOS
+      0.5549439034904987, 2.2e-10 relative.
+
+  THE PLAN'S PREMISE FOR THIS PHASE IS WRONG, and the measurement says so
+  plainly. Phase 13 was written as "the size-critical payoff engine". It is
+  the opposite: SVDSBTL trades **binary size for speed**. For scale, against
+  this project's own committed wasm numbers:
+      rustprop IF97                        113 KB
+      rustprop HEOS + Water                136 KB
+      rustprop cubics, 116 fluids          146 KB
+      rustprop HEOS, all 130 fluids       3.31 MB
+      upstream SVDSBTL, Water, PT alone   13.0 MB
+  One fluid's two MVP surfaces (26.4 MB) are **eight times the entire
+  130-fluid HEOS build**. Nothing about the format changes that: the payload
+  IS dense f64 coefficient tensors.
+
+  ROUTING. Like the tabular backends, `available_in_high_level()` returns
+  false — PropsSI would pay an ~80 ms cache load per call against a ~5 us
+  eval — with an `ALLOW_SVDSBTL_IN_PROPSSI` configuration key to opt back
+  in. So this is a LOW-LEVEL engine, exactly as Phase 12's tables turned out
+  to be.
+
+  DESIGN DECISION for 13.2:
+  1. Port the EVALUATOR, not the builder. `AxisTransform`, `Region`,
+     `RegionAtlas`, the boundary-curve family, `Hermite1D`, `SVDEvaluator`
+     and the `SVDSurface` dispatch are together ~700 lines of arithmetic
+     with no external dependencies — genuinely small, wasm-friendly code.
+  2. Do NOT port `SVDBuilder`. It is Eigen BDCSVD, and an SVD is unique only
+     up to sign and rotation within degenerate singular subspaces: no
+     independent implementation reproduces upstream's U and V bitwise, so a
+     Rust rebuild could not satisfy this project's fidelity mandate. The
+     numbers must be INGESTED, not recomputed.
+  3. Ingest through datagen, as `rustprop-data` already does for fluid JSON:
+     a `tools/rustprop-svdgen` reads upstream's `.svd.bin.z` (msgpack + zlib,
+     format confirmed parseable: magic "SVDS", revision 19, positional
+     arrays) and emits a little-endian f64 blob plus a small typed header.
+     Shipped crates read it with `include_bytes!` — no parser in the binary,
+     honouring the existing "no JSON parsing in shipped binaries" rule.
+  4. The artifacts are NOT committed at default resolution. 26 MB per fluid
+     does not belong in this repository, and it is the only engine where
+     that is true. Golden fixtures instead use a REDUCED build — upstream's
+     own `PresetOptions` (NT, NR, rank) are part of its public factory
+     options, so a small artifact is still oracle-checkable against upstream
+     built with the same options — targeting a few hundred KB. A
+     full-default-resolution comparison stays available as an `#[ignore]`d
+     test for anyone with a local upstream build.
+  5. Feature gating: one Cargo feature per (fluid, input pair) surface, all
+     `default = []`, so a build that does not ask for SVDSBTL pays nothing.
+  6. Scope for the first slice: PT and HmassP surfaces, single-phase regions
+     only, `SVDSBTL&HEOS` sources only. The dome blend, the critical patch,
+     REFPROP/IF97 sources, and `fast_evaluate` follow only if a consumer
+     needs them — each is additive and none changes the evaluator.
