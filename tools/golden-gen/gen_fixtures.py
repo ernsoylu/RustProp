@@ -1271,6 +1271,55 @@ def gen_ttse():
     return rows
 
 
+def gen_bicubic():
+    """Phase 12 slice 12d: bicubic evaluation on the LogPT table through PT
+    inputs, against the wheel's own BICUBIC backend (same 200x200 grid, same
+    16-coefficient cells). Corner records land exactly on cell corners, where
+    the interpolant must reproduce the node value."""
+    import math
+    rows = []
+    for fluid in ["Water", "n-Propane"]:
+        AS = CP.AbstractState("BICUBIC&HEOS", fluid)
+        hf = f"HEOS::{fluid}"
+        Tmin = max(PropsSI("Ttriple", "", 0, "", 0, hf), PropsSI("Tmin", "", 0, "", 0, hf))
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        pmax = PropsSI("pmax", "", 0, "", 0, hf)
+        ref = CP.AbstractState("HEOS", fluid)
+        ref.update(CP.QT_INPUTS, 0, Tmin)
+        pmin = ref.p()
+        xmin, xmax = Tmin, Tmax * 1.499
+        nx = ny = 200
+        states = []
+        for fi in (0.17, 0.42, 0.66, 0.91):
+            for fj in (0.25, 0.55, 0.85):
+                states.append((xmin + (xmax - xmin) * fi,
+                               math.exp(math.log(pmin) + math.log(pmax / pmin) * fj)))
+        # Interior points of specific cells, plus exact cell corners
+        for i in (55, 130):
+            for j in (60, 150):
+                x0 = xmin + (xmax - xmin) / (nx - 1) * i
+                x1 = xmin + (xmax - xmin) / (nx - 1) * (i + 1)
+                y0 = math.exp(math.log(pmin) + math.log(pmax / pmin) / (ny - 1) * j)
+                y1 = math.exp(math.log(pmin) + math.log(pmax / pmin) / (ny - 1) * (j + 1))
+                states.append((x0, y0))                       # corner
+                states.append((0.5 * (x0 + x1), 0.5 * (y0 + y1)))  # cell middle
+        for (t, p) in states:
+            try:
+                AS.update(CP.PT_INPUTS, p, t)
+                vals = [("Dmolar", AS.rhomolar()), ("Hmolar", AS.hmolar()),
+                        ("Smolar", AS.smolar()), ("Umolar", AS.umolar())]
+            except Exception:
+                continue
+            for out, v in vals:
+                rows.append({
+                    "backend": "BICUBIC", "fluid": fluid, "out": out,
+                    "name1": "T", "val1": t, "name2": "P", "val2": p,
+                    "expected": v,
+                })
+    print(f"bicubic: {len(rows)} records")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1943,6 +1992,7 @@ def main():
     write_jsonl("partial_derivs.jsonl", gen_partial_derivs())
     write_jsonl("tabular_tables.jsonl", gen_tabular_tables())
     write_jsonl("ttse.jsonl", gen_ttse())
+    write_jsonl("bicubic.jsonl", gen_bicubic())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

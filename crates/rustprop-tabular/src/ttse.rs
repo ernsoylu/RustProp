@@ -27,6 +27,16 @@ use rustprop_core::{Error, Result};
 /// Upstream `bisect_vector`: index `i` such that `val` lies in
 /// `[vec[i], vec[i+1]]`, skipping invalid entries at the ends and in the
 /// middle exactly as upstream does.
+///
+/// UPSTREAM BUG, REPRODUCED: the bracket test is written on residual SIGN
+/// PRODUCTS, so a query that lands exactly on a grid value makes
+/// `rM = vec[M] - val` exactly zero. Neither `rR*rM > 0` nor `rL*rM < 0`
+/// then holds, the `else` branch fires, and `rL` itself becomes zero — after
+/// which every later iteration also falls to `else` and `L` marches all the
+/// way to `R-1`. An exact node hit therefore returns a FAR index rather than
+/// the node's own cell. Verified against the wheel: `TTSE&HEOS::Water` at a
+/// grid node returns an extrapolated value (3704.575) instead of the stored
+/// node value (3705.289), i.e. upstream mis-locates it identically.
 pub fn bisect_vector(vec: &[f64], val: f64) -> Result<usize> {
     let n = vec.len();
     let (mut l, mut r) = (0usize, n - 1);

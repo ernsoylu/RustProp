@@ -3,6 +3,7 @@
 //! Not yet ported. Fidelity rule: identical algorithms and data as upstream
 //! CoolProp v8.0.0 — see CLAUDE.md.
 
+pub mod bicubic;
 pub mod tables;
 pub mod ttse;
 

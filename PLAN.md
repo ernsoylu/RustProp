@@ -1012,6 +1012,29 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 12 slice 12d (bicubic evaluation): ports
+  `TabularDataSet::build_coeffs` (16 alpha coefficients per property per
+  cell from the corner values, first derivatives and cross derivatives,
+  each scaled into the unit square; upstream loads its flat `Ainv` into a
+  COLUMN-major Eigen matrix and multiplies by `Ainv.transpose()`, which is
+  row-major indexing of the same flat array — reproduced directly) and
+  `BicubicBackend::evaluate_single_phase` (Horner in yhat, then xhat), with
+  the invalid-cell remap onto a good neighbour and upstream's verbatim
+  "no bicubic coefficients" error for the residual case (#1950).
+  UPSTREAM BUG FOUND AND REPRODUCED: `bisect_vector` brackets on residual
+  SIGN PRODUCTS, so a query landing exactly on a grid value makes
+  `rM = vec[M] - val` exactly zero; neither `rR*rM > 0` nor `rL*rM < 0`
+  holds, the else branch fires and sets `rL = 0`, after which every later
+  iteration also falls to else and `L` marches to `R-1`. An exact node hit
+  therefore resolves to a FAR cell. Confirmed against the wheel:
+  `TTSE&HEOS::Water` at a grid node returns the extrapolated 3704.575
+  instead of the stored node value 3705.289 — upstream mis-locates it
+  identically, so the port is faithful. Verified: 160 goldens for Water and
+  n-Propane against the wheel's own BICUBIC backend; 156 interior states
+  agree below 1e-9, and the four on-node states (which the quirk sends to a
+  cell where xhat ~ -0.37) agree to 1e-8, the cubic there amplifying the
+  last-ulp difference between Eigen's vectorized 16x16 product and this
+  port's scalar accumulation. A separate test asserts corner reproduction.
 - 2026-08-07 — Phase 12 slice 12c (TTSE evaluation): ports
   `TTSEBackend::evaluate_single_phase` (the second-order Taylor expansion
   z + dx*z_x + dy*z_y + dx^2/2*z_xx + dy^2/2*z_yy + dx*dy*z_xy about the

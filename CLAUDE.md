@@ -137,8 +137,12 @@ not ported (no home dir in WASM), so a LogPH build costs ~100 s per process.
 12c done: TTSE evaluation
 (2nd-order Taylor about the nearest node, bilinear transport, both quadratic
 inverters, bisect/nearest-node search) — 144 goldens vs the wheel's own TTSE
-backend, bitwise on the first probe, plus node-exactness. Next: 12d bicubic,
-12e inversion + PropsSI routing.
+backend, bitwise on the first probe, plus node-exactness. 12d done: bicubic (16-coefficient
+cells from the row-major Ainv, Horner evaluation, invalid-cell remap) — 160
+goldens vs the wheel's BICUBIC backend. Found and reproduced an upstream
+`bisect_vector` bug: an exact-node query zeroes the residual, poisoning the
+sign test so the index marches to R-1 (the wheel mis-locates identically).
+Next: 12e inversion + PropsSI routing.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
