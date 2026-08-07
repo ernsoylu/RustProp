@@ -761,6 +761,66 @@ def gen_mixture_pt():
     return rows
 
 
+def gen_mixture_vle():
+    """Slice 10e: blind QT/PQ mixture flashes (Wilson seed -> successive
+    substitution -> newton_raphson_saturation). Outputs are the PropsSI-visible
+    bulk quantities; x rides name3/val3 as x1."""
+    pairs = [
+        ("Methane", "Ethane"),
+        ("Methane", "Nitrogen"),
+        ("R32", "R125"),
+        ("Nitrogen", "Oxygen"),
+    ]
+    rows = []
+    for f1, f2 in pairs:
+        state = CP.AbstractState("HEOS", f"{f1}&{f2}")
+        for x1 in (0.25, 0.5, 0.75):
+            state.set_mole_fractions([x1, 1.0 - x1])
+            tr = state.T_reducing()
+            # QT states
+            for tfac in (0.55, 0.65, 0.75):
+                for q in (0.0, 0.3, 1.0):
+                    t = tfac * tr
+                    try:
+                        state.update(CP.QT_INPUTS, q, t)
+                        vals = [("P", state.p()), ("Dmolar", state.rhomolar()),
+                                ("Hmolar", state.hmolar()), ("Smolar", state.smolar())]
+                    except Exception:
+                        continue
+                    for out, val in vals:
+                        rows.append({
+                            "backend": "HEOS-MIX", "fluid": f"{f1}&{f2}",
+                            "out": out, "name1": "T", "val1": t,
+                            "name2": "Q", "val2": q,
+                            "name3": "x1", "val3": x1,
+                            "expected": val,
+                        })
+            # PQ states seeded from the bubble pressure at 0.65 Tr
+            try:
+                state.update(CP.QT_INPUTS, 0, 0.65 * tr)
+                p_mid = state.p()
+            except Exception:
+                continue
+            for pfac in (0.6, 1.4):
+                for q in (0.0, 0.5, 1.0):
+                    p = pfac * p_mid
+                    try:
+                        state.update(CP.PQ_INPUTS, p, q)
+                        vals = [("T", state.T()), ("Dmolar", state.rhomolar()),
+                                ("Hmolar", state.hmolar()), ("Smolar", state.smolar())]
+                    except Exception:
+                        continue
+                    for out, val in vals:
+                        rows.append({
+                            "backend": "HEOS-MIX", "fluid": f"{f1}&{f2}",
+                            "out": out, "name1": "P", "val1": p,
+                            "name2": "Q", "val2": q,
+                            "name3": "x1", "val3": x1,
+                            "expected": val,
+                        })
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1423,6 +1483,7 @@ def main():
     write_jsonl("humid_air.jsonl", gen_humid_air())
     write_jsonl("mixture_helmholtz.jsonl", gen_mixture_helmholtz())
     write_jsonl("mixture_pt.jsonl", gen_mixture_pt())
+    write_jsonl("mixture_vle.jsonl", gen_mixture_vle())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

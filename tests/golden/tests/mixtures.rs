@@ -225,3 +225,120 @@ fn mixture_pt_flash_matches_oracle() {
         failures.join("\n")
     );
 }
+
+#[test]
+fn mixture_vle_matches_oracle() {
+    // Slice 10e: blind QT/PQ flashes. Solver tier: 1e-8 (NR converges the
+    // ln-fugacity residuals to 1e-7 rms on both sides from the same seed).
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_vle.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 720);
+
+    let mut models: std::collections::HashMap<String, rustprop_heos::mixture::MixtureModel> =
+        std::collections::HashMap::new();
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let (f1, f2) = rec.fluid.split_once('&').expect("pair fluid string");
+        let model = models.entry(rec.fluid.clone()).or_insert_with(|| {
+            rustprop_heos::mixture::MixtureModel::new(
+                &[fluid(f1), fluid(f2)],
+                rustprop_data::mixtures::MIX_BINARY_PAIRS,
+                rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+            )
+            .expect("model builds")
+        });
+        let z = [rec.val3, 1.0 - rec.val3];
+        let state = match rec.name1.as_str() {
+            "T" => model.qt_flash(rec.val2, rec.val1, &z),
+            "P" => model.pq_flash(rec.val1, rec.val2, &z),
+            other => panic!("unknown imposed variable {other}"),
+        };
+        let state = match state {
+            Ok(s) => s,
+            Err(e) => {
+                failures.push(format!(
+                    "{} x1={}: {} flash failed: {e:?}",
+                    rec.fluid,
+                    rec.val3,
+                    rec.id()
+                ));
+                continue;
+            }
+        };
+        let actual = match rec.out.as_str() {
+            "T" => state.t,
+            "P" => state.p,
+            "Dmolar" => state.rhomolar,
+            "Hmolar" => state.hmolar(),
+            "Smolar" => state.smolar(),
+            other => panic!("unknown out {other}"),
+        };
+        if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-8) {
+            failures.push(format!("{} x1={}: {e}", rec.fluid, rec.val3));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture VLE records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}
+
+/// Same identities under the XN_DEPENDENT convention (x1 = 1 - x0): the
+/// newton_raphson_saturation Jacobian consumes exactly these — a missing
+/// Dependent branch in d2Yrdxidxj once sent the 10e NR to a wrong region.
+#[test]
+fn reducing_derivatives_consistent_dependent() {
+    use rustprop_heos::mixture::XnFlag;
+    let comps = [fluid("Methane"), fluid("Ethane")];
+    let red = Gerg2008Reducing::new(&comps, rustprop_data::mixtures::MIX_BINARY_PAIRS).unwrap();
+    let flag = XnFlag::Dependent;
+    let x = [0.4_f64, 0.6];
+    let h = 1e-7;
+    let xp = [x[0] + h, x[1] - h];
+    let xm = [x[0] - h, x[1] + h];
+
+    let fd_t = (red.tr(&xp) - red.tr(&xm)) / (2.0 * h);
+    let an_t = red.dtrdxi__constxj(&x, 0, flag);
+    assert!(
+        ((fd_t - an_t) / an_t).abs() < 1e-6,
+        "dTr/dx0 dep: fd {fd_t} vs analytic {an_t}"
+    );
+    let fd_r = (red.rhormolar(&xp) - red.rhormolar(&xm)) / (2.0 * h);
+    let an_r = red.drhormolardxi__constxj(&x, 0, flag);
+    assert!(
+        ((fd_r - an_r) / an_r).abs() < 1e-6,
+        "drhor/dx0 dep: fd {fd_r} vs analytic {an_r}"
+    );
+    let fd2_t = (red.dtrdxi__constxj(&xp, 0, flag) - red.dtrdxi__constxj(&xm, 0, flag)) / (2.0 * h);
+    let an2_t = red.d2trdxidxj(&x, 0, 0, flag);
+    assert!(
+        (fd2_t - an2_t).abs() / an2_t.abs().max(1.0) < 1e-5,
+        "d2Tr/dx0dx0 dep: fd {fd2_t} vs analytic {an2_t}"
+    );
+    let fd2_r = (red.drhormolardxi__constxj(&xp, 0, flag)
+        - red.drhormolardxi__constxj(&xm, 0, flag))
+        / (2.0 * h);
+    let an2_r = red.d2rhormolardxidxj(&x, 0, 0, flag);
+    assert!(
+        (fd2_r - an2_r).abs() / an2_r.abs().max(1.0) < 1e-5,
+        "d2rhor/dx0dx0 dep: fd {fd2_r} vs analytic {an2_r}"
+    );
+    let fd_nd =
+        (red.ndtrdni__constnj(&xp, 0, flag) - red.ndtrdni__constnj(&xm, 0, flag)) / (2.0 * h);
+    let an_nd = red.d_ndtrdni_dxj__constxi(&x, 0, 0, flag);
+    assert!(
+        (fd_nd - an_nd).abs() / an_nd.abs().max(1.0) < 1e-5,
+        "d_ndTrdni_dxj dep: fd {fd_nd} vs analytic {an_nd}"
+    );
+    let fd_ndr = (red.ndrhorbardni__constnj(&xp, 0, flag)
+        - red.ndrhorbardni__constnj(&xm, 0, flag))
+        / (2.0 * h);
+    let an_ndr = red.d_ndrhorbardni_dxj__constxi(&x, 0, 0, flag);
+    assert!(
+        (fd_ndr - an_ndr).abs() / an_ndr.abs().max(1.0) < 1e-5,
+        "d_ndrhorbardni_dxj dep: fd {fd_ndr} vs analytic {an_ndr}"
+    );
+}

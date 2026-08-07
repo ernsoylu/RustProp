@@ -100,6 +100,7 @@
     "melting.jsonl",
     "mixture_helmholtz.jsonl",
     "mixture_pt.jsonl",
+    "mixture_vle.jsonl",
     "param_aliases.jsonl",
     "parameters.jsonl",
     "phases.jsonl",

@@ -1006,6 +1006,34 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 slice 10e (mixture QT/PQ VLE):
+  `mixture_vle.rs` ports the blind flash chain — saturation_preconditioner
+  (mole-fraction-weighted ln(p)-vs-T interpolation on STATES.critical /
+  sat_min_liquid constants), saturation_Wilson (closed forms for beta in {0,1}
+  with T imposed, bounded Brent(1,1e9)/(50,1e4) + Secant fallback on the
+  Rachford-Rice residual otherwise; fills K), x_and_y_from_K,
+  successive_substitution (Peneloux-translated SRK liquid seed with upstream's
+  HARDCODED R = 8.3144598, XN_INDEPENDENT fugacity coefficients, 0.1 damping
+  when |dp| > 0.05 p, |f| <= 1e-12 / iter caps 50 and Nstep_max 20/10), and
+  newton_raphson_saturation (XN_DEPENDENT build_arrays via update_TP_guessrho
+  with the imposed-phase stability retries, ln-fugacity residuals,
+  p = (p_liq+p_vap)/2 refresh, partial-pivot Gaussian solve standing in for
+  Eigen's colPivHouseholderQr, error_rms 1e-7 / 1000 eps min-rel-change /
+  Nstep_max 30). The publish step reproduces upstream exactly: p from SatV's
+  EOS pressure, T from SatL, lever-rule density, phase h/s at each phase's own
+  composition. The MixtureDerivatives layer (ln_fugacity_coefficient,
+  fugacity_i, dln_fugacity_coefficient_dT/dp, dln_fugacity_dxj__constT_p_xi
+  with Gernert 3.115-3.134, partial_molar_volume, ndpdni, d_ndalphardni_dTau/
+  dDelta/dxj) lives on a SatState carrying cached component/pair derivatives.
+  BUG FOUND AND FIXED in 10b machinery: d2Yrdxidxj/d2Yrdxi2__constxj had only
+  the XN_INDEPENDENT (Kunz-Wagner Table B9) forms — the Gernert Table S1
+  XN_DEPENDENT branches were missing, sending the NR Jacobian's composition
+  column off by factors (FD-isolated layer by layer); both branches now ported
+  verbatim, given-order c_Y_ij/beta indexing preserved, plus a
+  Dependent-convention FD regression test. Verified: 720 goldens (four pairs,
+  three compositions, QT at 0.55/0.65/0.75 Tr and PQ around the bubble curve,
+  Q in {0, 0.3, 0.5, 1}) at 1e-8 — including bulk Dmolar/Hmolar/Smolar via
+  the composition-split lever rule.
 - 2026-08-07 — Phase 10 slice 10d (mixture PT single-phase flash):
   `mixture_flash.rs` ports the single-phase lambda of PT_flash_mixtures (SRK
   roots for both phases decide the branches; both valid -> solve both HEOS

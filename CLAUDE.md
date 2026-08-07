@@ -86,8 +86,13 @@ root selection + homogeneous props, 696 goldens at 1e-9 against the wheel's real
 PT update). Wheel discovery: mixture DmolarT updates re-solve density in phase
 determination (delta = 1+6e-13), so Helmholtz-assembly fixtures impose
 iphase_supercritical. In-dome PT returns the metastable single-phase root until
-10f (stability + Michelsen split). Next: 10e PQ/QT VLE, PropsSI mixture routing,
-predefined blends.
+10f (stability + Michelsen split). 10e (QT/PQ VLE) is done: Wilson/preconditioner
+seeds, successive_substitution (Peneloux SRK seed, hardcoded R=8.3144598),
+newton_raphson_saturation (XN_DEPENDENT Jacobian, Gaussian solve for Eigen QR),
+full MixtureDerivatives fugacity layer — 720 goldens at 1e-8, Q in {0,0.3,0.5,1}.
+Fixed latent 10b bug: d2Yrdxidxj lacked the Gernert Table S1 XN_DEPENDENT
+branches (FD regression test added). Next: PropsSI mixture routing, predefined
+blends, 10f.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

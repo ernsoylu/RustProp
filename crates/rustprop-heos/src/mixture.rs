@@ -281,6 +281,73 @@ impl Gerg2008Reducing {
     // --- second derivatives ---
 
     #[allow(clippy::too_many_arguments)]
+    /// Upstream `d2Yrdxi2__constxj` — Kunz-Wagner Table B9 (Independent) /
+    /// Gernert Table S1 (Dependent).
+    #[allow(clippy::too_many_arguments)]
+    fn d2yrdxi2__constxj(
+        &self,
+        x: &[f64],
+        i: usize,
+        beta: &[f64],
+        gamma: &[f64],
+        y_c_ij: &[f64],
+        yc: &[f64],
+        flag: XnFlag,
+    ) -> f64 {
+        let n = self.n;
+        match flag {
+            XnFlag::Independent => {
+                let mut d = 2.0 * yc[i];
+                for k in 0..i {
+                    d += self.c_y_ij(k, i, beta, gamma, y_c_ij)
+                        * Self::d2fykidxi2__constxk(x, k, i, beta[k * n + i]);
+                }
+                for k in (i + 1)..n {
+                    d += self.c_y_ij(i, k, beta, gamma, y_c_ij)
+                        * Self::d2fyikdxi2__constxk(x, i, k, beta[i * n + k]);
+                }
+                d
+            }
+            XnFlag::Dependent => {
+                if i == n - 1 {
+                    return 0.0;
+                }
+                let xn = x[n - 1];
+                let mut d = 2.0 * yc[i] + 2.0 * yc[n - 1];
+                for k in 0..i {
+                    d += self.c_y_ij(k, i, beta, gamma, y_c_ij)
+                        * Self::d2fykidxi2__constxk(x, k, i, beta[k * n + i]);
+                }
+                for k in (i + 1)..(n - 1) {
+                    d += self.c_y_ij(i, k, beta, gamma, y_c_ij)
+                        * Self::d2fyikdxi2__constxk(x, i, k, beta[i * n + k]);
+                }
+                let b_in = beta[i * n + (n - 1)];
+                let b2 = b_in * b_in;
+                d += 2.0
+                    * self.c_y_ij(i, n - 1, beta, gamma, y_c_ij)
+                    * (-(x[i] + xn) / (b2 * x[i] + xn)
+                        + (1.0 - b2)
+                            * (xn * xn / (b2 * x[i] + xn).powi(2)
+                                + ((1.0 - b2) * x[i] * xn * xn - b2 * x[i] * x[i] * xn)
+                                    / (b2 * x[i] + xn).powi(3)));
+                for k in 0..(n - 1) {
+                    let b_kn = beta[k * n + (n - 1)];
+                    let bk2 = b_kn * b_kn;
+                    d += 2.0
+                        * self.c_y_ij(k, n - 1, beta, gamma, y_c_ij)
+                        * x[k]
+                        * x[k]
+                        * (1.0 - bk2)
+                        / (bk2 * x[k] + xn).powi(2)
+                        * (xn / (bk2 * x[k] + xn) - 1.0);
+                }
+                d
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn d2yrdxidxj(
         &self,
         x: &[f64],
@@ -293,22 +360,37 @@ impl Gerg2008Reducing {
         flag: XnFlag,
     ) -> f64 {
         let n = self.n;
-        if i == j {
-            // d2Yr/dxi2 (upstream d2Yrdxi2__constxj), XN_INDEPENDENT form.
-            let mut d = 2.0 * yc[i];
-            for k in 0..i {
-                d += self.c_y_ij(k, i, beta, gamma, y_c_ij)
-                    * Self::d2fykidxi2__constxk(x, k, i, beta[k * n + i]);
+        match flag {
+            XnFlag::Independent => {
+                if i == j {
+                    self.d2yrdxi2__constxj(x, i, beta, gamma, y_c_ij, yc, flag)
+                } else {
+                    // See Table B9 from Kunz Wagner 2012 (GERG 2008)
+                    self.c_y_ij(i, j, beta, gamma, y_c_ij)
+                        * Self::d2fyijdxidxj(x, i, j, beta[i * n + j])
+                }
             }
-            for k in (i + 1)..n {
-                d += self.c_y_ij(i, k, beta, gamma, y_c_ij)
-                    * Self::d2fyikdxi2__constxk(x, i, k, beta[i * n + k]);
+            XnFlag::Dependent => {
+                // Table S1 from Gernert, 2014, supplemental information
+                if j == n - 1 || i == n - 1 {
+                    return 0.0;
+                }
+                if i == j {
+                    return self.d2yrdxi2__constxj(x, i, beta, gamma, y_c_ij, yc, flag);
+                }
+                let mut d = 2.0 * yc[n - 1];
+                d += self.c_y_ij(i, j, beta, gamma, y_c_ij)
+                    * Self::d2fyijdxidxj(x, i, j, beta[i * n + j]);
+                for k in 0..(n - 1) {
+                    d += self.c_y_ij(k, n - 1, beta, gamma, y_c_ij)
+                        * Self::d2fykidxi2__constxk(x, k, n - 1, beta[k * n + (n - 1)]);
+                }
+                d -= self.c_y_ij(i, n - 1, beta, gamma, y_c_ij)
+                    * Self::d2fyijdxidxj(x, i, n - 1, beta[i * n + (n - 1)]);
+                d -= self.c_y_ij(j, n - 1, beta, gamma, y_c_ij)
+                    * Self::d2fyijdxidxj(x, j, n - 1, beta[j * n + (n - 1)]);
+                d
             }
-            d
-        } else {
-            let _ = flag;
-            self.c_y_ij(i.min(j), i.max(j), beta, gamma, y_c_ij)
-                * Self::d2fyijdxidxj(x, i.min(j), i.max(j), beta[i.min(j) * n + i.max(j)])
         }
     }
 
@@ -433,6 +515,12 @@ pub struct MixtureModel {
     crit_t: Vec<f64>,
     /// `STATES.critical` rhomolar [mol/m^3] per component.
     crit_rhomolar: Vec<f64>,
+    /// `STATES.critical` p [Pa] per component (upstream `iP_critical`).
+    crit_p: Vec<f64>,
+    /// `EOS().sat_min_liquid.T` per component (upstream `iT_triple`).
+    triple_t: Vec<f64>,
+    /// `EOS().sat_min_liquid.p` per component (upstream `iP_triple`).
+    triple_p: Vec<f64>,
     /// `EOS().R_u` per component.
     r_component: Vec<f64>,
     /// `(EOS().reduce.T, EOS().reduce.p, EOS().acentric)` per component —
@@ -496,6 +584,9 @@ impl MixtureModel {
                 .iter()
                 .map(|c| c.states.critical.rhomolar)
                 .collect(),
+            crit_p: components.iter().map(|c| c.states.critical.p).collect(),
+            triple_t: components.iter().map(|c| c.eos.sat_min_liquid.t).collect(),
+            triple_p: components.iter().map(|c| c.eos.sat_min_liquid.p).collect(),
             r_component: components.iter().map(|c| c.eos.gas_constant).collect(),
             srk_consts: components
                 .iter()
@@ -509,6 +600,48 @@ impl MixtureModel {
 
     pub(crate) fn srk_component_consts(&self) -> &[(f64, f64, f64)] {
         &self.srk_consts
+    }
+
+    pub(crate) fn n_components(&self) -> usize {
+        self.pure.len()
+    }
+
+    /// `iT_critical` / `iP_critical` / `irhomolar_critical` /
+    /// `iacentric_factor` / `iT_triple` / `iP_triple` per component.
+    pub(crate) fn crit_t(&self) -> &[f64] {
+        &self.crit_t
+    }
+    pub(crate) fn crit_p(&self) -> &[f64] {
+        &self.crit_p
+    }
+    pub(crate) fn crit_rhomolar(&self) -> &[f64] {
+        &self.crit_rhomolar
+    }
+    pub(crate) fn acentric(&self, i: usize) -> f64 {
+        self.srk_consts[i].2
+    }
+    pub(crate) fn triple_t(&self) -> &[f64] {
+        &self.triple_t
+    }
+    pub(crate) fn triple_p(&self) -> &[f64] {
+        &self.triple_p
+    }
+
+    /// Component i's pure alphar derivatives at the mixture (tau, delta).
+    pub(crate) fn component_alphar_all(
+        &self,
+        i: usize,
+        tau: f64,
+        delta: f64,
+    ) -> crate::alpha::HelmholtzDerivs {
+        self.pure[i].alphar_all(tau, delta)
+    }
+
+    /// The excess pairs as `(i, j, F, departure)` views.
+    pub(crate) fn excess_pairs(
+        &self,
+    ) -> impl Iterator<Item = (usize, usize, f64, &crate::alpha::DepartureEval)> {
+        self.excess.iter().map(|p| (p.i, p.j, p.f, &p.dep))
     }
 
     pub(crate) fn molar_masses(&self) -> &[f64] {
