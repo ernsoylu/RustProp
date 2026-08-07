@@ -21,6 +21,16 @@
 //! - `reduced_to_molar` ignores the ion T-independent-diameter rule.
 //! - The association iteration has no convergence check (100 damped SS
 //!   steps, then whatever the last iterate is).
+//!
+//! DOCUMENTED DEVIATION: on the PT path upstream leaves SatL/SatV's WATER
+//! sigma at the -1 sentinel (quirk 4), and its phase determination then
+//! computes with corrupted diameters — the wheel "succeeds" returning
+//! physically wrong densities (e.g. Dmolar = 29 mol/m^3 for compressed
+//! liquid water at 350 K). This port's identical arithmetic reaches the
+//! estimate sweep's exhaustion instead and errors loudly ("an estimate for
+//! the VLE pressure could not be found") — a loud failure in place of
+//! upstream's silent garbage. WATER PT/DT golden records are excluded on
+//! this basis; QT/PQ (which set the children's sigma) match upstream.
 
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::too_many_arguments)]
@@ -151,6 +161,14 @@ pub struct PcsaftBackend {
     dielc: f64,
     pub t: f64,
     pub rhomolar: f64,
+    pub p: f64,
+    pub q: f64,
+    pub phase: PcsaftPhase,
+    imposed_phase: Option<PcsaftPhase>,
+    /// SatL/SatV sub-backends (children are built childless, as upstream's
+    /// `generate_SatL_and_SatV = false`).
+    satl: Option<Box<PcsaftBackend>>,
+    satv: Option<Box<PcsaftBackend>>,
 }
 
 /// `get_scheme_index` site charges (DataStructures.cpp:438-493, case-sensitive).
@@ -267,7 +285,7 @@ impl PcsaftBackend {
         }
 
         let mole_fractions = if n == 1 { vec![1.0] } else { Vec::new() };
-        Ok(PcsaftBackend {
+        let mut backend = PcsaftBackend {
             n,
             components,
             mole_fractions,
@@ -281,9 +299,53 @@ impl PcsaftBackend {
             assoc_num,
             assoc_matrix,
             dielc: 0.0,
-            t: f64::NAN,
-            rhomolar: f64::NAN,
-        })
+            t: f64::INFINITY,
+            rhomolar: f64::INFINITY,
+            p: f64::INFINITY,
+            q: f64::INFINITY,
+            phase: PcsaftPhase::Unknown,
+            imposed_phase: None,
+            satl: None,
+            satv: None,
+        };
+        let mut satl = Box::new(backend.childless_copy());
+        satl.imposed_phase = Some(PcsaftPhase::Liquid);
+        let mut satv = Box::new(backend.childless_copy());
+        satv.imposed_phase = Some(PcsaftPhase::Gas);
+        backend.satl = Some(satl);
+        backend.satv = Some(satv);
+        Ok(backend)
+    }
+
+    fn childless_copy(&self) -> PcsaftBackend {
+        PcsaftBackend {
+            n: self.n,
+            components: self.components.clone(),
+            mole_fractions: self.mole_fractions.clone(),
+            k_ij: self.k_ij.clone(),
+            k_ij_t: self.k_ij_t.clone(),
+            ion_term: self.ion_term,
+            polar_term: self.polar_term,
+            assoc_term: self.assoc_term,
+            water_present: self.water_present,
+            water_idx: self.water_idx,
+            assoc_num: self.assoc_num.clone(),
+            assoc_matrix: self.assoc_matrix.clone(),
+            dielc: self.dielc,
+            t: f64::INFINITY,
+            rhomolar: f64::INFINITY,
+            p: f64::INFINITY,
+            q: f64::INFINITY,
+            phase: PcsaftPhase::Unknown,
+            imposed_phase: None,
+            satl: None,
+            satv: None,
+        }
+    }
+
+    /// `specify_phase`.
+    pub fn specify_phase(&mut self, ph: PcsaftPhase) {
+        self.imposed_phase = Some(ph);
     }
 
     pub fn n_components(&self) -> usize {
@@ -1701,7 +1763,11 @@ impl PcsaftBackend {
     /// Returns `f64::MAX`-like garbage only via upstream's own no-else hole
     /// (a phase that is neither liquid- nor gas-like with 2-3 brackets).
     pub fn solver_rho_tp(&mut self, t: f64, p: f64, phase: PcsaftPhase) -> Result<f64> {
-        self.t = t;
+        // NOTE upstream's probes evaluate the EOS at the MEMBER `_T` (the
+        // residual's update_DmolarT only sets density); the T ARGUMENT feeds
+        // only `reduced_to_molar`'s grid conversion. Callers set `_T` first
+        // on every ordinary path, but estimate_flash_p's first solves pass
+        // the bulk `_T` while the child's member differs — reproduced.
         // bracket scan over reduced density nu
         let mut x_lo: Vec<f64> = Vec::new();
         let mut x_hi: Vec<f64> = Vec::new();
@@ -2004,4 +2070,1061 @@ fn solve_dense(a: &mut [Vec<f64>], b: &[f64]) -> Vec<f64> {
         v[row] = sum / aug[row][row];
     }
     v
+}
+
+// ---------------------------------------------------------------------------
+// Flash machinery (estimate_flash_p/t, outerTQ/outerPQ, flash_QT/flash_PQ,
+// update, calc_phase_internal)
+// ---------------------------------------------------------------------------
+
+/// Upstream `BoundedSecant` (verified heos port).
+fn bounded_secant<F: FnMut(f64) -> f64>(
+    mut call: F,
+    x0: f64,
+    xmin: f64,
+    xmax: f64,
+    dx: f64,
+    tol: f64,
+    maxiter: i32,
+) -> Result<f64> {
+    let mut x1 = 0.0;
+    let mut x2 = 0.0;
+    let mut y1 = 0.0;
+    let mut x;
+    let mut fval: f64 = 999.0;
+    let mut iter = 1;
+    if dx.abs() == 0.0 {
+        return Err(Error::Value("dx cannot be zero".into()));
+    }
+    while iter <= 3 || fval.abs() > tol {
+        if iter == 1 {
+            x1 = x0;
+            x = x1;
+        } else if iter == 2 {
+            x2 = x0 + dx;
+            x = x2;
+        } else {
+            x = x2;
+        }
+        fval = call(x);
+        if iter == 1 {
+            y1 = fval;
+        } else {
+            let y2 = fval;
+            let mut x3 = x2 - y2 / (y2 - y1) * (x2 - x1);
+            if x3 < xmin {
+                x3 = (xmin + x2) / 2.0;
+            }
+            if x3 > xmax {
+                x3 = (xmax + x2) / 2.0;
+            }
+            y1 = y2;
+            x1 = x2;
+            x2 = x3;
+        }
+        if iter > maxiter {
+            return Err(Error::Solution(format!(
+                "BoundedSecant reached maximum number of iterations of {maxiter}"
+            )));
+        }
+        iter += 1;
+    }
+    Ok(x2)
+}
+
+/// The inside-out inner residual (shared by outerTQ/outerPQ).
+fn inner_resid(bulk: &PcsaftBackend, kb0: f64, u: &[f64], r: f64) -> f64 {
+    let ncomp = bulk.n;
+    let mut l = 0.0;
+    for i in 0..ncomp {
+        if !bulk.ion_term || bulk.components[i].z == 0.0 {
+            let pp = bulk.mole_fractions[i] / (1.0 - r + kb0 * r * u[i].exp());
+            l += pp;
+        } else {
+            l += bulk.mole_fractions[i];
+        }
+    }
+    l = (1.0 - r) * l;
+    (l + bulk.q - 1.0).powf(2.0)
+}
+
+impl PcsaftBackend {
+    fn x_ions(&self) -> f64 {
+        let mut x_ions = 0.0;
+        for i in 0..self.n {
+            if self.ion_term && self.components[i].z != 0.0 {
+                x_ions += self.mole_fractions[i];
+            }
+        }
+        x_ions
+    }
+
+    /// `estimate_flash_p` — operates on self + children (taken).
+    fn estimate_flash_p(
+        &mut self,
+        satl: &mut PcsaftBackend,
+        satv: &mut PcsaftBackend,
+    ) -> Result<f64> {
+        let ncomp = self.n;
+        let mut p_guess;
+        let mut guess_found = false;
+        let mut p_start = 10000.0;
+        let mut result = f64::MAX;
+        while !guess_found && p_start < 1e7 {
+            let pprime = 0.99 * p_start;
+            let p = p_start;
+
+            satl.rhomolar = satl.solver_rho_tp(self.t, p, PcsaftPhase::Liquid)?;
+            satv.rhomolar = satv.solver_rho_tp(self.t, p, PcsaftPhase::Gas)?;
+            if (satl.rhomolar - satv.rhomolar) < 1e-4 {
+                p_start += 2e5;
+                continue;
+            }
+            let fugcoef_l = satl.calc_fugacity_coefficients();
+            let fugcoef_v = satv.calc_fugacity_coefficients();
+
+            let mut k = vec![0.0; ncomp];
+            let mut xv_sum = 0.0;
+            let mut xl_sum = 0.0;
+            for i in 0..ncomp {
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    k[i] = fugcoef_l[i] / fugcoef_v[i];
+                } else {
+                    k[i] = 0.0;
+                }
+                satl.mole_fractions[i] =
+                    self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+                xl_sum += satl.mole_fractions[i];
+                satv.mole_fractions[i] =
+                    k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+                xv_sum += satv.mole_fractions[i];
+            }
+            if xv_sum != 1.0 {
+                for i in 0..ncomp {
+                    satv.mole_fractions[i] /= xv_sum;
+                }
+            }
+            if xl_sum != 1.0 {
+                for i in 0..ncomp {
+                    satl.mole_fractions[i] /= xl_sum;
+                }
+            }
+
+            satl.rhomolar = satl.solver_rho_tp(satl.t, p, PcsaftPhase::Liquid)?;
+            satv.rhomolar = satv.solver_rho_tp(satv.t, p, PcsaftPhase::Gas)?;
+            if (satl.rhomolar - satv.rhomolar) < 1e-4 {
+                p_start += 2e5;
+                continue;
+            }
+            let fugcoef_l = satl.calc_fugacity_coefficients();
+            let fugcoef_v = satv.calc_fugacity_coefficients();
+            let mut numer = 0.0;
+            let mut denom = 0.0;
+            for i in 0..ncomp {
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    numer += satl.mole_fractions[i] * fugcoef_l[i];
+                    denom += satv.mole_fractions[i] * fugcoef_v[i];
+                }
+            }
+            let ratio = numer / denom;
+
+            satl.rhomolar = satl.solver_rho_tp(satl.t, pprime, PcsaftPhase::Liquid)?;
+            satv.rhomolar = satv.solver_rho_tp(satv.t, pprime, PcsaftPhase::Gas)?;
+            if (satl.rhomolar - satv.rhomolar) < 1e-4 {
+                p_start += 2e5;
+                continue;
+            }
+            let fugcoef_l = satl.calc_fugacity_coefficients();
+            let fugcoef_v = satv.calc_fugacity_coefficients();
+            let mut numer = 0.0;
+            let mut denom = 0.0;
+            for i in 0..ncomp {
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    numer += satl.mole_fractions[i] * fugcoef_l[i];
+                    denom += satv.mole_fractions[i] * fugcoef_v[i];
+                }
+            }
+            let ratio_prime = numer / denom;
+
+            let slope = (ratio.log10() - ratio_prime.log10()) / (p.log10() - pprime.log10());
+            let intercept = ratio.log10() - slope * p.log10();
+            p_guess = 10.0_f64.powf(-intercept / slope);
+            result = p_guess;
+            guess_found = true;
+        }
+        if !guess_found {
+            return Err(Error::Solution(
+                "an estimate for the VLE pressure could not be found".into(),
+            ));
+        }
+        Ok(result)
+    }
+
+    /// `estimate_flash_t`.
+    fn estimate_flash_t(
+        &mut self,
+        satl: &mut PcsaftBackend,
+        satv: &mut PcsaftBackend,
+    ) -> Result<f64> {
+        let mut guess_found = false;
+        let mut t_guess = f64::MAX;
+        let mut t_step = 30.0;
+        let mut t_start = 571.0;
+        let mut t_lbound = 1.0;
+        if self.ion_term {
+            t_step = 15.0;
+            t_start = 350.0;
+            t_lbound = 264.0;
+        }
+        while !guess_found && t_start > t_lbound {
+            let tprime = t_start - 50.0;
+            let t = t_start;
+            satl.t = t;
+            satv.t = t;
+            if self.water_present {
+                // Upstream's water block sits OUTSIDE the inner try: a
+                // sigma/dielc range throw PROPAGATES out of estimate_flash_t
+                // (for pure water at t_start = 571 it always does), and
+                // flash_PQ's ValueError catch falls through to its own
+                // downward T-sweep. Reproduced with `?`.
+                self.calc_water_sigma(t)?;
+                satl.calc_water_sigma(t)?;
+                satv.calc_water_sigma(t)?;
+                self.dielc = self.dielc_water(t)?;
+                satl.dielc = satl.dielc_water(t)?;
+                satv.dielc = satv.dielc_water(t)?;
+            }
+            // Upstream perturbs ONLY SatL/SatV _T; the bulk _T (still
+            // _HUGE = +inf on the PQ path) feeds estimate_flash_p's FIRST
+            // density solves verbatim.
+            let attempt = (|| -> Result<f64> {
+                let p1 = self.estimate_flash_p(satl, satv)?;
+                satl.t = tprime;
+                satv.t = tprime;
+                let p2 = self.estimate_flash_p(satl, satv)?;
+                satl.t = t;
+                satv.t = t;
+                let slope = (p1.log10() - p2.log10()) / (1.0 / t - 1.0 / tprime);
+                let intercept = p1.log10() - slope * (1.0 / t);
+                Ok(slope / (self.p.log10() - intercept))
+            })();
+            match attempt {
+                Ok(g) => {
+                    t_guess = g;
+                    guess_found = true;
+                }
+                Err(_) => {
+                    t_start -= t_step;
+                }
+            }
+        }
+        if !guess_found {
+            return Err(Error::Solution(
+                "an estimate for the VLE temperature could not be found".into(),
+            ));
+        }
+        Ok(t_guess)
+    }
+}
+
+impl PcsaftBackend {
+    /// `outerTQ` (Watson et al. 2017 inside-out, imposed T and Q).
+    #[allow(unused_assignments)]
+    fn outer_tq(
+        &mut self,
+        p_guess: f64,
+        satl: &mut PcsaftBackend,
+        satv: &mut PcsaftBackend,
+    ) -> Result<f64> {
+        let ncomp = self.n;
+        let tol = 1e-8;
+        let maxiter = 200;
+        let x_ions = self.x_ions();
+
+        let mut k = vec![0.0; ncomp];
+        let mut u = vec![0.0; ncomp];
+        let mut kprime = vec![0.0; ncomp];
+        let mut uprime = vec![0.0; ncomp];
+        let pref = p_guess - 0.01 * p_guess;
+        let mut pprime = p_guess + 0.01 * p_guess;
+        if p_guess > 1e6 {
+            pprime = p_guess - 0.005 * p_guess;
+        }
+        let mut p = p_guess;
+
+        satl.rhomolar = satl.solver_rho_tp(self.t, p, PcsaftPhase::Liquid)?;
+        satv.rhomolar = satv.solver_rho_tp(self.t, p, PcsaftPhase::Gas)?;
+        if (satl.rhomolar - satv.rhomolar) < 1e-4 {
+            return Err(Error::Solution(
+                "liquid and vapor densities are the same.".into(),
+            ));
+        }
+        let fugcoef_l = satl.calc_fugacity_coefficients();
+        let fugcoef_v = satv.calc_fugacity_coefficients();
+
+        let mut xv_sum = 0.0;
+        let mut xl_sum = 0.0;
+        for i in 0..ncomp {
+            if !self.ion_term || self.components[i].z == 0.0 {
+                k[i] = fugcoef_l[i] / fugcoef_v[i];
+            } else {
+                k[i] = 0.0;
+            }
+            satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+            xl_sum += satl.mole_fractions[i];
+            satv.mole_fractions[i] =
+                k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+            xv_sum += satv.mole_fractions[i];
+        }
+        if xv_sum != 1.0 {
+            for i in 0..ncomp {
+                satv.mole_fractions[i] /= xv_sum;
+            }
+        }
+        if xl_sum != 1.0 {
+            for i in 0..ncomp {
+                satl.mole_fractions[i] /= xl_sum;
+            }
+        }
+
+        satl.rhomolar = satl.solver_rho_tp(self.t, p, PcsaftPhase::Liquid)?;
+        let fugcoef_l = satl.calc_fugacity_coefficients();
+        satv.rhomolar = satv.solver_rho_tp(self.t, p, PcsaftPhase::Gas)?;
+        let fugcoef_v = satv.calc_fugacity_coefficients();
+        for i in 0..ncomp {
+            k[i] = fugcoef_l[i] / fugcoef_v[i];
+            // Upstream quirk: this executes before the LOCAL kb exists, so
+            // `kb` here is the file-scope Boltzmann constant. Dead values —
+            // overwritten below — but reproduced.
+            u[i] = (k[i] / KB).ln();
+        }
+
+        satl.rhomolar = satl.solver_rho_tp(self.t, pprime, PcsaftPhase::Liquid)?;
+        let fugcoef_l = satl.calc_fugacity_coefficients();
+        satv.rhomolar = satv.solver_rho_tp(self.t, pprime, PcsaftPhase::Gas)?;
+        let fugcoef_v = satv.calc_fugacity_coefficients();
+        for i in 0..ncomp {
+            kprime[i] = fugcoef_l[i] / fugcoef_v[i];
+        }
+
+        let mut t_weight = vec![0.0; ncomp];
+        let mut t_sum = 0.0;
+        for i in 0..ncomp {
+            let dlnk_dt = (kprime[i] - k[i]) / (pprime - p);
+            t_weight[i] = satv.mole_fractions[i] * dlnk_dt / (1.0 + self.q * (k[i] - 1.0));
+            t_sum += t_weight[i];
+        }
+        let mut kb = 0.0;
+        for i in 0..ncomp {
+            let wi = t_weight[i] / t_sum;
+            if !self.ion_term || self.components[i].z == 0.0 {
+                kb += wi * k[i].ln();
+            }
+        }
+        kb = kb.exp();
+
+        let mut t_sum = 0.0;
+        for i in 0..ncomp {
+            let dlnk_dt = (kprime[i] - k[i]) / (pprime - p);
+            t_weight[i] = satv.mole_fractions[i] * dlnk_dt / (1.0 + self.q * (kprime[i] - 1.0));
+            t_sum += t_weight[i];
+        }
+        let mut kbprime = 0.0;
+        for i in 0..ncomp {
+            let wi = t_weight[i] / t_sum;
+            if !self.ion_term || self.components[i].z == 0.0 {
+                kbprime += wi * kprime[i].ln();
+            }
+        }
+        kbprime = kbprime.exp();
+        let kb0 = kbprime;
+
+        for i in 0..ncomp {
+            u[i] = (k[i] / kb).ln();
+            uprime[i] = (kprime[i] / kbprime).ln();
+        }
+
+        let mut b = (kbprime / kb).ln() / (1.0 / pprime - 1.0 / p);
+        let mut a = kb.ln() - b * (1.0 / p - 1.0 / pref);
+        if b < 0.0 {
+            return Err(Error::Solution("B < 0 in outerTQ".into()));
+        }
+
+        let mut pp = vec![0.0; ncomp];
+        let mut maxdif = 1e10 * tol;
+        let mut itr = 0;
+        let (rmin, rmax) = (0.0, 1.0);
+        while maxdif > tol && itr < maxiter {
+            let u_old = u.clone();
+            let a_old = a;
+
+            let r0 = kb * self.q / (kb * self.q + kb0 * (1.0 - self.q));
+            let mut r = r0;
+            if inner_resid(self, kb0, &u, r) > tol {
+                let u_ref = &u;
+                r = bounded_secant(
+                    |rv| inner_resid(self, kb0, u_ref, rv),
+                    r0,
+                    rmin,
+                    rmax,
+                    f64::EPSILON,
+                    tol,
+                    maxiter,
+                )?;
+            }
+
+            let mut pp_sum = 0.0;
+            let mut eupp_sum = 0.0;
+            for i in 0..ncomp {
+                pp[i] = self.mole_fractions[i] / (1.0 - r + kb0 * r * u[i].exp());
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    pp_sum += pp[i];
+                    eupp_sum += u[i].exp() * pp[i];
+                }
+            }
+            kb = pp_sum / eupp_sum;
+
+            p = 1.0 / (1.0 / pref + (kb.ln() - a) / b);
+            for i in 0..ncomp {
+                if x_ions == 0.0 {
+                    satl.mole_fractions[i] = pp[i] / pp_sum;
+                    satv.mole_fractions[i] = u[i].exp() * pp[i] / eupp_sum;
+                } else if !self.ion_term || self.components[i].z == 0.0 {
+                    satl.mole_fractions[i] = pp[i] / pp_sum * (1.0 - x_ions / (1.0 - self.q));
+                    satv.mole_fractions[i] = u[i].exp() * pp[i] / eupp_sum;
+                } else {
+                    satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 - self.q);
+                    satv.mole_fractions[i] = 0.0;
+                }
+            }
+
+            satl.rhomolar = satl.solver_rho_tp(self.t, p, PcsaftPhase::Liquid)?;
+            let fugcoef_l = satl.calc_fugacity_coefficients();
+            satv.rhomolar = satv.solver_rho_tp(self.t, p, PcsaftPhase::Gas)?;
+            let fugcoef_v = satv.calc_fugacity_coefficients();
+            for i in 0..ncomp {
+                k[i] = fugcoef_l[i] / fugcoef_v[i];
+                u[i] = (k[i] / kb).ln();
+            }
+
+            if itr == 0 {
+                b = (kbprime / kb).ln() / (1.0 / pprime - 1.0 / p);
+            }
+            a = kb.ln() - b * (1.0 / p - 1.0 / pref);
+
+            maxdif = (a - a_old).abs();
+            for i in 0..ncomp {
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    let dif = (u[i] - u_old[i]).abs();
+                    if dif > maxdif || !dif.is_finite() {
+                        maxdif = dif;
+                    }
+                }
+            }
+            itr += 1;
+        }
+
+        if !p.is_finite() || !maxdif.is_finite() || maxdif > 0.1 || p < 0.0 {
+            return Err(Error::Solution(
+                "outerTQ did not converge to a solution".into(),
+            ));
+        }
+        Ok(p)
+    }
+
+    /// `outerPQ` (imposed p and Q).
+    #[allow(unused_assignments)]
+    fn outer_pq(
+        &mut self,
+        t_guess: f64,
+        satl: &mut PcsaftBackend,
+        satv: &mut PcsaftBackend,
+    ) -> Result<f64> {
+        let ncomp = self.n;
+        let tol = 1e-8;
+        let maxiter = 200;
+        let x_ions = self.x_ions();
+
+        let mut k = vec![0.0; ncomp];
+        let mut u = vec![0.0; ncomp];
+        let mut kprime = vec![0.0; ncomp];
+        let mut uprime = vec![0.0; ncomp];
+        let tref = t_guess - 1.0;
+        let tprime = t_guess + 1.0;
+        let mut t = t_guess;
+
+        satl.t = t;
+        satv.t = t;
+        if self.water_present {
+            self.calc_water_sigma(t)?;
+            satl.calc_water_sigma(t)?;
+            satv.calc_water_sigma(t)?;
+            self.dielc = self.dielc_water(t)?;
+            satl.dielc = satl.dielc_water(t)?;
+            satv.dielc = satv.dielc_water(t)?;
+        }
+
+        satl.rhomolar = satl.solver_rho_tp(t, satl.p, PcsaftPhase::Liquid)?;
+        satv.rhomolar = satv.solver_rho_tp(t, satv.p, PcsaftPhase::Gas)?;
+        if (satl.rhomolar - satv.rhomolar) < 1e-4 {
+            return Err(Error::Solution(
+                "liquid and vapor densities are the same.".into(),
+            ));
+        }
+        let fugcoef_l = satl.calc_fugacity_coefficients();
+        let fugcoef_v = satv.calc_fugacity_coefficients();
+
+        let mut xv_sum = 0.0;
+        let mut xl_sum = 0.0;
+        for i in 0..ncomp {
+            if !self.ion_term || self.components[i].z == 0.0 {
+                k[i] = fugcoef_l[i] / fugcoef_v[i];
+            } else {
+                k[i] = 0.0;
+            }
+            satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+            xl_sum += satl.mole_fractions[i];
+            satv.mole_fractions[i] =
+                k[i] * self.mole_fractions[i] / (1.0 + self.q * (k[i] - 1.0));
+            xv_sum += satv.mole_fractions[i];
+        }
+        if xv_sum != 1.0 {
+            for i in 0..ncomp {
+                satv.mole_fractions[i] /= xv_sum;
+            }
+        }
+        if xl_sum != 1.0 {
+            for i in 0..ncomp {
+                satl.mole_fractions[i] /= xl_sum;
+            }
+        }
+
+        satl.rhomolar = satl.solver_rho_tp(t, satl.p, PcsaftPhase::Liquid)?;
+        let fugcoef_l = satl.calc_fugacity_coefficients();
+        satv.rhomolar = satv.solver_rho_tp(t, satv.p, PcsaftPhase::Gas)?;
+        let fugcoef_v = satv.calc_fugacity_coefficients();
+        for i in 0..ncomp {
+            k[i] = fugcoef_l[i] / fugcoef_v[i];
+        }
+
+        satl.t = tprime;
+        satv.t = tprime;
+        if self.water_present {
+            self.calc_water_sigma(tprime)?;
+            satl.calc_water_sigma(tprime)?;
+            satv.calc_water_sigma(tprime)?;
+            self.dielc = self.dielc_water(tprime)?;
+            satl.dielc = satl.dielc_water(tprime)?;
+            satv.dielc = satv.dielc_water(tprime)?;
+        }
+        satl.rhomolar = satl.solver_rho_tp(tprime, satl.p, PcsaftPhase::Liquid)?;
+        let fugcoef_l = satl.calc_fugacity_coefficients();
+        satv.rhomolar = satv.solver_rho_tp(tprime, satv.p, PcsaftPhase::Gas)?;
+        let fugcoef_v = satv.calc_fugacity_coefficients();
+        for i in 0..ncomp {
+            kprime[i] = fugcoef_l[i] / fugcoef_v[i];
+        }
+
+        let mut t_weight = vec![0.0; ncomp];
+        let mut t_sum = 0.0;
+        for i in 0..ncomp {
+            let dlnk_dt = (kprime[i] - k[i]) / (tprime - t);
+            t_weight[i] = satv.mole_fractions[i] * dlnk_dt / (1.0 + self.q * (k[i] - 1.0));
+            t_sum += t_weight[i];
+        }
+        let mut kb = 0.0;
+        for i in 0..ncomp {
+            let wi = t_weight[i] / t_sum;
+            if !self.ion_term || self.components[i].z == 0.0 {
+                kb += wi * k[i].ln();
+            }
+        }
+        kb = kb.exp();
+
+        let mut t_sum = 0.0;
+        for i in 0..ncomp {
+            let dlnk_dt = (kprime[i] - k[i]) / (tprime - t);
+            t_weight[i] = satv.mole_fractions[i] * dlnk_dt / (1.0 + self.q * (kprime[i] - 1.0));
+            t_sum += t_weight[i];
+        }
+        let mut kbprime = 0.0;
+        for i in 0..ncomp {
+            let wi = t_weight[i] / t_sum;
+            if !self.ion_term || self.components[i].z == 0.0 {
+                kbprime += wi * kprime[i].ln();
+            }
+        }
+        kbprime = kbprime.exp();
+        let kb0 = kbprime;
+
+        for i in 0..ncomp {
+            u[i] = (k[i] / kb).ln();
+            uprime[i] = (kprime[i] / kbprime).ln();
+        }
+
+        let mut b = (kbprime / kb).ln() / (1.0 / tprime - 1.0 / t);
+        let mut a = kb.ln() - b * (1.0 / t - 1.0 / tref);
+
+        let mut pp = vec![0.0; ncomp];
+        let mut maxdif = 1e10 * tol;
+        let mut itr = 0;
+        let (rmin, rmax) = (0.0, 1.0);
+        while maxdif > tol && itr < maxiter {
+            let u_old = u.clone();
+            let a_old = a;
+
+            let r0 = kb * self.q / (kb * self.q + kb0 * (1.0 - self.q));
+            let mut r = r0;
+            if inner_resid(self, kb0, &u, r) > tol {
+                let u_ref = &u;
+                r = bounded_secant(
+                    |rv| inner_resid(self, kb0, u_ref, rv),
+                    r0,
+                    rmin,
+                    rmax,
+                    f64::EPSILON,
+                    tol,
+                    maxiter,
+                )?;
+            }
+
+            let mut pp_sum = 0.0;
+            let mut eupp_sum = 0.0;
+            for i in 0..ncomp {
+                pp[i] = self.mole_fractions[i] / (1.0 - r + kb0 * r * u[i].exp());
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    pp_sum += pp[i];
+                    eupp_sum += u[i].exp() * pp[i];
+                }
+            }
+            kb = pp_sum / eupp_sum;
+
+            t = 1.0 / (1.0 / tref + (kb.ln() - a) / b);
+            for i in 0..ncomp {
+                if x_ions == 0.0 {
+                    satl.mole_fractions[i] = pp[i] / pp_sum;
+                    satv.mole_fractions[i] = u[i].exp() * pp[i] / eupp_sum;
+                } else if !self.ion_term || self.components[i].z == 0.0 {
+                    satl.mole_fractions[i] = pp[i] / pp_sum * (1.0 - x_ions / (1.0 - self.q));
+                    satv.mole_fractions[i] = u[i].exp() * pp[i] / eupp_sum;
+                } else {
+                    satl.mole_fractions[i] = self.mole_fractions[i] / (1.0 - self.q);
+                    satv.mole_fractions[i] = 0.0;
+                }
+            }
+
+            satl.t = t;
+            satv.t = t;
+            if self.water_present {
+                self.calc_water_sigma(t)?;
+                satl.calc_water_sigma(t)?;
+                satv.calc_water_sigma(t)?;
+                self.dielc = self.dielc_water(t)?;
+                satl.dielc = satl.dielc_water(t)?;
+                satv.dielc = satv.dielc_water(t)?;
+            }
+            satl.rhomolar = satl.solver_rho_tp(t, self.p, PcsaftPhase::Liquid)?;
+            let fugcoef_l = satl.calc_fugacity_coefficients();
+            satv.rhomolar = satv.solver_rho_tp(t, self.p, PcsaftPhase::Gas)?;
+            let fugcoef_v = satv.calc_fugacity_coefficients();
+            for i in 0..ncomp {
+                k[i] = fugcoef_l[i] / fugcoef_v[i];
+                u[i] = (k[i] / kb).ln();
+            }
+
+            if itr == 0 {
+                b = (kbprime / kb).ln() / (1.0 / tprime - 1.0 / t);
+                if b > 0.0 {
+                    return Err(Error::Solution("B > 0 in outerPQ".into()));
+                }
+            }
+            a = kb.ln() - b * (1.0 / t - 1.0 / tref);
+
+            maxdif = (a - a_old).abs();
+            for i in 0..ncomp {
+                if !self.ion_term || self.components[i].z == 0.0 {
+                    let dif = (u[i] - u_old[i]).abs();
+                    if dif > maxdif {
+                        maxdif = dif;
+                    }
+                }
+            }
+            itr += 1;
+        }
+
+        if !t.is_finite() || maxdif > 1e-3 || t < 0.0 {
+            return Err(Error::Solution(
+                "outerPQ did not converge to a solution".into(),
+            ));
+        }
+        Ok(t)
+    }
+
+    /// `flash_QT`: estimate + outerTQ, then the log-p sweep fallback.
+    fn flash_qt(&mut self, satl: &mut PcsaftBackend, satv: &mut PcsaftBackend) -> Result<()> {
+        let mut solution_found = false;
+        let mut p = 0.0;
+        if let Ok(p_guess) = self.estimate_flash_p(satl, satv) {
+            if let Ok(pv) = self.outer_tq(p_guess, satl, satv) {
+                p = pv;
+                solution_found = true;
+            }
+        }
+        if !solution_found {
+            let p_lbound = -6.0;
+            let p_ubound = 9.0;
+            let p_step = 0.1;
+            let mut p_guess = p_lbound;
+            while p_guess < p_ubound && !solution_found {
+                match self.outer_tq(10.0_f64.powf(p_guess), satl, satv) {
+                    Ok(pv) => {
+                        p = pv;
+                        solution_found = true;
+                    }
+                    Err(_) => {
+                        p_guess += p_step;
+                    }
+                }
+            }
+        }
+        if !solution_found {
+            return Err(Error::Solution(
+                "solution could not be found for TQ flash".into(),
+            ));
+        }
+        self.p = p;
+        self.rhomolar = 1.0 / (self.q / satv.rhomolar + (1.0 - self.q) / satl.rhomolar);
+        self.phase = PcsaftPhase::TwoPhase;
+        Ok(())
+    }
+
+    /// `flash_PQ`: estimate + outerPQ, then the downward-T sweep fallback.
+    fn flash_pq(&mut self, satl: &mut PcsaftBackend, satv: &mut PcsaftBackend) -> Result<()> {
+        let mut solution_found = false;
+        let mut t = 0.0;
+        if let Ok(t_guess) = self.estimate_flash_t(satl, satv) {
+            if let Ok(tv) = self.outer_pq(t_guess, satl, satv) {
+                t = tv;
+                solution_found = true;
+            }
+        }
+        if !solution_found {
+            let mut t_lbound = 1.0;
+            let mut t_ubound = 800.0;
+            let t_step = 10.0;
+            if self.ion_term {
+                t_lbound = 264.0;
+                t_ubound = 350.0;
+            }
+            let mut t_guess = t_ubound;
+            while t_guess > t_lbound && !solution_found {
+                match self.outer_pq(t_guess, satl, satv) {
+                    Ok(tv) => {
+                        t = tv;
+                        solution_found = true;
+                    }
+                    Err(_) => {
+                        t_guess -= t_step;
+                    }
+                }
+            }
+        }
+        if !solution_found {
+            return Err(Error::Solution(
+                "solution could not be found for PQ flash".into(),
+            ));
+        }
+        self.t = t;
+        self.rhomolar = 1.0 / (self.q / satv.rhomolar + (1.0 - self.q) / satl.rhomolar);
+        self.phase = PcsaftPhase::TwoPhase;
+        Ok(())
+    }
+}
+
+/// The PropsSI-supported input pairs (upstream `update` switch).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PcsaftInput {
+    Pt,
+    Qt,
+    Pq,
+    DmolarT,
+}
+
+impl PcsaftBackend {
+    fn clear_state(&mut self) {
+        // upstream clear(): everything to _HUGE
+        self.t = f64::INFINITY;
+        self.p = f64::INFINITY;
+        self.rhomolar = f64::INFINITY;
+        self.q = f64::INFINITY;
+    }
+
+    /// `post_update` (optional checks always on, as the update() epilogue).
+    fn post_update(&self) -> Result<()> {
+        if !self.p.is_finite() {
+            return Err(Error::Value("p is not a valid number".into()));
+        }
+        if self.t < 0.0 {
+            return Err(Error::Value("T is less than zero".into()));
+        }
+        if !self.t.is_finite() {
+            return Err(Error::Value("T is not a valid number".into()));
+        }
+        if self.rhomolar < 0.0 {
+            return Err(Error::Value("rhomolar is less than zero".into()));
+        }
+        if !self.rhomolar.is_finite() {
+            return Err(Error::Value("rhomolar is not a valid number".into()));
+        }
+        if !self.q.is_finite() {
+            return Err(Error::Value("Q is not a valid number".into()));
+        }
+        if self.phase == PcsaftPhase::Unknown {
+            return Err(Error::Value("_phase is unknown".into()));
+        }
+        Ok(())
+    }
+
+    /// Upstream `update()` for the four supported molar pairs. `value1` and
+    /// `value2` follow upstream's pair conventions (PT: p, T; QT: Q, T;
+    /// PQ: p, Q; DmolarT: rho, T).
+    pub fn update(&mut self, pair: PcsaftInput, value1: f64, value2: f64) -> Result<()> {
+        self.clear_state();
+        if self.n > 1 && self.mole_fractions.is_empty() {
+            return Err(Error::Value("Mole fractions must be set".into()));
+        }
+        let mut satl = self.satl.take().expect("SatL present");
+        let mut satv = self.satv.take().expect("SatV present");
+        if satl.mole_fractions.is_empty() {
+            satl.set_mole_fractions(&self.mole_fractions);
+        }
+        if satv.mole_fractions.is_empty() {
+            satv.set_mole_fractions(&self.mole_fractions);
+            let mut summ = 0.0;
+            for i in 0..self.n {
+                if satv.components[i].z != 0.0 {
+                    // ions do not appear in the vapor phase
+                    satv.mole_fractions[i] = 0.0;
+                } else {
+                    summ += satv.mole_fractions[i];
+                }
+            }
+            for i in 0..self.n {
+                satv.mole_fractions[i] /= summ;
+            }
+        }
+
+        let result = self.update_inner(pair, value1, value2, &mut satl, &mut satv);
+        self.satl = Some(satl);
+        self.satv = Some(satv);
+        result?;
+
+        // set Q, if not already set
+        if !self.q.is_finite() {
+            if self.phase == PcsaftPhase::Gas {
+                self.q = 1.0;
+            } else if self.phase == PcsaftPhase::Liquid {
+                self.q = 0.0;
+            }
+        }
+        self.post_update()
+    }
+
+    fn update_inner(
+        &mut self,
+        pair: PcsaftInput,
+        value1: f64,
+        value2: f64,
+        satl: &mut PcsaftBackend,
+        satv: &mut PcsaftBackend,
+    ) -> Result<()> {
+        match pair {
+            PcsaftInput::Pt => {
+                self.p = value1;
+                self.t = value2;
+                if self.water_present {
+                    self.calc_water_sigma(self.t)?;
+                    self.dielc = self.dielc_water(self.t)?;
+                }
+                self.phase = match self.imposed_phase {
+                    Some(ph) => ph,
+                    None => self.calc_phase_internal(PcsaftInput::Pt, satl, satv)?,
+                };
+                self.rhomolar = self.solver_rho_tp(value2, value1, self.phase)?;
+                Ok(())
+            }
+            PcsaftInput::Qt => {
+                self.q = value1;
+                self.t = value2;
+                satl.q = value1;
+                satv.q = value1;
+                satl.t = value2;
+                satv.t = value2;
+                self.phase = PcsaftPhase::TwoPhase;
+                if !(0.0..=1.0).contains(&self.q) {
+                    return Err(Error::OutOfRange(
+                        "Input vapor quality [Q] must be between 0 and 1".into(),
+                    ));
+                }
+                if self.water_present {
+                    self.calc_water_sigma(self.t)?;
+                    satl.calc_water_sigma(self.t)?;
+                    satv.calc_water_sigma(self.t)?;
+                    self.dielc = self.dielc_water(self.t)?;
+                    satl.dielc = satl.dielc_water(self.t)?;
+                    satv.dielc = satv.dielc_water(self.t)?;
+                }
+                self.flash_qt(satl, satv)
+            }
+            PcsaftInput::Pq => {
+                self.p = value1;
+                self.q = value2;
+                satl.p = value1;
+                satv.p = value1;
+                satl.q = value2;
+                satv.q = value2;
+                self.phase = PcsaftPhase::TwoPhase;
+                if !(0.0..=1.0).contains(&self.q) {
+                    return Err(Error::OutOfRange(
+                        "Input vapor quality [Q] must be between 0 and 1".into(),
+                    ));
+                }
+                self.flash_pq(satl, satv)
+            }
+            PcsaftInput::DmolarT => {
+                self.rhomolar = value1;
+                self.t = value2;
+                satl.rhomolar = value1;
+                satv.rhomolar = value1;
+                satl.t = value2;
+                satv.t = value2;
+                if self.water_present {
+                    self.calc_water_sigma(self.t)?;
+                    satl.calc_water_sigma(self.t)?;
+                    satv.calc_water_sigma(self.t)?;
+                    self.dielc = self.dielc_water(self.t)?;
+                    satl.dielc = satl.dielc_water(self.t)?;
+                    satv.dielc = satv.dielc_water(self.t)?;
+                }
+                self.p = self.update_dmolar_t(self.rhomolar);
+                self.phase = match self.imposed_phase {
+                    Some(ph) => ph,
+                    None => self.calc_phase_internal(PcsaftInput::DmolarT, satl, satv)?,
+                };
+                Ok(())
+            }
+        }
+    }
+
+    /// `calc_phase_internal` for PT / DmolarT.
+    fn calc_phase_internal(
+        &mut self,
+        pair: PcsaftInput,
+        satl: &mut PcsaftBackend,
+        satv: &mut PcsaftBackend,
+    ) -> Result<PcsaftPhase> {
+        let mut phase = PcsaftPhase::Unknown;
+        match pair {
+            PcsaftInput::Pt => {
+                let p_input = self.p;
+                let rho_input = self.rhomolar;
+                self.q = 0.0;
+                satl.q = self.q;
+                satv.q = self.q;
+                satl.t = self.t;
+                satv.t = self.t;
+                let p_equil = self.estimate_flash_p(satl, satv)?;
+                if p_input > 1.6 * p_equil {
+                    phase = PcsaftPhase::Liquid;
+                } else if p_input < 0.5 * p_equil {
+                    phase = PcsaftPhase::Gas;
+                } else {
+                    self.q = 0.0;
+                    satl.q = self.q;
+                    satv.q = self.q;
+                    satl.t = self.t;
+                    satv.t = self.t;
+                    if self.flash_qt(satl, satv).is_err() {
+                        return Ok(PcsaftPhase::Supercritical);
+                    }
+                    let p_bub = self.p;
+                    self.p = p_input;
+                    self.rhomolar = rho_input;
+                    if self.p > p_bub {
+                        phase = PcsaftPhase::Liquid;
+                    } else if self.p == p_bub {
+                        phase = PcsaftPhase::TwoPhase;
+                    } else {
+                        self.q = 1.0;
+                        satl.q = self.q;
+                        satv.q = self.q;
+                        self.flash_qt(satl, satv)?;
+                        let p_dew = self.p;
+                        self.p = p_input;
+                        self.rhomolar = rho_input;
+                        if self.p < p_dew {
+                            phase = PcsaftPhase::Gas;
+                        } else if self.p <= p_bub && self.p >= p_dew {
+                            phase = PcsaftPhase::TwoPhase;
+                        } else {
+                            phase = PcsaftPhase::Unknown;
+                        }
+                    }
+                }
+                Ok(phase)
+            }
+            PcsaftInput::DmolarT => {
+                let p_input = self.p;
+                let rho_input = self.rhomolar;
+                self.q = 0.0;
+                satl.q = self.q;
+                satv.q = self.q;
+                satl.t = self.t;
+                satv.t = self.t;
+                if self.flash_qt(satl, satv).is_err() {
+                    return Ok(PcsaftPhase::Supercritical);
+                }
+                let rho_bub = self.rhomolar;
+                let p_bub = self.p;
+                self.p = p_input;
+                self.rhomolar = rho_input;
+                if self.rhomolar > rho_bub {
+                    phase = PcsaftPhase::Liquid;
+                } else if self.rhomolar == rho_bub {
+                    phase = PcsaftPhase::TwoPhase;
+                    self.p = p_bub;
+                    self.q =
+                        1.0 - (self.rhomolar - satv.rhomolar) / (satl.rhomolar - satv.rhomolar);
+                } else {
+                    self.q = 1.0;
+                    satl.q = self.q;
+                    satv.q = self.q;
+                    self.flash_qt(satl, satv)?;
+                    let rho_dew = self.rhomolar;
+                    self.p = p_input;
+                    self.rhomolar = rho_input;
+                    if self.rhomolar < rho_dew {
+                        phase = PcsaftPhase::Gas;
+                    } else if self.rhomolar <= rho_bub && self.rhomolar >= rho_dew {
+                        phase = PcsaftPhase::TwoPhase;
+                        self.p = p_bub;
+                        self.q = 1.0
+                            - (self.rhomolar - satv.rhomolar) / (satl.rhomolar - satv.rhomolar);
+                    }
+                }
+                Ok(phase)
+            }
+            other => Err(Error::Value(format!(
+                "Phase determination for this pair of inputs [{other:?}] is not yet supported"
+            ))),
+        }
+    }
+
+    /// Saturation-phase accessors for the flash results.
+    pub fn sat_rhomolar(&self) -> (f64, f64) {
+        (
+            self.satl.as_ref().map_or(f64::NAN, |s| s.rhomolar),
+            self.satv.as_ref().map_or(f64::NAN, |s| s.rhomolar),
+        )
+    }
 }

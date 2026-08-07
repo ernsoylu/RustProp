@@ -254,8 +254,9 @@ Hardest phase; sub-steps land separately like 4.x did.
 
 ## Phase 11 — PC-SAFT engine
 
-- [ ] 11.1 Datagen for `dev/pcsaft/`; port the PC-SAFT implementation and its supported flashes.
-      → verify: goldens vs `PCSAFT::` backend.
+- [x] 11.1 Datagen for `dev/pcsaft/`; port the PC-SAFT implementation and its supported flashes.
+      → verify: goldens vs `PCSAFT::` backend. ✅ 180 fluids + 140 kij; all five
+      term families; PT/QT/PQ/DmolarT flashes; 80 kernel + 164 flash goldens.
 
 **Phase gate 11.**
 
@@ -1011,6 +1012,34 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 11 slice 11c part 2 (flashes + PropsSI; completes
+  Phase 11): estimate_flash_p/t (Raoult-seeded log-log extrapolation with the
+  2e5-Pa density-collision bumps; the water sigma/dielc block sits OUTSIDE
+  the retry so its range throws PROPAGATE — for pure water at t_start=571 it
+  always does, feeding flash_PQ's own downward T-sweep, reproduced),
+  outerTQ/outerPQ (Watson 2017 inside-out: Raoult K seed, weighted
+  geometric-mean kb, the kb-SHADOWING quirk — the first u[i]=ln(k/kb) uses
+  the file-scope BOLTZMANN constant — B-sign guards, BoundedSecant inner
+  Rachford-Rice, ion exclusions and the three-way liquid/vapor split,
+  asymmetric acceptance maxdif 0.1/1e-3), flash_QT/flash_PQ with the log-p /
+  downward-T sweep fallbacks, update() for PT/QT/PQ/DmolarT (children's
+  vapor ion-zeroing + renormalization; upstream _HUGE = +INFINITY clear
+  semantics — NAN initialization broke the corrupted-sigma arithmetic paths'
+  sign structure), calc_phase_internal (estimate 1.6x/0.5x band, full QT
+  bubble/dew inside the band, SolutionError -> supercritical, the exact
+  float-equality twophase branches, DT density lever), and the PropsSI
+  PCSAFT route (library key registration CAS/name/alias/upper-alias, mole-
+  fraction parsing, molemass trivial, Phase output, residual-only outputs,
+  base-class NotImplemented parity for absolute calorics, unsupported-pair
+  parity). Verified: 164 flash goldens at 1e-7 (the inside-out loops TARGET
+  1e-8 per side; observed <=1.4e-8) — TOLUENE PQ at 6e-15, PT with real
+  phase determination at 1 ulp, methanol/cyclohexane azeotrope 1.6e-12,
+  NaCl(aq) electrolyte VLE 1.2e-9 — plus error-condition tests.
+  DOCUMENTED DEVIATION: WATER PT/DT phase determination — upstream computes
+  on children whose sigma is still the -1 sentinel (quirk 4) and silently
+  returns physically wrong densities (Dmolar 29 mol/m^3 for compressed
+  liquid water); identical arithmetic here exhausts the estimate sweep and
+  errors loudly. WATER PT/DT records are excluded on this basis.
 - 2026-08-07 — Phase 11 slice 11c part 1 (fugacity coefficients + density
   solver): calc_fugacity_coefficients ports the composition-derivative layer
   of every term family (dahs/dghsii/dadisp with the a/b composition

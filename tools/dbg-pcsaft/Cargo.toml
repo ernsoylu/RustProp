@@ -1,0 +1,10 @@
+[package]
+name = "dbg-pcsaft"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rustprop-core = { path = "../../crates/rustprop-core" }
+rustprop-pcsaft = { path = "../../crates/rustprop-pcsaft" }
+rustprop-data = { path = "../../crates/rustprop-data", features = ["pcsaft-fluids"] }

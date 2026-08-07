@@ -119,9 +119,12 @@ residual h/s/g over all five term families (shared Prep, per-kernel XA
 tolerances 1e-15/1e-14, quirks documented) — 80 goldens, calorics bitwise.
 11c part 1 done: fugacity coefficients
 + solver_rho_Tp (two-grid bracket scan + Brent + min-Gibbs root pick) —
-TOLUENE 1 ulp / PROPANE bitwise. Next: 11c part 2 — estimate_flash_p/t,
-outerTQ/outerPQ inside-out flashes, flash_QT/PQ sweeps, update()/phase
-determination, PropsSI routing + goldens (survey in scratchpad).
+TOLUENE 1 ulp / PROPANE bitwise. **PHASE 11 COMPLETE**: 11c part 2
+shipped the inside-out QT/PQ flashes (kb-shadowing quirk, _HUGE=+inf clear
+semantics), PT/DT phase determination, and the PropsSI PCSAFT route — 164
+flash goldens at 1e-7 (TOLUENE PQ 6e-15, NaCl(aq) VLE 1.2e-9). Documented
+deviation: WATER PT/DT errors loudly where upstream returns sigma-sentinel
+garbage. Next: Phase 12 Tabular (TTSE/bicubic).
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

@@ -1064,6 +1064,55 @@ def gen_pcsaft_terms():
     return rows
 
 
+def gen_pcsaft_flash():
+    """Phase 11 slice 11c: PC-SAFT flashes through the string API — QT/PQ
+    saturation (incl. the methanol/cyclohexane azeotropic system and the
+    NaCl aqueous electrolyte), PT with phase determination, DmolarT."""
+    rows, skipped = [], 0
+
+    def rec(fluid, out, n1, v1, n2, v2):
+        nonlocal skipped
+        r = try_record(out, n1, v1, n2, v2, "PCSAFT", fluid)
+        rows.append(r) if r else (skipped := skipped + 1)
+
+    for f in ["PROPANE", "TOLUENE", "N-BUTANE", "ACETONE", "METHANOL", "WATER"]:
+        pf = f"PCSAFT::{f}"
+        # A subcritical temperature grid via rough Tc-fraction anchors:
+        # probe a QT solve and derive states from it.
+        for t in (250.0, 300.0, 350.0):
+            try:
+                p_sat = PropsSI("P", "T", t, "Q", 0, pf)
+            except Exception:
+                skipped += 1
+                continue
+            if p_sat < 10.0:
+                skipped += 1
+                continue
+            rec(f, "P", "T", t, "Q", 0)
+            rec(f, "Dmolar", "T", t, "Q", 0)
+            rec(f, "P", "T", t, "Q", 1)
+            rec(f, "Dmolar", "T", t, "Q", 1)
+            rec(f, "T", "P", p_sat, "Q", 0)
+            if f != "WATER":
+                # WATER PT/DT: upstream's phase determination runs on
+                # children whose sigma is still the -1 sentinel (quirk 4)
+                # and returns physically wrong densities; the port errors
+                # loudly instead (documented deviation).
+                rec(f, "Dmolar", "T", t, "P", 2.0 * p_sat)   # liquid
+                rec(f, "Dmolar", "T", t, "P", 0.5 * p_sat)   # gas
+                rec(f, "Q", "Dmolar", 100.0, "T", t)
+                rec(f, "Hmolar_residual", "T", t, "P", 2.0 * p_sat)
+                rec(f, "Smolar_residual", "T", t, "P", 2.0 * p_sat)
+    # Mixtures
+    rec("METHANOL[0.3]&CYCLOHEXANE[0.7]", "P", "T", 327.48, "Q", 0)
+    rec("METHANOL[0.3]&CYCLOHEXANE[0.7]", "Dmolar", "T", 327.48, "Q", 0)
+    rec("METHANE[0.5]&N-BUTANE[0.5]", "P", "T", 250.0, "Q", 0)
+    rec("Na+[0.0907304774758426]&Cl-[0.0907304774758426]&WATER[0.818539045048315]",
+        "P", "T", 298.15, "Q", 0)
+    print(f"pcsaft flash: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1732,6 +1781,7 @@ def main():
     write_jsonl("mixture_pt_twophase.jsonl", gen_mixture_pt_twophase())
     write_jsonl("mixture_sweep.jsonl", gen_mixture_sweep())
     write_jsonl("pcsaft_terms.jsonl", gen_pcsaft_terms())
+    write_jsonl("pcsaft_flash.jsonl", gen_pcsaft_flash())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

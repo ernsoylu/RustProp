@@ -48,7 +48,7 @@ pub fn props_si(
     fluid_name: &str,
 ) -> Result<f64> {
     let (backend, fluid) = extract_backend(fluid_name);
-    if fluid.contains('&') && backend != "HEOS" && backend != "?" {
+    if fluid.contains('&') && backend != "HEOS" && backend != "?" && backend != "PCSAFT" {
         return Err(Error::NotImplemented("mixtures are not ported yet".into()));
     }
     match backend {
@@ -79,6 +79,7 @@ pub fn props_si(
             fluid,
         ),
         "INCOMP" => incomp_route(output, name1, prop1, name2, prop2, fluid),
+        "PCSAFT" => pcsaft_route(output, name1, prop1, name2, prop2, fluid),
         other => Err(Error::Value(format!(
             "Invalid backend name [{other}] to factory function"
         ))),
@@ -1515,4 +1516,185 @@ fn mixture_keyed_output(
             )));
         }
     })
+}
+
+// ---------------------------------------------------------------------------
+// PC-SAFT route (upstream PCSAFTBackend + PropsSI surface, survey §4)
+// ---------------------------------------------------------------------------
+
+#[cfg(not(feature = "pcsaft"))]
+fn pcsaft_route(_: &str, _: &str, _: f64, _: &str, _: f64, _: &str) -> Result<f64> {
+    Err(Error::NotImplemented(
+        "the `pcsaft` feature is not enabled".into(),
+    ))
+}
+
+/// Upstream `PCSAFTLibrary` key registration: CAS, name, each alias, and
+/// upper(alias) (the base name's uppercase is NOT registered).
+#[cfg(feature = "pcsaft")]
+fn resolve_pcsaft_fluid(key: &str) -> Result<&'static rustprop_core::fluid::PcsaftFluid> {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static MAP: OnceLock<HashMap<String, &'static rustprop_core::fluid::PcsaftFluid>> =
+        OnceLock::new();
+    let map = MAP.get_or_init(|| {
+        let mut m: HashMap<String, &'static rustprop_core::fluid::PcsaftFluid> = HashMap::new();
+        for f in rustprop_data::pcsaft::PCSAFT_FLUIDS {
+            m.insert(f.cas.to_string(), f);
+            m.insert(f.name.to_string(), f);
+            for alias in f.aliases {
+                m.insert((*alias).to_string(), f);
+                m.insert(alias.to_uppercase(), f);
+            }
+        }
+        m
+    });
+    map.get(key).copied().ok_or_else(|| {
+        Error::Value(format!(
+            "key [{key}] was not found in string_to_index_map in PCSAFTLibraryClass"
+        ))
+    })
+}
+
+#[cfg(feature = "pcsaft")]
+fn pcsaft_route(
+    output: &str,
+    name1: &str,
+    prop1: f64,
+    name2: &str,
+    prop2: f64,
+    fluid: &str,
+) -> Result<f64> {
+    use rustprop_pcsaft::{PcsaftBackend, PcsaftInput};
+
+    // Composition parsing shares upstream extract_fractions semantics.
+    let (names, fractions) = if fluid.contains('[') && fluid.contains(']') {
+        extract_mole_fractions_pcsaft(fluid)?
+    } else {
+        (fluid.split('&').collect::<Vec<_>>(), vec![1.0])
+    };
+    let fluids: Vec<_> = names
+        .iter()
+        .map(|n| resolve_pcsaft_fluid(n))
+        .collect::<Result<_>>()?;
+    let mut backend = PcsaftBackend::new(&fluids, rustprop_data::pcsaft::PCSAFT_BINARY_PAIRS)?;
+    if names.len() > 1 {
+        backend.set_mole_fractions(&fractions);
+    }
+
+    let out = Param::parse(output).ok_or_else(|| {
+        Error::Value(format!(
+            "Output parameter parsing failed; error: Output string is invalid [{output}]"
+        ))
+    })?;
+
+    // Trivial outputs available without a state
+    if out == Param::MolarMass {
+        return Ok(backend.molar_mass());
+    }
+
+    let keys = (Param::parse(name1), Param::parse(name2));
+    let pair = match keys {
+        (Some(k1), Some(k2)) => generate_update_pair(k1, prop1, k2, prop2),
+        _ => None,
+    };
+    let Some((pair, v1, v2)) = pair else {
+        return Err(Error::Value(
+            "Input pair variable is invalid and output(s) are non-trivial; cannot do state update"
+                .into(),
+        ));
+    };
+    let (p1, p2) = pair.split();
+    if out == p1 {
+        return Ok(v1);
+    }
+    if out == p2 {
+        return Ok(v2);
+    }
+
+    // Mass->molar conversions with the composition's molar mass.
+    let mm = backend.molar_mass();
+    let (pcsaft_pair, u1, u2) = match pair {
+        InputPair::PT => (PcsaftInput::Pt, v1, v2),
+        InputPair::QT | InputPair::QmassT => (PcsaftInput::Qt, v1, v2),
+        InputPair::PQ | InputPair::PQmass => (PcsaftInput::Pq, v1, v2),
+        InputPair::DmolarT => (PcsaftInput::DmolarT, v1, v2),
+        InputPair::DmassT => (PcsaftInput::DmolarT, v1 / mm, v2),
+        other => {
+            return Err(Error::Value(format!(
+                "This pair of inputs [{}] is not yet supported",
+                other.short_desc()
+            )));
+        }
+    };
+    backend.update(pcsaft_pair, u1, u2)?;
+
+    Ok(match out {
+        Param::T => backend.t,
+        Param::P => backend.p,
+        Param::Q => backend.q,
+        Param::Phase => match backend.phase {
+            rustprop_pcsaft::PcsaftPhase::Liquid => 0.0,
+            rustprop_pcsaft::PcsaftPhase::Supercritical => 1.0,
+            rustprop_pcsaft::PcsaftPhase::SupercriticalGas => 2.0,
+            rustprop_pcsaft::PcsaftPhase::SupercriticalLiquid => 3.0,
+            rustprop_pcsaft::PcsaftPhase::Gas => 5.0,
+            rustprop_pcsaft::PcsaftPhase::TwoPhase => 6.0,
+            rustprop_pcsaft::PcsaftPhase::Unknown => 7.0,
+        },
+        Param::Dmolar => backend.rhomolar,
+        Param::Dmass => backend.rhomolar * mm,
+        Param::Alphar => backend.calc_alphar(),
+        Param::HmolarResidual => backend.calc_hmolar_residual(),
+        Param::SmolarResidual => backend.calc_smolar_residual(),
+        Param::GmolarResidual => backend.calc_gibbsmolar_residual(),
+        // Every absolute caloric/transport output is a base-class
+        // NotImplementedError upstream (PCSAFT overrides none of them).
+        other => {
+            return Err(Error::NotImplemented(format!(
+                "Output [{}] is not implemented for this backend",
+                other.short_name()
+            )));
+        }
+    })
+}
+
+/// extract_fractions' mole-fraction branch for the PCSAFT route (same
+/// semantics as the HEOS one; duplicated to stay independent of the
+/// heos-mixtures feature gate).
+#[cfg(feature = "pcsaft")]
+fn extract_mole_fractions_pcsaft(fluid_string: &str) -> Result<(Vec<&str>, Vec<f64>)> {
+    let mut names = Vec::new();
+    let mut fractions = Vec::new();
+    let pairs: Vec<&str> = fluid_string.split('&').collect();
+    for entry in &pairs {
+        if !entry.ends_with(']') {
+            return Err(Error::Value(format!(
+                "Fluid entry [{entry}] must end with ']' character"
+            )));
+        }
+        let body = &entry[..entry.len() - 1];
+        let mut parts = body.split('[');
+        let (name, fraction) = match (parts.next(), parts.next(), parts.next()) {
+            (Some(n), Some(f), None) => (n, f),
+            _ => {
+                return Err(Error::Value(format!(
+                    "Could not break [{body}] into name/fraction"
+                )));
+            }
+        };
+        let f: f64 = fraction
+            .parse()
+            .map_err(|_| Error::Value(format!("fraction [{fraction}] was not converted fully")))?;
+        if !(0.0..=1.0).contains(&f) {
+            return Err(Error::Value(format!(
+                "fraction [{fraction}] was not converted to a value between 0 and 1 inclusive"
+            )));
+        }
+        if f > 10.0 * f64::EPSILON || pairs.len() == 1 {
+            fractions.push(f);
+            names.push(name);
+        }
+    }
+    Ok((names, fractions))
 }
