@@ -989,3 +989,20 @@ Append-only; newest last. Seeded entries:
   `ha_props_si` + CLI `ha` subcommand (9.2). 897 goldens (5 T x 3 p x 3 humidity grids x
   20 outputs incl. sub-freezing ice paths + 6 inverse triples) at 1e-9/1e-8 + error
   parity — green after the loop-shape fix; the smoke matrix matched at 1e-12 first run.
+- 2026-08-07 — Phase 10 slice 10a (mixture data): the 888 binary-pair records and 28
+  departure functions dumped verbatim (data/mixtures, attributed), datagen-emitted behind
+  `mixture-data` (`MixBinaryPair` with CAS-sorted keys and `function: Option` — the 848
+  F = 0 reducing-only pairs carry None, replacing upstream's zero-term sentinel;
+  `MixDepartureFn` with the three type tags mapping onto the generalized-exponential
+  machinery). The six Lemmon xi/zeta records are converted to GERG form AT DATAGEN TIME
+  exactly as upstream's load-time `convert_to_GERG` (using each pair's EOS reducing
+  states from the runtime dumps) — verified against the wheel: R32[0.6]&R125[0.4] gives
+  Tr = 353.3702 / rhor = 6415.336598571818, matching the oracle's reducing state to the
+  last digit through the GERG Yr form. Scoping survey banked (mixtures_survey.md):
+  slices 10b reducing (12 fns + 5 f_Y building blocks through 2nd order; third-order
+  PSI machinery deferred), 10c alphar/alpha0 assembly (GenExp needs the delta-linear
+  eta1/epsilon1 channel for the GERG departure gaussians; GERG Table B5 alpha0 with
+  x_i ln x_i; R_mix = CODATA by the NORMALIZE_GAS_CONSTANTS default), 10d PT
+  single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
+  newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
+  (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.

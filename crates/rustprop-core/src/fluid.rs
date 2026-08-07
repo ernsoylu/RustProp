@@ -950,3 +950,54 @@ pub struct IncompFluid {
     /// `.volume2input` (dead in v8)
     pub volume2input: IncompData,
 }
+
+/// One GERG-2008 binary interaction record (upstream
+/// `mixture_binary_pairs.json`; the six Lemmon `xi`/`zeta` records are
+/// converted to this form at datagen time as upstream converts them at load
+/// time). Keys are CAS-sorted: `cas1 < cas2` lexicographically; `beta_*`
+/// invert (`1/beta`) when the component order is swapped, `gamma_*` are
+/// symmetric.
+pub struct MixBinaryPair {
+    pub cas1: &'static str,
+    pub cas2: &'static str,
+    pub beta_t: f64,
+    pub gamma_t: f64,
+    pub beta_v: f64,
+    pub gamma_v: f64,
+    /// The departure-function weight; 0 for the 848 reducing-only pairs.
+    pub f: f64,
+    /// Departure-function name (present only when `f != 0`).
+    pub function: Option<&'static str>,
+}
+
+/// One mixture departure function (upstream
+/// `mixture_departure_functions.json`): the three upstream types all map
+/// onto the generalized-exponential term machinery.
+pub struct MixDepartureFn {
+    pub name: &'static str,
+    pub kind: MixDepartureKind,
+    /// Power-term count (the first `npower` terms of the arrays).
+    pub npower: usize,
+    pub n: &'static [f64],
+    pub d: &'static [f64],
+    pub t: &'static [f64],
+    /// `l` exponents (Exponential and Gaussian+Exponential types).
+    pub l: &'static [f64],
+    /// Gaussian tail parameters (GERG-2008 and Gaussian+Exponential).
+    pub eta: &'static [f64],
+    pub epsilon: &'static [f64],
+    pub beta: &'static [f64],
+    pub gamma: &'static [f64],
+}
+
+/// The three upstream departure-function types.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum MixDepartureKind {
+    /// Power terms + the GERG gaussian `exp(-eta(d-e)^2 - beta(d-gamma))`
+    /// (linear in delta).
+    Gerg2008,
+    /// Pure `n d^d t^t exp(-delta^l)` terms.
+    Exponential,
+    /// Power terms + standard gaussians.
+    GaussianExponential,
+}
