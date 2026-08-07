@@ -1006,6 +1006,35 @@ Append-only; newest last. Seeded entries:
   single-phase (SRK seed + lowest-Gibbs), 10e PQ/QT (successive substitution +
   newton_raphson_saturation + ~25 MixtureDerivatives), 10f PT two-phase stability
   (Michelsen) — PhaseEnvelope machinery confirmed out of scope for PropsSI.
+- 2026-08-07 — Phase 10 slice 10f part 1 (stability + PT two-phase):
+  `mixture_stability.rs` ports the Michelsen TPD stability machinery —
+  `check_stability_michelsen` (feed fugacities with the SRK-seeded gas
+  fallback between the spinodals; Wilson trial pair; SS with GDEM
+  acceleration incl. the tm<-1e-7 early exit, gmax convergence, and the
+  proximity/curvature test; then `minimize_tpd`'s alpha-variable trust-region
+  quasi-Newton with the Hebden shift), `guess_split_from_wilson` +
+  `successive_substitution_guessrho` (the speculative cross-check on a
+  "stable" verdict, forced when non-conclusive), the global lowest-Gibbs
+  density solver (`solver_dpdrho0_Tp` spinodal finder with the omega-damped
+  Halley ladder and both slow-probe fallbacks; `solver_rho_Tp_global`;
+  `calc_rhomolar_max_bound` = 0.9/SRK_covolume with upstream's hardcoded
+  R = 8.3144598 and CRITICAL-state constants — a different basis from
+  solver_rho_Tp_SRK's reducing states), `solve_trial_rho_warm` (warm root
+  accepted only within 0.5-2x), and `PTflash_twophase::solve_michelsen`
+  (log-K Rachford-Rice with the 350 clamp and Newton+bisection safeguards,
+  GDEM SS, the scaled second-order Gibbs minimization with min-eigenvalue
+  positive-definiteness shifts — cyclic Jacobi stands in for Eigen's
+  SelfAdjointEigenSolver — and the genuine-split convergence gate). The PT
+  route now runs upstream's full glue: stability -> Wilson cross-check ->
+  split with verify -> trivial-split collapse -> single-phase fallback.
+  `check_stability_legacy` and `solve_legacy` (non-default
+  MIXTURE_STABILITY_ALGORITHM=0) stay unported. Verified: 192 in-dome PT
+  goldens (four pairs, two compositions/temperatures, three pressures
+  between dew and bubble; Q/Dmolar/Hmolar/Smolar) at 1e-6 — both sides
+  converge the same equilibrium to ~1e-9 fugacity residuals and Q's
+  condition number scales with 1/spread (near-azeotropic R32&R125 observes
+  ~5e-7); single-phase smokes stay bitwise. Sweep-based input pairs
+  (DmolarT/HmolarP/...) remain the open 10f part 2.
 - 2026-08-07 — Phase 10: PropsSI mixture routing (`heos-mixtures` facade
   feature; opt-in because the pair/departure tables + VLE machinery cost
   ~358 KB of wasm over two bare fluids — 530 KB total for

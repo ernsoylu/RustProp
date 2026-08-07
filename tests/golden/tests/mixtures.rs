@@ -519,3 +519,36 @@ fn mixture_predefined_case_sensitivity() {
     let pseudo = props_si("Dmolar", "T", 300.0, "P", 1e5, "HEOS::R410A").unwrap();
     assert!(blend != pseudo, "blend {blend} vs pseudo-pure {pseudo}");
 }
+
+#[test]
+fn mixture_pt_twophase_matches_oracle() {
+    // Slice 10f: in-dome PT — stability test + Michelsen split. Both sides
+    // converge the same equilibrium to ~1e-9 fugacity residuals; 1e-6 policy
+    // for the split-derived outputs: Q's condition number against that
+    // residual scales with 1/(composition spread), and the near-azeotropic
+    // R32&R125 (spread ~0.03, K ~ 1) observes up to ~5e-7.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_pt_twophase.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 192);
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let (f1, f2) = rec.fluid.split_once('&').expect("pair fluid string");
+        let fluid = format!("HEOS::{f1}[{}]&{f2}[{}]", rec.val3, 1.0 - rec.val3);
+        match rustprop::props_si(&rec.out, "T", rec.val1, "P", rec.val2, &fluid) {
+            Ok(actual) => {
+                if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-6) {
+                    failures.push(e);
+                }
+            }
+            Err(e) => failures.push(format!("{}: error {e:?}", rec.id())),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} in-dome PT records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}

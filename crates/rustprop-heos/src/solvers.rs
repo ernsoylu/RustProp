@@ -17,6 +17,18 @@ pub(crate) trait Resid1D {
 
 /// Upstream `Halley` (omega = 1).
 pub(crate) fn halley<R: Resid1D>(f: &mut R, x0: f64, ftol: f64, maxiter: i32) -> Result<f64> {
+    halley_omega(f, x0, ftol, maxiter, 1.0)
+}
+
+/// Upstream `Halley` with the `omega` damping option (the spinodal finder
+/// retries with omega = 0.7, 0.5, 0.3, 0.1).
+pub(crate) fn halley_omega<R: Resid1D>(
+    f: &mut R,
+    x0: f64,
+    ftol: f64,
+    maxiter: i32,
+    omega: f64,
+) -> Result<f64> {
     let xtol_rel = 1e-12;
     let mut iter = 0;
     let mut x = x0;
@@ -36,7 +48,7 @@ pub(crate) fn halley<R: Resid1D>(f: &mut R, x0: f64, ftol: f64, maxiter: i32) ->
             ));
         }
         let dx = -(2.0 * fval * dfdx) / (2.0 * dfdx * dfdx - fval * d2fdx2);
-        x += dx;
+        x += omega * dx;
         if (dx / x).abs() < xtol_rel {
             return Ok(x);
         }

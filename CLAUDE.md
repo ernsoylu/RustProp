@@ -98,7 +98,12 @@ until 10f: sweep-based pairs (DmolarT/HmolarP/...) and mixture transport error
 loudly where upstream computes them. Predefined mixtures done: 154 blends
 datagen'd (`MIX_PREDEFINED`), "<Name>.mix"/uppercase registry checked before the
 pure library, 175 goldens incl. Air ternary VLE and 10-component Amarillo PT.
-Next: 10f stability + sweep flashes, mixture transport.
+10f part 1 done: Michelsen TPD
+stability (SS+GDEM, minimize_tpd trust-region), Wilson cross-check split,
+solver_rho_Tp_global (spinodal finder, omega-Halley ladder), PTflash_twophase
+solve_michelsen (log-K RR, scaled Gibbs Newton, Jacobi min-eigenvalue) — full
+PT_flash_mixtures glue; 192 in-dome goldens at 1e-6 (Q conditioning documented).
+Next: 10f part 2 sweep flashes (DmolarT/HmolarP/HSU_D), mixture transport.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

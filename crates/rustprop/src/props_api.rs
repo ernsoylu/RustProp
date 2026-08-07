@@ -1241,7 +1241,40 @@ fn mixture_update(
         other => (other, v1, v2),
     };
     match pair {
-        InputPair::PT => Ok(MixState::Single(model.pt_flash(z, v2, v1)?)),
+        InputPair::PT => {
+            // Full PT_flash_mixtures: stability test + Wilson cross-check +
+            // Michelsen split; single-phase fallback inside.
+            match rustprop_heos::mixture_stability::pt_flash_mixtures(model, z, v2, v1)? {
+                rustprop_heos::mixture_stability::PtFlashResult::Single(s) => {
+                    Ok(MixState::Single(s))
+                }
+                rustprop_heos::mixture_stability::PtFlashResult::TwoPhase {
+                    t,
+                    p,
+                    q,
+                    rhomolar,
+                    x,
+                    y,
+                    rhomolar_liq,
+                    rhomolar_vap,
+                } => Ok(MixState::Two(rustprop_heos::mixture_vle::MixtureTwoPhase {
+                    t,
+                    p,
+                    rhomolar,
+                    q,
+                    hmolar_liq: model.hmolar(&x, t, rhomolar_liq),
+                    hmolar_vap: model.hmolar(&y, t, rhomolar_vap),
+                    smolar_liq: model.smolar(&x, t, rhomolar_liq),
+                    smolar_vap: model.smolar(&y, t, rhomolar_vap),
+                    umolar_liq: model.umolar(&x, t, rhomolar_liq),
+                    umolar_vap: model.umolar(&y, t, rhomolar_vap),
+                    x_liq: x,
+                    y_vap: y,
+                    rhomolar_liq,
+                    rhomolar_vap,
+                })),
+            }
+        }
         InputPair::QT => {
             if !(0.0..=1.0).contains(&v1) {
                 return Err(Error::OutOfRange(

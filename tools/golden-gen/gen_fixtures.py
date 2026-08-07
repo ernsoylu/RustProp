@@ -905,6 +905,52 @@ def gen_mixture_predefined():
     return rows
 
 
+def gen_mixture_pt_twophase():
+    """Slice 10f: PT states INSIDE the two-phase dome (stability test +
+    Michelsen split) — Q, lever-rule bulk properties. Pressure placed between
+    the bubble and dew pressures at each T."""
+    pairs = [
+        ("Methane", "Ethane"),
+        ("Methane", "Nitrogen"),
+        ("R32", "R125"),
+        ("Nitrogen", "Oxygen"),
+    ]
+    rows = []
+    for f1, f2 in pairs:
+        state = CP.AbstractState("HEOS", f"{f1}&{f2}")
+        for x1 in (0.3, 0.6):
+            state.set_mole_fractions([x1, 1.0 - x1])
+            tr = state.T_reducing()
+            for tfac in (0.6, 0.72):
+                t = tfac * tr
+                try:
+                    state.update(CP.QT_INPUTS, 0, t)
+                    p_bub = state.p()
+                    state.update(CP.QT_INPUTS, 1, t)
+                    p_dew = state.p()
+                except Exception:
+                    continue
+                for frac in (0.25, 0.6, 0.9):
+                    p = p_dew + frac * (p_bub - p_dew)
+                    try:
+                        state.update(CP.PT_INPUTS, p, t)
+                        if state.phase() != CP.iphase_twophase:
+                            continue
+                        vals = [("Q", state.Q()), ("Dmolar", state.rhomolar()),
+                                ("Hmolar", state.hmolar()), ("Smolar", state.smolar())]
+                    except Exception:
+                        continue
+                    for out, val in vals:
+                        rows.append({
+                            "backend": "HEOS-MIX", "fluid": f"{f1}&{f2}",
+                            "out": out, "name1": "T", "val1": t,
+                            "name2": "P", "val2": p,
+                            "name3": "x1", "val3": x1,
+                            "expected": val,
+                        })
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1570,6 +1616,7 @@ def main():
     write_jsonl("mixture_vle.jsonl", gen_mixture_vle())
     write_jsonl("mixture_propssi.jsonl", gen_mixture_propssi())
     write_jsonl("mixture_predefined.jsonl", gen_mixture_predefined())
+    write_jsonl("mixture_pt_twophase.jsonl", gen_mixture_pt_twophase())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

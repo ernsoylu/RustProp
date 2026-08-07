@@ -227,6 +227,44 @@ impl<'m> SatState<'m> {
         }
     }
 
+    pub(crate) fn model(&self) -> &'m MixtureModel {
+        self.model
+    }
+
+    /// `set_state` for the stability/flash layer (density already solved).
+    pub(crate) fn set_state_public(&mut self, t: f64, rhomolar: f64) {
+        self.set_state(t, rhomolar);
+    }
+
+    /// `update_TP_guessrho` returning the solved density.
+    pub(crate) fn update_tp_guessrho_result(
+        &mut self,
+        t: f64,
+        p: f64,
+        rho_guess: f64,
+    ) -> Result<f64> {
+        // No imposed phase on this path (upstream SatL/SatV in the stability
+        // machinery carry no specify_phase) — no stability retries fire.
+        self.update_tp_guessrho(t, p, rho_guess, Phase::Unknown)?;
+        Ok(self.rhomolar)
+    }
+
+    /// `calc_fugacity_coefficient` (upstream hardcodes XN_DEPENDENT).
+    pub(crate) fn fugacity_coefficient(&self, i: usize) -> f64 {
+        self.ln_fugacity_coefficient(i, XnFlag::Dependent).exp()
+    }
+
+    /// Crate-visible view of `dln_fugacity_dxj__constT_p_xi` for the
+    /// stability Hessians (they use XN_INDEPENDENT).
+    pub(crate) fn dln_fugacity_dxj__const_t_p_xi_pub(
+        &self,
+        i: usize,
+        j: usize,
+        flag: XnFlag,
+    ) -> f64 {
+        self.dln_fugacity_dxj__const_t_p_xi(i, j, flag)
+    }
+
     /// EOS pressure of the current state.
     pub fn p(&self) -> f64 {
         self.rhomolar * self.model.gas_constant() * self.t * (1.0 + self.delta * self.ar.d10)
@@ -613,7 +651,7 @@ impl<'m> SatState<'m> {
 // ---------------------------------------------------------------------------
 
 /// `Wilson_lnK_factor`: ln K_i = ln(pci/p) + 5.373 (1+omega_i)(1 - Tci/T).
-fn wilson_ln_k_factor(model: &MixtureModel, t: f64, p: f64, i: usize) -> f64 {
+pub(crate) fn wilson_ln_k_factor(model: &MixtureModel, t: f64, p: f64, i: usize) -> f64 {
     let pci = model.crit_p()[i];
     let tci = model.crit_t()[i];
     let omegai = model.acentric(i);
@@ -741,7 +779,27 @@ pub fn x_and_y_from_k(beta: f64, k: &[f64], z: &[f64], x: &mut [f64], y: &mut [f
     }
 }
 
-fn normalize_vector(x: &mut [f64]) {
+/// Upstream `rachford_rice_beta_bisect`: bisection on [0,1] for the
+/// Rachford-Rice residual (strictly decreasing, no interior pole).
+pub(crate) fn rachford_rice_beta_bisect(z: &[f64], k: &[f64]) -> f64 {
+    let mut a = 0.0_f64;
+    let mut b = 1.0_f64;
+    for _ in 0..100 {
+        let beta = 0.5 * (a + b);
+        let mut g = 0.0;
+        for i in 0..z.len() {
+            g += z[i] * (k[i] - 1.0) / (1.0 - beta + beta * k[i]);
+        }
+        if g > 0.0 {
+            a = beta;
+        } else {
+            b = beta;
+        }
+    }
+    0.5 * (a + b)
+}
+
+pub(crate) fn normalize_vector(x: &mut [f64]) {
     let sum: f64 = x.iter().sum();
     for v in x.iter_mut() {
         *v /= sum;
@@ -915,7 +973,7 @@ pub struct NrSaturationOptions {
 /// Solve the dense linear system J v = -r in place (partial-pivot Gaussian
 /// elimination; upstream uses Eigen's column-pivoted QR — same solution, and
 /// the surrounding Newton converges both to the same fixed point).
-fn solve_linear(j: &mut [Vec<f64>], r: &[f64]) -> Result<Vec<f64>> {
+pub(crate) fn solve_linear(j: &mut [Vec<f64>], r: &[f64]) -> Result<Vec<f64>> {
     let n = r.len();
     let mut aug: Vec<Vec<f64>> = (0..n)
         .map(|row| {
