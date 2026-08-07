@@ -1029,6 +1029,21 @@ Append-only; newest last. Seeded entries:
   1e-12, states 1e-8, four pair/composition combos) + variant-and-message
   error-condition tests + a bitwise CLI/oracle smoke; CI wasm report gains a
   heos-mixtures row.
+- 2026-08-07 — Phase 10: predefined mixtures (completes 10.1's blend scope):
+  `predefined_mixtures.json` vendored verbatim (154 blends incl. the v8
+  ASHRAE-34 additions) and datagen'd into `MIX_PREDEFINED`; the HEOS route
+  checks the predefined registry BEFORE the pure library exactly as
+  upstream's HelmholtzEOSBackend constructor does, with the upstream key
+  convention ("<Name>.mix" + all-uppercase form, exact match only — other
+  casings fall through to the pure registry). Component names resolve through
+  the existing alias map (upstream ships REFPROP-style names: METHANE, CO2,
+  ISOBUTAN). 175 goldens: trivials at 1e-12 and PT/QT/PQ at 1e-8 over
+  R410A/R407C/R404A (binary + ternary refrigerant blends), the Air ternary
+  (first N=3 VLE exercise of the N-generic reducing/NR machinery), the
+  10-component Amarillo natural gas (PT), and the uppercase key. Case tests
+  assert the blend-vs-pseudo-pure R410A distinction (different models, same
+  stem). CLI smoke bitwise vs the wheel. Upstream's own R1132a-referencing
+  blend (absent from the fluid library) fails identically on both sides.
 - 2026-08-07 — Phase 10 slice 10e (mixture QT/PQ VLE):
   `mixture_vle.rs` ports the blind flash chain — saturation_preconditioner
   (mole-fraction-weighted ln(p)-vs-T interpolation on STATES.critical /

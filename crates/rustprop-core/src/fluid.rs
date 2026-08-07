@@ -973,6 +973,17 @@ pub struct MixBinaryPair {
 /// One mixture departure function (upstream
 /// `mixture_departure_functions.json`): the three upstream types all map
 /// onto the generalized-exponential term machinery.
+/// One predefined mixture (upstream `predefined_mixtures.json` entry; the
+/// registry key is `name + ".mix"` plus its uppercase form).
+pub struct PredefinedMixture {
+    /// Base name WITHOUT the `.mix` suffix (as shipped: "Air", "R410A", ...).
+    pub name: &'static str,
+    /// Component names as shipped (REFPROP-style, resolved through the
+    /// fluid registry's alias map: "METHANE", "CO2", "ISOBUTAN", ...).
+    pub fluids: &'static [&'static str],
+    pub mole_fractions: &'static [f64],
+}
+
 pub struct MixDepartureFn {
     pub name: &'static str,
     pub kind: MixDepartureKind,

@@ -472,3 +472,50 @@ fn mixture_propssi_error_conditions() {
         other => panic!("wrong variant {other:?}"),
     }
 }
+
+#[test]
+fn mixture_predefined_matches_oracle() {
+    // Predefined "<Name>.mix" blends through the string API — binary,
+    // ternary (Air, R404A/R407C), and the 10-component Amarillo natural gas.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_predefined.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 175);
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let fluid = format!("HEOS::{}", rec.fluid);
+        match rustprop::props_si(&rec.out, &rec.name1, rec.val1, &rec.name2, rec.val2, &fluid) {
+            Ok(actual) => {
+                let rtol = if rec.name1.is_empty() { 1e-12 } else { 1e-8 };
+                if let Err(e) = rustprop_golden_tests::check(rec, actual, rtol) {
+                    failures.push(e);
+                }
+            }
+            Err(e) => failures.push(format!("{}: error {e:?}", rec.id())),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} predefined-mixture records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn mixture_predefined_case_sensitivity() {
+    use rustprop::props_si;
+    // Exact and uppercase keys resolve; other casings fall through to the
+    // pure registry and fail its lookup (same as upstream's factory error
+    // path, whose outer message wraps the same missing-key condition).
+    assert!(props_si("molemass", "", 0.0, "", 0.0, "HEOS::R410A.mix").is_ok());
+    assert!(props_si("molemass", "", 0.0, "", 0.0, "HEOS::R410A.MIX").is_ok());
+    assert!(props_si("molemass", "", 0.0, "", 0.0, "HEOS::r410a.mix").is_err());
+    assert!(props_si("molemass", "", 0.0, "", 0.0, "HEOS::R410a.mix").is_err());
+    // The predefined R410A blend and the pseudo-pure R410A fluid are
+    // different models: same name stem, different route.
+    let blend = props_si("Dmolar", "T", 300.0, "P", 1e5, "HEOS::R410A.mix").unwrap();
+    let pseudo = props_si("Dmolar", "T", 300.0, "P", 1e5, "HEOS::R410A").unwrap();
+    assert!(blend != pseudo, "blend {blend} vs pseudo-pure {pseudo}");
+}

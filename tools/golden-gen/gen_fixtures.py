@@ -868,6 +868,43 @@ def gen_mixture_propssi():
     return rows
 
 
+def gen_mixture_predefined():
+    """Predefined mixtures ("<Name>.mix" registry): trivials + PT states for
+    binary/ternary/10-component blends, QT/PQ for the refrigerant binaries,
+    exercising N > 2 reducing/VLE machinery."""
+    rows, skipped = [], 0
+
+    def rec(fluid, out, n1, v1, n2, v2):
+        nonlocal skipped
+        r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+        rows.append(r) if r else (skipped := skipped + 1)
+
+    blends = ["R410A.mix", "R407C.mix", "R404A.mix", "Air.mix", "Amarillo.mix",
+              "R410A.MIX"]
+    for mix in blends:
+        hm = f"HEOS::{mix}"
+        for out in ["molemass", "T_reducing", "rhomolar_reducing", "Tmax", "Ttriple"]:
+            rec(mix, out, "", 0, "", 0)
+        tr = PropsSI("T_reducing", "", 0, "", 0, hm)
+        for t, p in [(1.3 * tr, 5e6), (1.3 * tr, 1e5), (300.0, 1e5)]:
+            for out in ["Dmolar", "Hmolar", "Smolar", "Cpmolar", "speed_of_sound"]:
+                rec(mix, out, "T", t, "P", p)
+        # Two-phase for the refrigerant blends and Air (ternary VLE)
+        if mix != "Amarillo.mix":
+            t_sat = 0.75 * tr
+            for q in (0.0, 1.0):
+                for out in ["P", "Dmolar", "Hmolar", "Smolar"]:
+                    rec(mix, out, "T", t_sat, "Q", q)
+            try:
+                p_mid = PropsSI("P", "T", t_sat, "Q", 0, hm)
+                for out in ["T", "Dmolar", "Hmolar"]:
+                    rec(mix, out, "P", 0.9 * p_mid, "Q", 0.5)
+            except Exception:
+                skipped += 1
+    print(f"mixture predefined: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_fluid_resolution():
     """5.1 registry goldens: for every pure fluid, how the wheel resolves its
     canonical name, CAS, aliases, and upper(aliases); plus negatives. The
@@ -1532,6 +1569,7 @@ def main():
     write_jsonl("mixture_pt.jsonl", gen_mixture_pt())
     write_jsonl("mixture_vle.jsonl", gen_mixture_vle())
     write_jsonl("mixture_propssi.jsonl", gen_mixture_propssi())
+    write_jsonl("mixture_predefined.jsonl", gen_mixture_predefined())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

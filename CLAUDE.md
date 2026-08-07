@@ -95,8 +95,10 @@ branches (FD regression test added). PropsSI mixture routing shipped behind the
 opt-in `heos-mixtures` facade feature (~358 KB wasm): extract_fractions verbatim,
 PT/QT/PQ + weighted trivials + mass basis + error parity, 284 goldens. Deviations
 until 10f: sweep-based pairs (DmolarT/HmolarP/...) and mixture transport error
-loudly where upstream computes them. Next: predefined blends, 10f stability +
-sweep flashes.
+loudly where upstream computes them. Predefined mixtures done: 154 blends
+datagen'd (`MIX_PREDEFINED`), "<Name>.mix"/uppercase registry checked before the
+pure library, 175 goldens incl. Air ternary VLE and 10-component Amarillo PT.
+Next: 10f stability + sweep flashes, mixture transport.
 
 Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
 1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.

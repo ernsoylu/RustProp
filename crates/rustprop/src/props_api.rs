@@ -170,6 +170,21 @@ fn heos_route(
 ) -> Result<f64> {
     // Multi-output strings ('&'-joined) fail upstream's output parsing with
     // "Output string is invalid" — they fall through to Param::parse below.
+    // Upstream's HelmholtzEOSBackend constructor checks the predefined
+    // mixture library BEFORE the pure-fluid library (keys are "<Name>.mix"
+    // and its uppercase form, exact match).
+    #[cfg(feature = "heos-mixtures")]
+    if let Some(pm) = predefined_mixture(fluid) {
+        return heos_mixture_route(
+            output,
+            name1,
+            prop1,
+            name2,
+            prop2,
+            pm.fluids,
+            pm.mole_fractions,
+        );
+    }
     let data = resolve_fluid(fluid)?;
 
     let out = Param::parse(output).ok_or_else(|| {
@@ -1048,6 +1063,27 @@ fn heos_mixture_entry(
     Err(Error::NotImplemented(
         "the `heos-mixtures` feature is not enabled".into(),
     ))
+}
+
+/// Upstream `is_predefined_mixture`: the library registers each blend as
+/// `"<name>.mix"` plus the all-uppercase form (emplace: first key wins).
+#[cfg(feature = "heos-mixtures")]
+fn predefined_mixture(name: &str) -> Option<&'static rustprop_core::fluid::PredefinedMixture> {
+    use std::collections::HashMap;
+    use std::sync::OnceLock;
+    static MAP: OnceLock<HashMap<String, &'static rustprop_core::fluid::PredefinedMixture>> =
+        OnceLock::new();
+    let map = MAP.get_or_init(|| {
+        let mut m: HashMap<String, &'static rustprop_core::fluid::PredefinedMixture> =
+            HashMap::new();
+        for pm in rustprop_data::mixtures::MIX_PREDEFINED {
+            let key = format!("{}.mix", pm.name);
+            m.entry(key.to_uppercase()).or_insert(pm);
+            m.entry(key).or_insert(pm);
+        }
+        m
+    });
+    map.get(name).copied()
 }
 
 /// One cached `MixtureModel` per component set (composition-independent).
