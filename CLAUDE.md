@@ -116,6 +116,17 @@ branch pick; DmolarT via the six extracted Chebyshev superancillary tables with 
 broken-sub-state two-phase caloric throw). `SRK::`/`PR::` PropsSI routes; 116-fluid table
 behind one `cubic-fluids` feature; cubics-only wasm = 146 KB total. 2,328 cubic goldens.
 
+**Phase 8 (incompressible) is DONE**: 126 fluids (74 pure + solutions/brines) behind
+`incompressible-fluids`; Polynomial2DFrac machinery (Horner-from-top, fracIntCentral),
+the five block forms, the hard-coded reference state, five input pairs, INCOMP:: with
+Name/Name[x]/Name-40% parsing. 935 goldens, direct evaluations bit-identical.
+
+**Phase 9 (humid air) is DONE**: HAPropsSI on RP-1485 virials — IAPWS-06 ice, EOS +
+hardcoded virials, enhancement factor, three distinct gas constants, upstream's solver
+loop shapes and quirks all reproduced; `ha_props_si` facade + CLI `ha` subcommand.
+897 goldens. Deviation (logged): errors return as Result instead of +inf-with-global.
+~21,000 committed oracle records overall. Next: Phase 10 (HEOS mixtures).
+
 ## Toolchain
 
 **Gotcha:** `~/.cargo/bin` is NOT on PATH in this environment, while a stale distro `rustc 1.75` sits at `/usr/bin/rustc` (and plain `cargo` is "not found"). Start shell work with:
