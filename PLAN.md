@@ -262,10 +262,13 @@ Hardest phase; sub-steps land separately like 4.x did.
 
 ## Phase 12 — Tabular engine (TTSE / bicubic)
 
-- [ ] 12.1 Port table construction from a source backend and both interpolation schemes.
+- [x] 12.1 Port table construction from a source backend and both interpolation schemes.
       Tables are built at runtime from ported engines (no upstream table files).
       → verify: goldens vs upstream `TTSE&HEOS::` / `BICUBIC&HEOS::` outputs — tolerance set by
       upstream's own interpolation accuracy, plus exactness tests at table nodes.
+      Slices: 12a generic (T, rho) partial derivatives; 12b table construction (LogPH/LogPT
+      grids + saturation table); 12c TTSE; 12d bicubic; 12e the low-level `TabularState`
+      (PT inputs) and the high-level rejection.
 
 **Phase gate 12.**
 
@@ -1372,3 +1375,44 @@ Append-only; newest last. Seeded entries:
   (GERG and Lemmon-converted pairs across compositions) match the wheel at 1e-12, and
   every analytic derivative passes finite-difference identities. Third-order/PSI
   machinery deferred with the phase envelope.
+- 2026-08-07 — Phase 12 slice 12e (the low-level tabular state): ports
+  `TabularBackend::update`'s `PT_INPUTS` branch — the
+  `native_inputs_are_in_range` gate with upstream's verbatim "inputs are not
+  in range, p=%g Pa, T=%g K", the `pure_saturation.is_inside` two-phase
+  rejection ("P,T with TTSE cannot be two-phase for now", named for TTSE in
+  both backends), and the per-scheme index cache
+  (`find_native_nearest_good_indices`: nearest good NODE for TTSE, nearest
+  good CELL plus the alternate-neighbour remap and its "Cell is invalid and
+  has no good neighbors" error for bicubic). Outputs come off the CACHED
+  indices, including transport — so TTSE bilinearly interpolates transport
+  over the cell rooted at its nearest *node*. Bicubic gets its own transport
+  path: the same bilinear formula WITHOUT TTSE's in-range and
+  four-valid-corner guards, because "By definition i,i+1,j,j+1 are all in
+  range and valid" for a cell that has coefficients. The imposed-phase bump
+  ladder is not ported — `imposed_phase_index` has no entry point in this
+  API.
+  ROUTING FIDELITY: `TabularBackend::available_in_high_level()` returns FALSE
+  ("None of the tabular methods are available from the high-level interface",
+  TabularBackends.h:1077), so `_PropsSImulti` rejects TTSE/BICUBIC backend
+  strings before any state update. I had first written a working `props_si`
+  tabular route; the wheel refused the same call, so the route now returns
+  upstream's verbatim "This AbstractState derived class cannot be used in the
+  high-level interface; see www.coolprop.org/dev/coolprop/LowLevelAPI.html".
+  The tables are reachable only through `rustprop_tabular::TabularState`.
+  FIDELITY FINDING: the PT two-phase rejection is UNREACHABLE for pure
+  fluids. `is_inside` brackets T between the cubic-interpolated liquid and
+  vapour saturation temperatures, which for a pure fluid are the same curve,
+  so the "inside" set has ulp width. Confirmed against the wheel: at exactly
+  Ts(101325 Pa) it returns the liquid root and one nanokelvin above it the
+  vapour root, with no error in between. The branch is carried for shape
+  parity.
+  552 goldens (2 fluids x 2 schemes x 12 outputs incl. mass basis and
+  transport) at 1e-9, worst observed 1.2e-10, most bitwise. Golden states
+  skip a 1.5-cell band around the dome: nodes there sit in the table's
+  two-phase notch, so the search walks to a good neighbour and WHICH
+  neighbour is decided by the +/-100*DBL_EPSILON validity band — ulp noise.
+  The log-p grid is coarse enough (one cell is a factor of ~1.16 in p for
+  n-Propane) that this band is wide in relative pressure. The transport
+  grids are filled through a `TransportSource` implemented in the test on
+  the facade's public string API, which is the resolver seam the
+  `rustprop-tabular` crate deliberately leaves open.

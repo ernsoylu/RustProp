@@ -79,6 +79,24 @@ pub fn props_si(
             fluid,
         ),
         "INCOMP" => incomp_route(output, name1, prop1, name2, prop2, fluid),
+        "TTSE" | "TTSE&HEOS" => tabular_route(
+            TabularScheme::Ttse,
+            output,
+            name1,
+            prop1,
+            name2,
+            prop2,
+            fluid,
+        ),
+        "BICUBIC" | "BICUBIC&HEOS" => tabular_route(
+            TabularScheme::Bicubic,
+            output,
+            name1,
+            prop1,
+            name2,
+            prop2,
+            fluid,
+        ),
         "PCSAFT" => pcsaft_route(output, name1, prop1, name2, prop2, fluid),
         other => Err(Error::Value(format!(
             "Invalid backend name [{other}] to factory function"
@@ -1697,4 +1715,35 @@ fn extract_mole_fractions_pcsaft(fluid_string: &str) -> Result<(Vec<&str>, Vec<f
         }
     }
     Ok((names, fractions))
+}
+
+// ---------------------------------------------------------------------------
+// Tabular route: upstream REJECTS the tabular backends here
+// ---------------------------------------------------------------------------
+
+/// Which interpolation scheme the backend string selected.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TabularScheme {
+    Ttse,
+    Bicubic,
+}
+
+/// Upstream `TabularBackend::available_in_high_level()` returns FALSE — "None
+/// of the tabular methods are available from the high-level interface"
+/// (TabularBackends.h:1077) — so `_PropsSImulti` rejects any TTSE/BICUBIC
+/// backend string before it can update a state. The tables are a LOW-LEVEL
+/// API only; use `rustprop_tabular::TabularState` for them, which is what
+/// upstream's `AbstractState::factory("TTSE&HEOS", ...)` gives you.
+fn tabular_route(
+    _scheme: TabularScheme,
+    _output: &str,
+    _name1: &str,
+    _prop1: f64,
+    _name2: &str,
+    _prop2: f64,
+    _fluid: &str,
+) -> Result<f64> {
+    Err(Error::Value(
+        "This AbstractState derived class cannot be used in the high-level interface; see www.coolprop.org/dev/coolprop/LowLevelAPI.html".into(),
+    ))
 }

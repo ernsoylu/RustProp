@@ -174,7 +174,7 @@ impl GriddedTable {
     }
 
     /// Transport grids, which have no derivatives.
-    fn transport_for(&self, key: Param) -> Result<&Vec<Vec<f64>>> {
+    pub(crate) fn transport_for(&self, key: Param) -> Result<&Vec<Vec<f64>>> {
         Ok(match key {
             Param::Viscosity => &self.visc,
             Param::Conductivity => &self.cond,

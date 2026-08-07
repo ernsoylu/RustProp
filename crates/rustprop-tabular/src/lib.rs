@@ -4,7 +4,10 @@
 //! CoolProp v8.0.0 — see CLAUDE.md.
 
 pub mod bicubic;
+pub mod state;
 pub mod tables;
 pub mod ttse;
+
+pub use state::{Scheme, TabularState};
 
 pub use rustprop_core::UPSTREAM_VERSION;

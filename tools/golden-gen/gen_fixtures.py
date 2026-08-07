@@ -1271,6 +1271,73 @@ def gen_ttse():
     return rows
 
 
+def gen_tabular_state():
+    """Phase 12 slice 12e: the low-level tabular STATE — upstream
+    `AbstractState::factory("TTSE&HEOS"/"BICUBIC&HEOS", fluid)` driven through
+    PT inputs. This covers the state wrapper rather than the interpolants
+    (12c/12d already pin those): the mass-basis conversions, the echoed
+    inputs, and the transport accessors, which interpolate bilinearly over the
+    cell rooted at the CACHED indices (the nearest good NODE for TTSE).
+
+    States stay well clear of the saturation line: node/cell selection there
+    is decided by a +/-100*DBL_EPSILON band, i.e. by ulp noise (the same
+    knife-edge documented for the 12b grid limits)."""
+    import math
+    rows = []
+    outs = ["Dmolar", "Dmass", "Hmolar", "Hmass", "Smolar", "Smass",
+            "Umolar", "Umass", "T", "P", "Viscosity", "Conductivity"]
+    for fluid in ["Water", "n-Propane"]:
+        hf = f"HEOS::{fluid}"
+        Tmin = max(PropsSI("Ttriple", "", 0, "", 0, hf), PropsSI("Tmin", "", 0, "", 0, hf))
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        pmax = PropsSI("pmax", "", 0, "", 0, hf)
+        ref = CP.AbstractState("HEOS", fluid)
+        ref.update(CP.QT_INPUTS, 0, Tmin)
+        pmin = ref.p()
+        xmin, xmax = Tmin, Tmax * 1.499
+        Tcrit = PropsSI("Tcrit", "", 0, "", 0, hf)
+        states = []
+        for fi in (0.22, 0.47, 0.72, 0.95):
+            for fj in (0.15, 0.45, 0.75):
+                t = xmin + (xmax - xmin) * fi
+                p = math.exp(math.log(pmin) + math.log(pmax / pmin) * fj)
+                # Skip states within ~1.5 grid cells of the dome. The nodes
+                # there fall in the table's two-phase notch, so the search
+                # walks to a good neighbour, and WHICH neighbour is decided by
+                # a +/-100*DBL_EPSILON validity band -- ulp noise, not error.
+                # The log-p grid is coarse (one cell is a factor of ~1.16 in p
+                # for n-Propane), so this band is wide in relative pressure.
+                if t < Tcrit:
+                    psat = PropsSI("P", "T", t, "Q", 0, hf)
+                    dlnp = math.log(pmax / pmin) / (200 - 1)
+                    if abs(math.log(p) - math.log(psat)) < 1.5 * dlnp:
+                        continue
+                states.append((t, p))
+        for backend in ["TTSE", "BICUBIC"]:
+            AS = CP.AbstractState(f"{backend}&HEOS", fluid)
+            for (t, p) in states:
+                try:
+                    AS.update(CP.PT_INPUTS, p, t)
+                    vals = {
+                        "Dmolar": AS.rhomolar(), "Dmass": AS.rhomass(),
+                        "Hmolar": AS.hmolar(), "Hmass": AS.hmass(),
+                        "Smolar": AS.smolar(), "Smass": AS.smass(),
+                        "Umolar": AS.umolar(), "Umass": AS.umass(),
+                        "T": AS.T(), "P": AS.p(),
+                        "Viscosity": AS.viscosity(), "Conductivity": AS.conductivity(),
+                    }
+                except Exception:
+                    continue
+                for out in outs:
+                    rows.append({
+                        "backend": backend, "fluid": fluid, "out": out,
+                        "name1": "T", "val1": t, "name2": "P", "val2": p,
+                        "expected": vals[out],
+                    })
+    print(f"tabular_state: {len(rows)} records")
+    return rows
+
+
 def gen_bicubic():
     """Phase 12 slice 12d: bicubic evaluation on the LogPT table through PT
     inputs, against the wheel's own BICUBIC backend (same 200x200 grid, same
@@ -1993,6 +2060,7 @@ def main():
     write_jsonl("tabular_tables.jsonl", gen_tabular_tables())
     write_jsonl("ttse.jsonl", gen_ttse())
     write_jsonl("bicubic.jsonl", gen_bicubic())
+    write_jsonl("tabular_state.jsonl", gen_tabular_state())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

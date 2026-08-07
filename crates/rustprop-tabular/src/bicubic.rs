@@ -218,3 +218,27 @@ pub fn evaluate_single_phase(
 
     Ok(((b3 * xhat + b2) * xhat + b1) * xhat + b0)
 }
+
+/// `BicubicBackend::evaluate_single_phase_transport`: the same bilinear
+/// interpolation TTSE uses, but WITHOUT its in-range and four-valid-corner
+/// guards — upstream notes "By definition i,i+1,j,j+1 are all in range and
+/// valid" because a bicubic cell only exists when its corners are valid.
+pub fn evaluate_single_phase_transport(
+    table: &GriddedTable,
+    output: Param,
+    x: f64,
+    y: f64,
+    i: usize,
+    j: usize,
+) -> Result<f64> {
+    let f = table.transport_for(output)?;
+    let (x1, x2) = (table.xvec[i], table.xvec[i + 1]);
+    let (y1, y2) = (table.yvec[j], table.yvec[j + 1]);
+    let (f11, f12) = (f[i][j], f[i][j + 1]);
+    let (f21, f22) = (f[i + 1][j], f[i + 1][j + 1]);
+    Ok(1.0 / ((x2 - x1) * (y2 - y1))
+        * (f11 * (x2 - x) * (y2 - y)
+            + f21 * (x - x1) * (y2 - y)
+            + f12 * (x2 - x) * (y - y1)
+            + f22 * (x - x1) * (y - y1)))
+}

@@ -476,3 +476,96 @@ impl SatTable {
         Ok(lo)
     }
 }
+
+/// Upstream `CubicInterp`: 4-point Lagrange interpolation.
+// Upstream's signature, kept argument-for-argument.
+#[allow(clippy::too_many_arguments)]
+pub fn cubic_interp(
+    x0: f64,
+    x1: f64,
+    x2: f64,
+    x3: f64,
+    f0: f64,
+    f1: f64,
+    f2: f64,
+    f3: f64,
+    x: f64,
+) -> f64 {
+    let l0 = ((x - x1) * (x - x2) * (x - x3)) / ((x0 - x1) * (x0 - x2) * (x0 - x3));
+    let l1 = ((x - x0) * (x - x2) * (x - x3)) / ((x1 - x0) * (x1 - x2) * (x1 - x3));
+    let l2 = ((x - x0) * (x - x1) * (x - x3)) / ((x2 - x0) * (x2 - x1) * (x2 - x3));
+    let l3 = ((x - x0) * (x - x1) * (x - x2)) / ((x3 - x0) * (x3 - x1) * (x3 - x2));
+    l0 * f0 + l1 * f1 + l2 * f2 + l3 * f3
+}
+
+fn cubic_interp_vec(
+    x: &[f64],
+    y: &[f64],
+    i0: usize,
+    i1: usize,
+    i2: usize,
+    i3: usize,
+    v: f64,
+) -> f64 {
+    cubic_interp(x[i0], x[i1], x[i2], x[i3], y[i0], y[i1], y[i2], y[i3], v)
+}
+
+impl SatTable {
+    /// `PureFluidSaturationTableData::is_inside(iP, p, iT, T, ...)` — is the
+    /// (p, T) state inside the two-phase dome, by the saturation table?
+    /// Returns the bracketing indices as upstream does (`iL`/`iV` are set to
+    /// `i*plus - 1` when inside).
+    pub fn is_inside_pt(&self, p: f64, t: f64) -> Result<Option<(usize, usize)>> {
+        // Trivial check on the pressure range
+        let pmax = self.p_v[self.n - 1];
+        let pmin = self.p_v[0];
+        if p > pmax || p < pmin {
+            return Ok(None);
+        }
+        let iv = crate::ttse::bisect_vector(&self.p_v, p)?;
+        let il = crate::ttse::bisect_vector(&self.p_l, p)?;
+        let mut ivplus = (iv + 1).min(self.n - 1);
+        let mut ilplus = (il + 1).min(self.n - 1);
+
+        // Bounding values for T across the four bracketing nodes
+        let ymin = self.t_l[il]
+            .min(self.t_l[ilplus])
+            .min(self.t_v[iv])
+            .min(self.t_v[ivplus]);
+        let ymax = self.t_l[il]
+            .max(self.t_l[ilplus])
+            .max(self.t_v[iv])
+            .max(self.t_v[ivplus]);
+        if t < ymin || t > ymax {
+            return Ok(None);
+        }
+
+        // Cubic "saturation" call against log(p)
+        ivplus = ivplus.max(3);
+        ilplus = ilplus.max(3);
+        let logp = p.ln();
+        let yv = cubic_interp_vec(
+            &self.logp_v,
+            &self.t_v,
+            ivplus - 3,
+            ivplus - 2,
+            ivplus - 1,
+            ivplus,
+            logp,
+        );
+        let yl = cubic_interp_vec(
+            &self.logp_l,
+            &self.t_l,
+            ilplus - 3,
+            ilplus - 2,
+            ilplus - 1,
+            ilplus,
+            logp,
+        );
+        if t < yv.min(yl) || t > yv.max(yl) {
+            Ok(None)
+        } else {
+            Ok(Some((ilplus - 1, ivplus - 1)))
+        }
+    }
+}
