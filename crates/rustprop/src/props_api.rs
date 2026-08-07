@@ -1036,7 +1036,7 @@ use rustprop_heos::mixture::MixtureModel;
 
 /// Without the `heos-mixtures` feature, mixture strings stay a loud error
 /// (the pair/departure tables are deliberately not linked in).
-#[cfg(all(feature = "heos", not(feature = "heos-mixtures")))]
+#[cfg(not(feature = "heos-mixtures"))]
 fn heos_mixture_entry(
     _output: &str,
     _name1: &str,
