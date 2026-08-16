@@ -4,7 +4,8 @@ Read this first when picking the work back up. `PLAN.md` is the phase-by-phase
 roadmap and its Decisions log is the authoritative record of *why* things are
 the way they are; this file is the short version plus the open ends.
 
-Last updated: 2026-08-07, at commit `011b31a`.
+Last updated: 2026-08-16, after the post-completion audit sweep (see the
+2026-08-16 block in PLAN.md's Decisions log for the full record).
 
 ---
 
@@ -17,15 +18,21 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | ~33,900 committed, generated from the CoolProp 8.0.0 wheel |
+| Oracle records | ~38,600 committed, generated from the CoolProp 8.0.0 wheel |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
 | Smallest useful bundle | 124 KB (IF97) — see `WASM-SIZES.md` |
 
-The last work done was Phase 15's seeded acceptance sweep, which found five
-real defects on its first run (a panic, three wrongly-refused two-phase
-outputs, and a missing echo route on two backends). All are fixed. That is
-the strongest single argument for where to spend effort next: **randomized
-coverage finds what hand-chosen goldens do not.**
+The last work done (2026-08-16) was the post-completion audit that the
+2026-08-07 handoff ranked as candidates #1 and #2 — and it vindicated the
+premise twice over. The audit found and fixed TEN more invented guards, two
+echo-route defects and one invented answer; the widened acceptance sweep
+(3,720 → 5,485 records, plus 1,950 tabular and 1,000 SVDSBTL low-level
+records) then exposed five genuinely new mixture defects, of which two were
+port bugs (both fixed to bitwise agreement) and three were the WHEEL failing
+against its own equilibrium (pinned in `acceptance.rs`). The lesson stands,
+stronger: **randomized coverage finds what hand-chosen goldens do not** —
+and a new output is only real once the sweep draws it (the Phase output
+exposed a labeling divergence within minutes of existing).
 
 ---
 
@@ -61,12 +68,25 @@ heal. Do not "fix" one without checking the assertion that pins it.
 
 | Divergence | Where | Why it stands |
 |---|---|---|
-| Cubic PQ flashes below **1 Pa**: upstream's equal-Gibbs secant converges, this port's gives up (4 records of 3,720) | `tests/golden/tests/acceptance.rs`, asserted to STILL reproduce | Seed, step, tolerance and iteration cap are upstream's verbatim; the difference is root conditioning inside the residual, at the extreme cold end of the cubic's own saturation range (SRK CO2 bottoms out at 91 K / 0.18 Pa — the real triple is 217 K) |
+| Cubic PQ flashes below **10 Pa**: upstream's equal-Gibbs secant converges, this port's gives up (12 records of 5,485; observed give-ups at 0.18–1.95 Pa) | `tests/golden/tests/acceptance.rs`, asserted to STILL reproduce, error-only | Seed, step, tolerance and iteration cap are upstream's verbatim; the difference is root conditioning inside the residual, at the extreme cold end of the cubic's own saturation range (SRK CO2 bottoms out at 91 K / 0.18 Pa — the real triple is 217 K) |
+| THREE pinned mixture records where the port answers and the wheel's recorded value is provably not the wheel's own equilibrium (mixture HSU_P shared-state corruption ×2; shallow-TPD metastable root ×1) | `acceptance.rs` `mixture_divergences`, each pinned to the PORT's value with heal detection | Upstream's HSU_P residual mutates the shared backend (a Tmax-endpoint PT evaluation corrupts SatL/SatV and disables the two-phase split for the rest of the solve); a fresh wheel PT flash at the port's converged T reproduces the port BITWISE. The corruption is history-dependence the port's stateless flashes deliberately cannot express |
 | `HAPropsSI` errors return `Result` instead of upstream's `+inf`-with-a-global | humid-air suite | A global error slot is not a thing a WASM library should have |
 | PC-SAFT `WATER` PT/DT errors loudly | PC-SAFT suite, error parity asserted | Upstream computes on children whose sigma is still the −1 sentinel and returns garbage densities |
 | Tabular msgpack+zlib disk cache under `~/.CoolProp/Tabular` not ported | documented in `PLAN.md` | No home directory in WASM. Cost: a LogPH table build runs ~100 s per process (40k HP flashes) — exactly the cost upstream's cache exists to avoid |
 | Pseudo-pure fluids serve only PT/PQ/QT; other pairs are loud `NotImplemented` | pseudo-pure suite, verbatim error parity | Upstream routes them through legacy solvers that are dead code for the 130 superancillary fluids |
 | SVDSBTL evaluator agrees to a few ulp, not bitwise (700 of 745 records bitwise, worst 1.8e-15) | `tests/golden/tests/svdsbtl.rs` | GCC compiles the reference build with `-ffp-contract=fast`. Fusing the obvious candidate makes agreement *worse*, so the contraction sits elsewhere; chasing it would match a compiler flag, not port an algorithm |
+
+**Wheel-vs-tag discoveries** (not divergences — the port follows the SHIPPED
+wheel, which is what every golden was generated from): the 8.0.0 wheel does
+not match the v8.0.0 tag source in two places even though its gitrevision is
+the tag commit. (1) IF97 `set_phase`: the wheel ships pre-refactor logic —
+critical-point band present, the subcritical saturation band collapses to
+LIQUID, no PT two-phase throw (documented at `forward_phase` in
+`if97_api.rs`). (2) HEOS DmolarT phase labels: the wheel reclassifies by the
+final pressure (compressed liquid with p > pc → supercritical_liquid) where
+the tag's `T_phase_determination` alone would say liquid (documented at
+`dmolar_t_state`). When source and wheel disagree, this project ports the
+wheel.
 
 ---
 
@@ -122,7 +142,7 @@ node tests/wasm-smoke/smoke.mjs        # after a wasm-pack --target nodejs build
 
 ### Heavy suites
 
-Four suites are `#[ignore]`d for runtime and run in the weekly CI job
+Six suites are `#[ignore]`d for runtime and run in the weekly CI job
 (`sweep`, Mondays 04:17 UTC) or on manual dispatch:
 
 ```bash
@@ -130,6 +150,8 @@ cargo test -p rustprop-golden-tests --test heos_all_smoke -- --ignored --nocaptu
 cargo test --release -p rustprop-golden-tests --test mixtures mixture_sweep -- --ignored
 cargo test --release -p rustprop-golden-tests --test tabular_state tabular_pairs -- --ignored
 cargo test --release -p rustprop-golden-tests --test acceptance -- --ignored --nocapture
+cargo test --release -p rustprop-golden-tests --test acceptance_tabular -- --ignored
+cargo test --release -p rustprop-golden-tests --test acceptance_svdsbtl -- --ignored
 ```
 
 ### Regenerating fixtures
@@ -171,35 +193,40 @@ draws are unchanged.
 
 Ranked by value per unit of effort. Nothing here is required for a release.
 
-### 1. Widen the acceptance sweep (small effort, high value)
+*(2026-08-16: the previous #1 — widen the sweep — and #2 — audit the defect
+classes — are DONE; see PLAN.md's Decisions log. The sweep now covers
+mixtures, blends, wide outputs, IF97 pairs, pseudo-pure transport, and both
+low-level backends: HEOS 2580 + 865 mix, SRK/PR 450 each, INCOMP 360,
+PCSAFT 280, HA 240, IF97 260, plus tabular 1,950 and SVDSBTL 1,000 in their
+own fixtures. The partial_cmp sites were proven NaN-unreachable and closed.)*
 
-It found five real defects at 3,720 records. Raise `N_PER` in
-`gen_acceptance_sweep`, add the fluids and pairs it does not yet reach
-(mixtures, predefined blends, tabular low-level states, SVDSBTL), and let the
-weekly job run it. The seed makes this additive.
+### 1. The remaining output tail (small-medium, medium)
 
-The sweep currently covers: HEOS 2040, SRK 360, PR 360, INCOMP 360, PCSAFT
-240, HA 240, IF97 120. It does **not** yet cover mixtures or the two
-low-level backends.
+A research pass (2026-08-16) enumerated every output the wheel serves that
+the port still refuses — all with formulas and two-phase rules pinned. HEOS:
+the ideal-gas family (H/S/Umolar_idealgas + mass twins), Gmolar_residual,
+isentropic_expansion_coefficient, the keyed alpha0/alphar derivative
+strings, Bvirial/Cvirial/dB/dC, Tau/Delta, Qmass, p_reducing, and FH/HH/PH
+(these three need datagen to carry the ENVIRONMENTAL block first). Cubics:
+the same tail plus PIP/FD/kappa_T/beta, which need `CubicDerivs` extended to
+third order and the `StateDerivs` machinery generalized over an EOS trait
+(the extension formulas are in the Decisions log). All raw-at-bulk in the
+dome except where noted there. Widen the sweep's output lists in the same
+change so each new output is drawn.
 
-### 2. Audit for the defect classes the sweep exposed (small, high)
+### 2. Two noted mixture latents (small, low)
 
-Two of the five defects were the same mistake in different places:
-
-- **Invented guards.** Grep for errors this port raises that upstream does
-  not. The pattern: a guard that "obviously" should exist (cp is undefined in
-  the dome, right?) but upstream just evaluates the formula.
-- **Missing echo routes.** `props_si` must return an output that *is* an
-  input without updating the state. HEOS, mixtures, cubics and incompressible
-  have it now; check any route added later.
-- **`partial_cmp().unwrap()`.** Six more sites exist in `rustprop-heos`
-  (`chebappr.rs`, `flash_hs.rs`, `flash_px.rs`). Each is a latent panic if a
-  NaN ever reaches it. Check whether upstream's counterpart is a comparison
-  network that passes NaN through.
+Left un-ported deliberately on 2026-08-16, neither reachable by any golden:
+upstream's stability feed-solve fallback permanently CLEARS SatL's
+constructor phase imposition for that backend instance (`VLERoutines.cpp`
+~2110) — the port would need a per-flash flag; and `solver_rho_tp_global`'s
+side-root Brent failures return −1 in the port where upstream throws
+(`mixture_stability.rs:206/209`). Align only with fresh wheel evidence.
 
 ### 3. The cubic sub-pascal secant (medium, low)
 
-The one open divergence. The call parameters are verbatim; the difference is
+The one open SOLVER divergence (the three pinned mixture records are the
+wheel failing, not the port). The call parameters are verbatim; the difference is
 inside `saturation_residual`'s density root selection at near-vacuum. Worth
 doing only if someone actually needs cubic VLE below a pascal.
 

@@ -313,6 +313,48 @@ impl CubicEos {
         w2.sqrt()
     }
 
+    /// Compressibility factor [-] — inherited `calc_compressibility_factor`:
+    /// `Z = 1 + delta*dalphar_ddelta` at the bulk state (raw in the dome,
+    /// like cp/cv — NOT `p/(rho*R*T)`, which differs two-phase).
+    pub fn compressibility_factor(&self, t: f64, rho: f64) -> f64 {
+        let dr = self.alphar_all(1.0 / t, rho);
+        1.0 + rho * dr.d10
+    }
+
+    /// Ideal-gas molar isobaric heat capacity [J/mol/K] — inherited
+    /// `calc_cpmolar_idealgas`: `R*(1 - tau^2*d2alpha0_dtau2)` (the invariant
+    /// tau-squared product, convention-free).
+    pub fn cp0molar(&self, t: f64, rho: f64) -> f64 {
+        let (_, _, tau2_d2a0) = self.alpha0_products(t, rho);
+        R_U_CODATA * (1.0 - tau2_d2a0)
+    }
+
+    /// Residual molar enthalpy [J/mol] — inherited `calc_hmolar_residual`:
+    /// raw at the bulk state, dome included.
+    pub fn hmolar_residual(&self, t: f64, rho: f64) -> f64 {
+        let dr = self.alphar_all(1.0 / t, rho);
+        let tau = 1.0 / t;
+        R_U_CODATA * t * (tau * dr.d01 + rho * dr.d10)
+    }
+
+    /// Residual molar entropy [J/mol/K] — inherited `calc_smolar_residual`:
+    /// raw at the bulk state, dome included.
+    pub fn smolar_residual(&self, t: f64, rho: f64) -> f64 {
+        let dr = self.alphar_all(1.0 / t, rho);
+        let tau = 1.0 / t;
+        R_U_CODATA * (tau * dr.d01 - dr.d00)
+    }
+
+    /// Molar Gibbs energy [J/mol] — inherited `calc_gibbsmolar_nocache`
+    /// (`R*T*(1 + alpha0 + alphar + delta*dalphar_ddelta)`; the alpha0 VALUE
+    /// needs no rescale, so the batched-accessor entropy defect does not
+    /// touch it).
+    pub fn gibbsmolar(&self, t: f64, rho: f64) -> f64 {
+        let dr = self.alphar_all(1.0 / t, rho);
+        let (a0, _, _) = self.alpha0_products(t, rho);
+        R_U_CODATA * t * (1.0 + a0 + dr.d00 + rho * dr.d10)
+    }
+
     /// Upstream `calc_rhomolar_critical` — the Kazakov curve fit (NOT the
     /// JSON `rhomolarc`, and not the cubic's own critical density).
     pub fn rhomolar_critical(&self) -> f64 {
@@ -410,7 +452,16 @@ impl CubicEos {
         } else {
             return Err(Error::Value("Obtained neither 1 nor three roots".into()));
         };
-        Ok((rho, self.singlephase_phase(t, p, rho)))
+        // Upstream QUIRK, reproduced deliberately: on the PT path
+        // `recalculate_singlephase_phase` runs INSIDE `solver_rho_Tp`, before
+        // `update` assigns `_rhomolar` from the return value — so it reads
+        // the `clear()`ed sentinel `-_HUGE`, and the subcritical
+        // `rhomolar() > rhomolar_critical()` test is always false: every
+        // subcritical PT state reports `iphase_gas`, liquid-like roots
+        // included (wheel: SRK::Water at 300 K / 101325 Pa -> Phase 5.0 with
+        // a 41892 mol/m^3 root). The stale density is modeled explicitly;
+        // the DmolarT path keeps the real-density classification.
+        Ok((rho, self.singlephase_phase(t, p, f64::NEG_INFINITY)))
     }
 
     /// The equal-Gibbs residual of upstream `SaturationResidual::call`:

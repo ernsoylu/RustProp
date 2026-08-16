@@ -1510,8 +1510,12 @@ def gen_acceptance_sweep():
             rec["rtol"] = rtol
         rows.append(rec)
 
-    def sweep_propssi(prefix, fluids, outs, pairs, n=N_PER):
-        """Draw n states per fluid, in ranges the fluid actually supports."""
+    def sweep_propssi(prefix, fluids, outs, pairs, n=N_PER, rng_=rng):
+        """Draw n states per fluid, in ranges the fluid actually supports.
+
+        `rng_` defaults (at def time) to the original 20260807 stream the
+        first 3,720 records consumed; the 2026-08 extension sections pass
+        their own fresh rng so that stream stays bitwise frozen."""
         for name in fluids:
             spec = f"{prefix}{name}" if prefix else name
             try:
@@ -1538,9 +1542,9 @@ def gen_acceptance_sweep():
             attempts = 0
             while drawn < n and attempts < n * 8:
                 attempts += 1
-                pair = pairs[rng.randrange(len(pairs))]
-                T = Tmin + (Tmax - Tmin) * rng.random()
-                p = math.exp(math.log(1e3) + (math.log(pmax) - math.log(1e3)) * rng.random())
+                pair = pairs[rng_.randrange(len(pairs))]
+                T = Tmin + (Tmax - Tmin) * rng_.random()
+                p = math.exp(math.log(1e3) + (math.log(pmax) - math.log(1e3)) * rng_.random())
                 if pair == "PT":
                     n1, v1, n2, v2 = "T", T, "P", p
                 elif pair == "PQ":
@@ -1548,14 +1552,14 @@ def gen_acceptance_sweep():
                         continue
                     p_sat = math.exp(
                         math.log(p_triple)
-                        + (math.log(pc) - math.log(p_triple)) * rng.random()
+                        + (math.log(pc) - math.log(p_triple)) * rng_.random()
                     )
-                    n1, v1, n2, v2 = "P", p_sat, "Q", rng.random()
+                    n1, v1, n2, v2 = "P", p_sat, "Q", rng_.random()
                 elif pair == "QT":
                     if not has_dome:
                         continue
-                    n1, v1 = "Q", rng.random()
-                    n2, v2 = "T", Tmin + (Tc - Tmin) * rng.random()
+                    n1, v1 = "Q", rng_.random()
+                    n2, v2 = "T", Tmin + (Tc - Tmin) * rng_.random()
                 elif pair == "DT":
                     try:
                         rho = PropsSI("D", "T", T, "P", p, spec)
@@ -1574,7 +1578,7 @@ def gen_acceptance_sweep():
                     except Exception:
                         continue
                     n1, v1, n2, v2 = "P", p, "S", sv
-                out = outs[rng.randrange(len(outs))]
+                out = outs[rng_.randrange(len(outs))]
                 try:
                     val = PropsSI(out, n1, v1, n2, v2, spec)
                 except Exception:
@@ -1672,7 +1676,415 @@ def gen_acceptance_sweep():
                      "name3": "R", "val3": R, "expected": val})
         drawn += 1
 
+    # ====================================================================
+    # 2026-08 extensions: HEOS mixtures + predefined blends, wide outputs,
+    # IF97 flash pairs, PC-SAFT Z, pseudo-pure transport. A SEPARATE fresh
+    # rng: the 3,720 records above consume `rng` sequentially and must stay
+    # bitwise identical forever, so nothing below may touch it. Every
+    # section below shares `rng2` in this fixed order.
+    rng2 = random.Random(20260816)
+
+    # --- HEOS mixtures + predefined blends ------------------------------
+    # Composition/blend identity lives in the fluid string ("A[x]&B[y]",
+    # "<Name>.mix"); backend stays "HEOS" so the replay's
+    # "{backend}::{fluid}" spec construction is untouched. rtol rides the
+    # record where the tier is looser than rtol_for's 1e-8 default:
+    # in-dome PT (Michelsen split) and the DT/HP/PS sweep flashes carry
+    # the phase-10 1e-6 tiers. Excluded by documented decision, with error
+    # parity pinned in the phase suites: DP ("not ready for mixtures"),
+    # HS (unported), I (no mixture surface tension).
+    n_mark = len(rows)
+    mix_outs = ["D", "H", "S", "U", "T", "P", "Q", "C", "CVMASS", "A", "G"]
+
+    def sweep_mix(fluid, pairs_pool, outs, n, sweep_rtol=1e-6):
+        spec = f"HEOS::{fluid}"
+        try:
+            Tmin = PropsSI("Tmin", "", 0, "", 0, spec)
+            Tmax = PropsSI("Tmax", "", 0, "", 0, spec)
+            pmax = min(PropsSI("pmax", "", 0, "", 0, spec), 5e8)
+            Tr = PropsSI("T_reducing", "", 0, "", 0, spec)
+        except Exception:
+            return
+        p_bub = None  # PQ seed, resolved lazily once per spec
+        drawn, attempts = 0, 0
+        while drawn < n and attempts < n * 8:
+            attempts += 1
+            pair = pairs_pool[rng2.randrange(len(pairs_pool))]
+            T = Tmin + (Tmax - Tmin) * rng2.random()
+            p = math.exp(math.log(1e3) + (math.log(pmax) - math.log(1e3)) * rng2.random())
+            rtol = None
+            if pair == "PT":
+                n1, v1, n2, v2 = "T", T, "P", p
+            elif pair == "QT":
+                n1, v1 = "Q", rng2.random()
+                n2, v2 = "T", Tr * (0.45 + 0.5 * rng2.random())
+            elif pair == "PQ":
+                if p_bub is None:
+                    try:
+                        p_bub = PropsSI("P", "T", 0.7 * Tr, "Q", 0, spec)
+                    except Exception:
+                        p_bub = float("nan")
+                if p_bub != p_bub:
+                    continue
+                p_sat = math.exp(math.log(0.3 * p_bub)
+                                 + math.log(2.0 / 0.3) * rng2.random())
+                n1, v1, n2, v2 = "P", p_sat, "Q", rng2.random()
+            else:  # "DT" / "HP" / "PS": seed from a wheel PT state
+                key = {"DT": "D", "HP": "H", "PS": "S"}[pair]
+                try:
+                    seed = PropsSI(key, "T", T, "P", p, spec)
+                except Exception:
+                    continue
+                if pair == "DT":
+                    n1, v1, n2, v2 = "D", seed, "T", T
+                elif pair == "HP":
+                    n1, v1, n2, v2 = "H", seed, "P", p
+                else:
+                    n1, v1, n2, v2 = "P", p, "S", seed
+                rtol = sweep_rtol  # the phase-10 mixture_sweep tier
+            out = outs[rng2.randrange(len(outs))]
+            try:
+                val = PropsSI(out, n1, v1, n2, v2, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            if pair == "PT" and rtol is None:
+                # In-dome PT carries the phase-10 Michelsen tier; Q answers
+                # -1 single-phase / [0,1] in the dome on both sides, so the
+                # generator classifies what the replay cannot.
+                try:
+                    q = PropsSI("Q", n1, v1, n2, v2, spec)
+                    if 0.0 <= q <= 1.0:
+                        rtol = 1e-6
+                except Exception:
+                    pass
+            add("HEOS", fluid, out, n1, v1, n2, v2, val, rtol=rtol)
+            drawn += 1
+
+    # The six phase-10 golden-verified binary pairs, one per departure/
+    # reducing kind; VLE draws only where phase 10 verified VLE (CO2&Water
+    # and He&Ar were excluded there for convergence, kept excluded here).
+    binary_pairs = [("Methane", "Ethane"), ("Methane", "Nitrogen"),
+                    ("CarbonDioxide", "Water"), ("R32", "R125"),
+                    ("Helium", "Argon"), ("Nitrogen", "Oxygen")]
+    vle_pairs = [("Methane", "Ethane"), ("Methane", "Nitrogen"),
+                 ("R32", "R125"), ("Nitrogen", "Oxygen")]
+
+    def mix_spec(f1, f2, x1):
+        # repr round-trips: both sides parse bit-identical fractions
+        # (1.0 - 0.7 = 0.30000000000000004 is intended, phase-10 practice).
+        return f"{f1}[{x1!r}]&{f2}[{(1.0 - x1)!r}]"
+
+    for f1, f2 in binary_pairs:
+        for x1 in (0.3, 0.7):
+            sweep_mix(mix_spec(f1, f2, x1), ["PT", "PT", "DT", "HP", "PS"],
+                      mix_outs, n=30)
+    for f1, f2 in vle_pairs:
+        for x1 in (0.3, 0.7):
+            sweep_mix(mix_spec(f1, f2, x1), ["QT", "PQ"], mix_outs, n=25)
+    # Mixture transport: bulk-state log-linear eta / linear lambda, valid
+    # in the dome too.
+    for f1, f2 in vle_pairs:
+        sweep_mix(mix_spec(f1, f2, 0.5), ["PT", "QT"], ["V", "L"], n=15)
+    # Predefined blends ("<Name>.mix" registry; ternary Air, 10-component
+    # Amarillo). Amarillo stays PT-only, as in phase 10 (fragile VLE, and
+    # ~1 s per wheel HP flash).
+    for blend in ["R410A.mix", "R407C.mix", "R404A.mix", "Air.mix"]:
+        sweep_mix(blend, ["PT", "PT", "DT", "HP", "PS"], mix_outs, n=35)
+        sweep_mix(blend, ["QT", "PQ"], mix_outs, n=20)
+    sweep_mix("Amarillo.mix", ["PT"], mix_outs, n=25)
+    print(f"  mixtures+blends: {len(rows) - n_mark} records")
+
+    # --- Wide outputs (2026-08 audit) -----------------------------------
+    # Outputs upstream serves that the hand-chosen goldens never drew. The
+    # wheel throws for some of them in the dome (speed of sound,
+    # fundamental derivative); those states are skipped, which is exactly
+    # right — the aim is agreement where upstream has an answer.
+    n_mark = len(rows)
+    wide_outs = ["Z", "PIP", "Prandtl", "Cp0molar", "Helmholtzmolar",
+                 "Hmolar_residual", "Smolar_residual",
+                 "isothermal_compressibility",
+                 "isobaric_expansion_coefficient",
+                 "fundamental_derivative_of_gas_dynamics", "G", "Phase"]
+    sweep_propssi("HEOS::", heos_fluids, wide_outs,
+                  ["PT", "PQ", "QT", "DT", "HP", "PS"], n=40, rng_=rng2)
+    # Cubics: same treatment minus "Phase" (known port-vs-upstream
+    # phase-labeling divergence, tracked outside this suite).
+    cubic_wide_outs = ["G", "Gmolar", "Z", "Cp0molar", "Hmolar_residual"]
+    sweep_propssi("SRK::", ["Water", "n-Propane", "CarbonDioxide"],
+                  cubic_wide_outs, ["PT", "PQ", "QT", "DT"], n=30, rng_=rng2)
+    sweep_propssi("PR::", ["Water", "n-Propane", "CarbonDioxide"],
+                  cubic_wide_outs, ["PT", "PQ", "QT", "DT"], n=30, rng_=rng2)
+    print(f"  wide outputs: {len(rows) - n_mark} records")
+
+    # --- IF97 flash pairs -----------------------------------------------
+    # Upstream's IF97 backend serves HP/PS/HS/PQ; the original section
+    # drew PT only. Two-phase C/A/V/L/Prandtl throw on the wheel and are
+    # skipped. Q at a PT state is upstream's unset-quality sentinel
+    # (-1.0), recorded as-is.
+    n_mark = len(rows)
+    if97_outs = ["T", "P", "D", "H", "S", "U", "C", "A", "V", "L", "Prandtl"]
+    for if97_pair in ["HP", "PS", "PQ"]:
+        sweep_propssi("IF97::", ["Water"], if97_outs, [if97_pair], n=30,
+                      rng_=rng2)
+    spec = "IF97::Water"
+    Tmin97 = PropsSI("Tmin", "", 0, "", 0, spec)
+    Tmax97 = PropsSI("Tmax", "", 0, "", 0, spec)
+    pmax97 = min(PropsSI("pmax", "", 0, "", 0, spec), 5e8)
+    drawn, attempts = 0, 0
+    while drawn < 30 and attempts < 30 * 8:  # (H, S): not in the pool above
+        attempts += 1
+        T = Tmin97 + (Tmax97 - Tmin97) * rng2.random()
+        p = math.exp(math.log(1e3) + (math.log(pmax97) - math.log(1e3)) * rng2.random())
+        try:
+            h = PropsSI("H", "T", T, "P", p, spec)
+            sv = PropsSI("S", "T", T, "P", p, spec)
+        except Exception:
+            continue
+        out = if97_outs[rng2.randrange(len(if97_outs))]
+        try:
+            val = PropsSI(out, "H", h, "S", sv, spec)
+        except Exception:
+            continue
+        if val != val or abs(val) == float("inf"):
+            continue
+        add("IF97", "Water", out, "H", h, "S", sv, val)
+        drawn += 1
+    drawn, attempts = 0, 0
+    while drawn < 20 and attempts < 20 * 8:  # PT -> Q: the -1.0 sentinel
+        attempts += 1
+        T = Tmin97 + (Tmax97 - Tmin97) * rng2.random()
+        p = math.exp(math.log(1e3) + (math.log(pmax97) - math.log(1e3)) * rng2.random())
+        try:
+            val = PropsSI("Q", "T", T, "P", p, spec)
+        except Exception:
+            continue
+        add("IF97", "Water", "Q", "T", T, "P", p, val)
+        drawn += 1
+    print(f"  if97 pairs: {len(rows) - n_mark} records")
+
+    # --- PC-SAFT compressibility ----------------------------------------
+    # Z was absent from the original PCSAFT outs; a separate section keeps
+    # the original stream intact. Same ranges and pair pool as above.
+    n_mark = len(rows)
+    for name, Tmin, Tmax in [("TOLUENE", 200.0, 550.0), ("PROPANE", 100.0, 350.0)]:
+        spec = f"PCSAFT::{name}"
+        drawn, attempts = 0, 0
+        while drawn < 20 and attempts < 20 * 10:
+            attempts += 1
+            T = Tmin + (Tmax - Tmin) * rng2.random()
+            p = math.exp(math.log(1e4) + (math.log(1e7) - math.log(1e4)) * rng2.random())
+            pair = ["PT", "PQ", "QT"][rng2.randrange(3)]
+            if pair == "PT":
+                n1, v1, n2, v2 = "T", T, "P", p
+            elif pair == "PQ":
+                n1, v1, n2, v2 = "P", p, "Q", rng2.random()
+            else:
+                n1, v1, n2, v2 = "Q", rng2.random(), "T", T
+            try:
+                val = PropsSI("Z", n1, v1, n2, v2, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            add("PCSAFT", name, "Z", n1, v1, n2, v2, val)
+            drawn += 1
+    print(f"  pcsaft Z: {len(rows) - n_mark} records")
+
+    # --- Pseudo-pure transport ------------------------------------------
+    # V/L for the ported blends. Pseudo-pure QT is strictly Q in {0, 1} on
+    # both sides (mid-quality throws), so Q is drawn from the endpoints.
+    n_mark = len(rows)
+    for name in ["R404A", "R407C", "R410A", "R507A"]:
+        spec = f"HEOS::{name}"
+        try:
+            Tmin = PropsSI("Tmin", "", 0, "", 0, spec)
+            Tmax = PropsSI("Tmax", "", 0, "", 0, spec)
+            pmax = min(PropsSI("pmax", "", 0, "", 0, spec), 5e8)
+            Tc = PropsSI("Tcrit", "", 0, "", 0, spec)
+        except Exception:
+            continue
+        drawn, attempts = 0, 0
+        while drawn < 25 and attempts < 25 * 8:
+            attempts += 1
+            pair = ["PT", "QT"][rng2.randrange(2)]
+            if pair == "PT":
+                n1, v1 = "T", Tmin + (Tmax - Tmin) * rng2.random()
+                n2, v2 = "P", math.exp(
+                    math.log(1e3) + (math.log(pmax) - math.log(1e3)) * rng2.random()
+                )
+            else:
+                n1, v1 = "Q", float(rng2.randrange(2))
+                n2, v2 = "T", Tmin + (Tc - Tmin) * rng2.random()
+            out = ["V", "L"][rng2.randrange(2)]
+            try:
+                val = PropsSI(out, n1, v1, n2, v2, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            add("HEOS", name, out, n1, v1, n2, v2, val)
+            drawn += 1
+    print(f"  pseudo-pure transport: {len(rows) - n_mark} records")
+
     print(f"acceptance_sweep: {len(rows)} records")
+    return rows
+
+
+def gen_acceptance_tabular():
+    """Randomized low-level Tabular acceptance (design 2026-08): seeded
+    draws over every update pair TabularBackend serves, through the wheel's
+    own TTSE&HEOS / BICUBIC&HEOS states. props_si cannot reach these
+    backends (upstream rejects them from the high-level API, and so does
+    this port), so the records replay through `TabularState` directly.
+
+    Draws keep the 12e/12f exclusions (the 1.5-cell dome band, the range
+    margin) because near the dome the wheel ANSWERS from a neighbour node
+    chosen by a +-100*DBL_EPSILON validity walk — skip-on-wheel-error
+    cannot see that hazard; a port-side ulp difference in the underlying
+    node values would pick a different neighbour and produce a
+    plausible-but-different answer, a false defect."""
+    import random
+    rng = random.Random(20260816)  # its own rng: never touches the 15.3 seed
+    N_PER = 75
+    PAIRS = ["PT", "HmolarP", "PUmolar", "PSmolar", "DmolarP", "SmolarT",
+             "DmolarT", "PQ", "QT"]
+    PAIRC = {"PT": CP.PT_INPUTS, "HmolarP": CP.HmolarP_INPUTS,
+             "PUmolar": CP.PUmolar_INPUTS, "PSmolar": CP.PSmolar_INPUTS,
+             "DmolarP": CP.DmolarP_INPUTS, "SmolarT": CP.SmolarT_INPUTS,
+             "DmolarT": CP.DmolarT_INPUTS, "PQ": CP.PQ_INPUTS,
+             "QT": CP.QT_INPUTS}
+    NAMES = {"HmolarP": ("Hmolar", "P"), "PUmolar": ("P", "Umolar"),
+             "PSmolar": ("P", "Smolar"), "DmolarP": ("Dmolar", "P"),
+             "SmolarT": ("Smolar", "T"), "DmolarT": ("Dmolar", "T")}
+    rows = []
+    for fluid in ["Water", "n-Propane"]:
+        hf = f"HEOS::{fluid}"
+        Tmin = max(PropsSI("Ttriple", "", 0, "", 0, hf),
+                   PropsSI("Tmin", "", 0, "", 0, hf))
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        pmax = PropsSI("pmax", "", 0, "", 0, hf)
+        Tcrit = PropsSI("Tcrit", "", 0, "", 0, hf)
+        ref = CP.AbstractState("HEOS", fluid)
+        ref.update(CP.QT_INPUTS, 0, Tmin)
+        pmin = ref.p()
+        xmin, xmax = Tmin, Tmax * 1.499
+        dlnp = math.log(pmax / pmin) / (200 - 1)
+        for backend in ["TTSE", "BICUBIC"]:
+            # ~10 s: loads/builds the tables (bitwise-reproducible on this
+            # machine, verified against fresh HOME-redirected builds).
+            AS = CP.AbstractState(f"{backend}&HEOS", fluid)
+            drawn, attempts = 0, 0
+            while drawn < N_PER and attempts < N_PER * 8:
+                attempts += 1
+                pair = PAIRS[rng.randrange(len(PAIRS))]
+                if pair in ("PQ", "QT"):
+                    T = Tmin + 0.98 * (Tcrit - Tmin) * rng.random()
+                    Q = rng.random()
+                    if pair == "PQ":
+                        psat = PropsSI("P", "T", T, "Q", 0, hf)
+                        n1, v1, n2, v2 = "P", psat, "Q", Q
+                        args = (psat, Q)
+                    else:
+                        n1, v1, n2, v2 = "Q", Q, "T", T
+                        args = (Q, T)
+                else:
+                    # 0.3% margin keeps draws off the ulp-decided is_inside
+                    # edges of the table range.
+                    T = xmin + (xmax - xmin) * (0.003 + 0.994 * rng.random())
+                    p = math.exp(math.log(pmin)
+                                 + math.log(pmax / pmin) * (0.003 + 0.994 * rng.random()))
+                    if T < Tcrit:
+                        psat = PropsSI("P", "T", T, "Q", 0, hf)
+                        if abs(math.log(p) - math.log(psat)) < 1.5 * dlnp:
+                            continue  # 12e/12f dome band: node choice is ulp noise
+                    if pair == "PT":
+                        n1, v1, n2, v2 = "T", T, "P", p
+                        args = (p, T)
+                    else:
+                        # reachable-by-construction inputs off a HEOS state
+                        ref.update(CP.PT_INPUTS, p, T)
+                        seed = {"T": T, "P": p, "Dmolar": ref.rhomolar(),
+                                "Hmolar": ref.hmolar(), "Smolar": ref.smolar(),
+                                "Umolar": ref.umolar()}
+                        n1, n2 = NAMES[pair]
+                        v1, v2 = seed[n1], seed[n2]
+                        args = (v1, v2)
+                try:
+                    AS.update(PAIRC[pair], *args)
+                    outs = {"T": AS.T(), "P": AS.p(), "Dmolar": AS.rhomolar(),
+                            "Hmolar": AS.hmolar(), "Smolar": AS.smolar(),
+                            "Umolar": AS.umolar()}
+                    if pair == "PT":
+                        outs["Viscosity"] = AS.viscosity()
+                        outs["Conductivity"] = AS.conductivity()
+                    if pair in ("PQ", "QT"):
+                        outs["Q"] = AS.Q()
+                except Exception:
+                    continue  # the wheel refused: not a record
+                if any(v != v or abs(v) == float("inf") for v in outs.values()):
+                    continue  # QT's (void)is_inside quirk yields p=+inf
+                for out, val in outs.items():
+                    rows.append({"backend": backend, "fluid": fluid,
+                                 "out": out, "name1": n1, "val1": v1,
+                                 "name2": n2, "val2": v2, "expected": val})
+                drawn += 1
+    print(f"acceptance_tabular: {len(rows)} records")
+    return rows
+
+
+def gen_acceptance_svdsbtl():
+    """Randomized SVDSBTL acceptance over THREE committed low-res PT
+    artifacts (Water plus n-Propane and CarbonDioxide, new with this
+    suite). Same options and critical_patch=off rationale as gen_svdsbtl.
+    Water stays small: the 745 fixed-grid goldens already blanket its
+    atlas; the new fluids carry genuinely new atlases, boundary splines
+    and coefficient sets.
+
+    The wheel builds each low-res surface in under a second and writes the
+    `.svd.bin.z` blob into ALTERNATIVE_SVDTABLES_DIRECTORY (set
+    RUSTPROP_SVD_BLOB_DIR to capture them); those blobs are the
+    rustprop-svdgen inputs for the committed `.svds` files — coefficients
+    are ingested, never recomputed (Phase 13.1 decision)."""
+    import os
+    import random
+    import tempfile
+    rng = random.Random(20260817)
+    scratch = os.environ.get("RUSTPROP_SVD_BLOB_DIR") or tempfile.mkdtemp(
+        prefix="svdsbtl-gen-")
+    CP.set_config_string(CP.ALTERNATIVE_SVDTABLES_DIRECTORY, scratch)
+    opts = json.dumps({"grid": {"NT": 16, "NR": 24, "rank": 6},
+                       "properties": {"transport": "off"},
+                       "critical_patch": {"mode": "off"}})
+    getters = {"Dmass": lambda s: s.rhomass(), "Hmass": lambda s: s.hmass(),
+               "Smass": lambda s: s.smass(), "Umass": lambda s: s.umass(),
+               "A": lambda s: s.speed_sound()}
+    rows = []
+    for fluid, n_want in [("Water", 40), ("n-Propane", 80),
+                          ("CarbonDioxide", 80)]:
+        hf = f"HEOS::{fluid}"
+        Ttr = PropsSI("Ttriple", "", 0, "", 0, hf)
+        Tmax = PropsSI("Tmax", "", 0, "", 0, hf)
+        AS = CP.AbstractState("SVDSBTL&HEOS?" + opts, fluid)
+        drawn, attempts = 0, 0
+        while drawn < n_want and attempts < n_want * 8:
+            attempts += 1
+            p = math.exp(math.log(1e3) + (math.log(1e9) - math.log(1e3)) * rng.random())
+            T = 0.9 * Ttr + (1.55 * Tmax - 0.9 * Ttr) * rng.random()
+            try:
+                AS.update(CP.PT_INPUTS, p, T)
+                vals = {k: g(AS) for k, g in getters.items()}
+            except Exception:
+                continue
+            if any(v != v or abs(v) == float("inf") for v in vals.values()):
+                continue  # outside every region -> NaN, not a record
+            for out, val in vals.items():
+                rows.append({"backend": "SVDSBTL", "fluid": fluid,
+                             "out": out, "name1": "P", "val1": p,
+                             "name2": "T", "val2": T, "expected": val})
+            drawn += 1
+    print(f"acceptance_svdsbtl: {len(rows)} records (svd blobs in {scratch})")
     return rows
 
 
@@ -2402,6 +2814,8 @@ def main():
     write_jsonl("tabular_pairs.jsonl", gen_tabular_pairs())
     write_jsonl("svdsbtl.jsonl", gen_svdsbtl())
     write_jsonl("acceptance_sweep.jsonl", gen_acceptance_sweep())
+    write_jsonl("acceptance_tabular.jsonl", gen_acceptance_tabular())
+    write_jsonl("acceptance_svdsbtl.jsonl", gen_acceptance_svdsbtl())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)

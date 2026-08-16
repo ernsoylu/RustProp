@@ -191,6 +191,25 @@ returns an output that IS an input without updating the state, so `PropsSI("T","
 answers even where the flash cannot converge. One known divergence remains, asserted
 explicitly so it cannot silently widen OR silently heal: cubic PQ below one pascal.
 
+**2026-08-16 post-completion audit (NEXT-STEPS candidates #1+#2) is DONE**: the six
+`partial_cmp().unwrap()` sites proved NaN-unreachable (closed, unchanged); TEN more invented
+guards fixed (blend conductivity "None"→0.0; mixture two-phase Cp/Cv/w/G; IF97 Q sentinel +
+the full IF97 output family on every pair incl. PT, rebuilt in upstream's update/serve shape;
+the HEOS keyed_output family Phase/Z/PIP/Prandtl/Cp0/Helmholtz/residuals/kappa_T/beta/FD;
+cubic Z/Cp0/residuals/Gibbs + limit trivials; PCSAFT Z; P_min) plus two echo routes (IF97
+generic echo; INCOMP molar-rejection ordering) and the reverse case (rhomass_reducing now
+refused as upstream does). Cubic PT Phase quirk reproduced (stale −HUGE ⇒ subcritical always
+gas); HEOS DT/HP/PS/DP flash tails now end in recalculate_singlephase_phase. TWO wheel-vs-tag
+discoveries (IF97 set_phase; DT reclassification) — the SHIPPED wheel's behavior is ported,
+documented in-code. Acceptance sweep extended 3,720→5,485 (+ acceptance_tabular 1,950 +
+acceptance_svdsbtl 1,000 with two new ingested .svds artifacts); the extension exposed five
+NEW mixture defects: two port bugs fixed to bitwise (mixture transport uses the pure
+component's DmolarT-flash pressure; stability warm solves carry SatL/SatV's constructor phase
+imposition), three wheel-side failures pinned in acceptance.rs as port-asserted divergences
+(mixture HSU_P shared-state corruption ×2, shallow-TPD metastable root ×1 — each proven by
+the wheel contradicting its own fresh PT flash). Cubic sub-pascal PQ gate widened to the
+observed 10 Pa envelope. ~38,400 committed oracle records; all suites green.
+
 REMAINING FOR THE OWNER (cannot be done from here): claim the crates.io names and add
 the `CARGO_REGISTRY_TOKEN` secret, then tag v0.1.0. Publication is irreversible.
 

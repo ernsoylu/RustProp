@@ -356,20 +356,17 @@ impl PtFlash {
             // Superancillary phase determination
             let sat = self.sat().qt_flash(t, 0.0)?;
             let q = (1.0 / rhomolar - 1.0 / sat.rho_l) / (1.0 / sat.rho_v - 1.0 / sat.rho_l);
-            if q <= 0.0 {
+            // The single-phase exits relabel by the FINAL pressure — the
+            // shipped wheel reclassifies a compressed liquid with p > pc as
+            // supercritical_liquid (oracle-probed: Methane 26.77 kmol/m^3 at
+            // 119.3 K, p = 20.4 MPa -> phase 3, while p < pc stays liquid).
+            if q <= 0.0 || q >= 1.0 {
+                let p = self.eos.pressure(t, rhomolar);
                 Ok(HeosState::SinglePhase {
                     t,
-                    p: self.eos.pressure(t, rhomolar),
+                    p,
                     rhomolar,
-                    phase: Phase::Liquid,
-                    q: -1.0,
-                })
-            } else if q >= 1.0 {
-                Ok(HeosState::SinglePhase {
-                    t,
-                    p: self.eos.pressure(t, rhomolar),
-                    rhomolar,
-                    phase: Phase::Gas,
+                    phase: self.recalculated_singlephase_phase(t, p, rhomolar),
                     q: -1.0,
                 })
             } else {
@@ -387,16 +384,16 @@ impl PtFlash {
                 })
             }
         } else if t > tc && t > self.t_triple() {
-            let phase = if rhomolar > rhoc {
-                Phase::SupercriticalLiquid
-            } else {
-                Phase::SupercriticalGas
-            };
+            // Above Tc the label comes from the pressure quadrant, not the
+            // density (wheel: dense DT at 250 K -> supercritical when
+            // p > pc, supercritical_gas when p < pc — never
+            // supercritical_liquid).
+            let p = self.eos.pressure(t, rhomolar);
             Ok(HeosState::SinglePhase {
                 t,
-                p: self.eos.pressure(t, rhomolar),
+                p,
                 rhomolar,
-                phase,
+                phase: self.recalculated_singlephase_phase(t, p, rhomolar),
                 q: -1.0,
             })
         } else {
@@ -1036,11 +1033,14 @@ impl PtFlash {
         }
         let t = 0.5 * (a + b);
         let rho = self.px_probe_rho(t, p, phase)?;
+        // Upstream `HSU_P_flash` tail: `recalculate_singlephase_phase` runs
+        // after the solve, so the bracket's working label gives way to the
+        // final (T, p, rho) quadrant (wheel: PS steam at 1568 K -> 2).
         Ok(HeosState::SinglePhase {
             t,
             p,
             rhomolar: rho,
-            phase,
+            phase: self.recalculated_singlephase_phase(t, p, rho),
             q: -1.0,
         })
     }
@@ -1088,7 +1088,9 @@ impl PtFlash {
         let rhoc = self.rhomolar_critical();
         let p_triple = self.fluid().eos.sat_min_liquid.p;
 
-        let (phase, t0) = if p > pc {
+        // The determination's label only seeds the T solve now — the final
+        // label is recalculated from the converged state below.
+        let (_phase, t0) = if p > pc {
             if rhomolar < rhoc {
                 (
                     Phase::SupercriticalGas,
@@ -1139,11 +1141,14 @@ impl PtFlash {
             ));
         }
         let t = self.solve_t_dp(rhomolar, p, t0)?;
+        // Upstream `DP_flash` tail: `_Q = -1` then
+        // `recalculate_singlephase_phase` — the seed label is only the
+        // solver's working hypothesis.
         Ok(HeosState::SinglePhase {
             t,
             p,
             rhomolar,
-            phase,
+            phase: self.recalculated_singlephase_phase(t, p, rhomolar),
             q: -1.0,
         })
     }

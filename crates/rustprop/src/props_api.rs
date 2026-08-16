@@ -19,11 +19,23 @@
 //! target, not message strings). Input pairs whose flashes are not yet
 //! ported return `Error::NotImplemented` loudly.
 
-use rustprop_core::params::{InputPair, Param, generate_update_pair};
+use rustprop_core::params::Param;
 use rustprop_core::{Error, Result};
+
+// The pair machinery is consumed only by the routes that flash; an
+// IF97-only build routes pairs inside `if97_api` instead.
+#[cfg(any(
+    feature = "heos",
+    feature = "cubics",
+    feature = "incompressible",
+    feature = "pcsaft"
+))]
+use rustprop_core::params::{InputPair, generate_update_pair};
 
 #[cfg(feature = "heos")]
 use rustprop_core::fluid::FluidData;
+#[cfg(feature = "heos")]
+use rustprop_heos::derivs::StateDerivs;
 #[cfg(feature = "heos")]
 use rustprop_heos::flash_pt::PtFlash;
 #[cfg(feature = "heos")]
@@ -409,6 +421,27 @@ fn state_gibbsmolar(flash: &PtFlash, state: &HeosState) -> f64 {
     }
 }
 
+/// `calc_helmholtzmolar`: the lever rule over the saturated branches in the
+/// dome — same shape as Gibbs, with no Q == 0/1 shortcut.
+#[cfg(feature = "heos")]
+fn state_helmholtzmolar(flash: &PtFlash, state: &HeosState) -> f64 {
+    match state {
+        HeosState::SinglePhase { t, rhomolar, .. } => flash.eos.helmholtzmolar(*t, *rhomolar),
+        HeosState::TwoPhase {
+            q,
+            rho_l,
+            rho_v,
+            t_l,
+            t_v,
+            ..
+        } => {
+            let al = flash.eos.helmholtzmolar(*t_l, *rho_l);
+            let av = flash.eos.helmholtzmolar(*t_v, *rho_v);
+            q * av + (1.0 - q) * al
+        }
+    }
+}
+
 /// Upstream `AbstractState::keyed_output` for the ported outputs, including
 /// the mass-basis conversions and the two-phase error conditions.
 #[cfg(feature = "heos")]
@@ -449,6 +482,76 @@ fn keyed_output(
         // `calc_gibbsmolar` mixes by the lever rule in the dome.
         Param::Gmolar => state_gibbsmolar(flash, state),
         Param::Gmass => state_gibbsmolar(flash, state) / mm,
+        // `calc_phase` returns `_phase` as a float; every flash that lands in
+        // the dome sets `iphase_twophase`, Q == 0/1 included.
+        Param::Phase => f64::from(match state {
+            HeosState::SinglePhase { phase, .. } => phase.index(),
+            HeosState::TwoPhase { .. } => rustprop_core::params::Phase::Twophase.index(),
+        }),
+        Param::Z => flash
+            .eos
+            .compressibility_factor(state.t(), state.rhomolar()),
+        // `calc_PIP` (`HelmholtzEOSMixtureBackend.h`), raw at the bulk
+        // density through the generic (T, rho) Jacobian machinery.
+        Param::PIP => {
+            let d = StateDerivs::new(&flash.eos, state.t(), state.rhomolar());
+            2.0 - state.rhomolar()
+                * (d.second_partial_deriv(
+                    Param::P,
+                    Param::Dmolar,
+                    Param::T,
+                    Param::T,
+                    Param::Dmolar,
+                )? / d.first_partial_deriv(Param::P, Param::T, Param::Dmolar)?
+                    - d.second_partial_deriv(
+                        Param::P,
+                        Param::Dmolar,
+                        Param::T,
+                        Param::Dmolar,
+                        Param::T,
+                    )? / d.first_partial_deriv(Param::P, Param::Dmolar, Param::T)?)
+        }
+        // `AbstractState::Prandtl` = cpmass*viscosity/conductivity, each the
+        // already-ported arm (error conditions included), all raw at bulk.
+        Param::Prandtl => {
+            keyed_output(flash, data, state, Param::Cpmass)?
+                * keyed_output(flash, data, state, Param::Viscosity)?
+                / keyed_output(flash, data, state, Param::Conductivity)?
+        }
+        Param::Cp0molar => flash.eos.cp0molar(state.t(), state.rhomolar()),
+        Param::Cp0mass => flash.eos.cp0molar(state.t(), state.rhomolar()) / mm,
+        // `calc_helmholtzmolar` levers in the dome exactly like Gibbs.
+        Param::Helmholtzmolar => state_helmholtzmolar(flash, state),
+        Param::Helmholtzmass => state_helmholtzmolar(flash, state) / mm,
+        Param::HmolarResidual => flash.eos.hmolar_residual(state.t(), state.rhomolar()),
+        Param::SmolarResidual => flash.eos.smolar_residual(state.t(), state.rhomolar()),
+        // `kappa_T = (1/rho) * d(Dmolar)/d(P)|T` and
+        // `beta = -(1/rho) * d(Dmolar)/d(T)|P` (AbstractState.cpp), raw at
+        // bulk — negative values from unstable in-dome roots are faithful.
+        Param::IsothermalCompressibility => {
+            let d = StateDerivs::new(&flash.eos, state.t(), state.rhomolar());
+            d.first_partial_deriv(Param::Dmolar, Param::P, Param::T)? / state.rhomolar()
+        }
+        Param::IsobaricExpansionCoefficient => {
+            let d = StateDerivs::new(&flash.eos, state.t(), state.rhomolar());
+            -d.first_partial_deriv(Param::Dmolar, Param::T, Param::P)? / state.rhomolar()
+        }
+        // Colonna Eq. 1 (AbstractState.cpp) — note the Dmass/Smolar index
+        // mix. `speed_sound()` is the two-phase gate: saturated-branch w at
+        // Q == 0/1, the distribution-of-phases refusal strictly inside; the
+        // second partial stays at the bulk state.
+        Param::FundamentalDerivativeOfGasDynamics => {
+            let w = two_phase_speed_sound(flash, state)?;
+            let d = StateDerivs::new(&flash.eos, state.t(), state.rhomolar());
+            1.0 + d.second_partial_deriv(
+                Param::P,
+                Param::Dmass,
+                Param::Smolar,
+                Param::Dmass,
+                Param::Smolar,
+            )? * (state.rhomolar() * mm)
+                / (2.0 * w * w)
+        }
         Param::Viscosity => {
             // Upstream calc_viscosity evaluates at the state's (T, rhomolar)
             // regardless of phase (two-phase uses the mixture density).
@@ -581,13 +684,24 @@ fn trivial_output(flash: &PtFlash, data: &'static FluidData, out: Param) -> Resu
         Param::RhomolarCritical => flash.rhomolar_critical(),
         Param::RhomassCritical => flash.rhomolar_critical() * data.eos.molar_mass,
         Param::TTriple => data.eos.sat_min_liquid.t,
-        Param::PTriple => data.eos.sat_min_liquid.p,
+        // Upstream serves `iP_min` and `iP_triple` from one shared arm
+        // (`AbstractState.cpp` `case iP_min: case iP_triple:`).
+        Param::PTriple | Param::PMin => data.eos.sat_min_liquid.p,
         Param::TMin => data.eos.sat_min_liquid.t,
         Param::TMax => data.eos.t_max,
         Param::PMax => data.eos.p_max,
         Param::TReducing => data.eos.reducing.t,
         Param::RhomolarReducing => data.eos.reducing.rhomolar,
-        Param::RhomassReducing => data.eos.reducing.rhomolar * data.eos.molar_mass,
+        // Upstream's `trivial_keyed_output` has NO rhomass_reducing case —
+        // the parameter parses but the accessor refuses. Answering it here
+        // was an invented output.
+        Param::RhomassReducing => {
+            return Err(Error::Value(format!(
+                "This input [{}: \"{}\"] is not valid for trivial_keyed_output",
+                out.index(),
+                out.short_name()
+            )));
+        }
         Param::MolarMass => data.eos.molar_mass,
         Param::AcentricFactor => data.eos.acentric,
         Param::GasConstant => data.eos.gas_constant,
@@ -678,6 +792,15 @@ fn cubic_route(
             "Output parameter parsing failed; error: Output string is invalid [{output}]"
         ))
     })?;
+    // Trivial family with no `trivial_keyed_output` case upstream: refused
+    // before any state update, same as the HEOS route.
+    if out == Param::RhomassReducing {
+        return Err(Error::Value(format!(
+            "This input [{}: \"{}\"] is not valid for trivial_keyed_output",
+            out.index(),
+            out.short_name()
+        )));
+    }
 
     // Trivial outputs never need a state (upstream trivial_keyed_output).
     let trivial = |out: Param| -> Option<f64> {
@@ -689,6 +812,19 @@ fn cubic_route(
             Param::RhomassCritical => eos.rhomolar_critical() * data.molemass,
             Param::MolarMass => data.molemass,
             Param::GasConstant => eos.gas_constant(),
+            // The fabricated cubic fluid's hard-coded limits
+            // (`AbstractCubicBackend::calc_Tmin` et al.).
+            Param::TMin => 0.3 * data.tc,
+            Param::TMax => 10.0 * data.tc,
+            Param::PMax => 100.0 * data.pc,
+            // `calc_p_triple` = 0.01*pc; upstream serves iP_min and
+            // iP_triple from one shared arm.
+            Param::PTriple | Param::PMin => 0.01 * data.pc,
+            // The fabricated fluid document leaves Ttriple 0 and the
+            // reducing state at the (1 K, 1 mol/m^3) cubic convention.
+            Param::TTriple => 0.0,
+            Param::TReducing => 1.0,
+            Param::RhomolarReducing => 1.0,
             _ => return None,
         })
     };
@@ -799,8 +935,21 @@ fn cubic_route(
         Param::Phase => f64::from(phase.index()),
         Param::Hmolar => mix(&|t, r| eos.hmolar(t, r))?,
         Param::Hmass => mix(&|t, r| eos.hmolar(t, r))? / mm,
-        Param::Smolar => mix(&|t, r| eos.smolar(t, r))?,
-        Param::Smass => mix(&|t, r| eos.smolar(t, r))? / mm,
+        // Entropy alone reads alpha0 through the BATCHED
+        // `calc_all_alpha0_derivs_nocache`, which has no ValidNumber guard —
+        // on the broken (D,T) dome sub-states the NaN propagates and PropsSI
+        // surfaces an error with an EMPTY message (wheel: `ValueError('')`),
+        // where the guarded per-derivative path throws the nTau message.
+        Param::Smolar | Param::Smass => {
+            let s = match &state {
+                CubicState::Single { t, rho, .. } => eos.smolar(*t, *rho),
+                CubicState::TwoPhase(s) => {
+                    q * eos.smolar(s.t, s.rho_v) + (1.0 - q) * eos.smolar(s.t, s.rho_l)
+                }
+                CubicState::TwoPhaseDt(_) => return Err(Error::Value(String::new())),
+            };
+            if out == Param::Smass { s / mm } else { s }
+        }
         Param::Umolar => mix(&|t, r| eos.umolar(t, r))?,
         Param::Umass => mix(&|t, r| eos.umolar(t, r))? / mm,
         // `AbstractCubicBackend` derives from `HelmholtzEOSMixtureBackend`,
@@ -825,13 +974,72 @@ fn cubic_route(
                     ));
                 }
             }
+            // Upstream checks Q BEFORE touching the sub-states, so a (D,T)
+            // dome state gets the distribution-of-phases refusal, not the
+            // broken-sub-state throw (wheel-confirmed). Exact Q == 0/1 never
+            // arrives here — the dome branch is strict — so the sub-state
+            // throw below is kept only for shape.
             CubicState::TwoPhaseDt(_) => {
+                if q.abs() >= f64::EPSILON && (q - 1.0).abs() >= f64::EPSILON {
+                    return Err(Error::Value(
+                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
+                    ));
+                }
                 return Err(Error::Value(
                     "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 1, nDelta: 0, tau: inf, delta: 0"
                         .into(),
                 ));
             }
         },
+        // Inherited-HEOS outputs over the cubic tau/delta convention — raw
+        // at the bulk state in the dome, exactly like cp/cv.
+        Param::Z => eos.compressibility_factor(t, rho),
+        Param::Cp0molar => eos.cp0molar(t, rho),
+        Param::Cp0mass => eos.cp0molar(t, rho) / mm,
+        Param::HmolarResidual => eos.hmolar_residual(t, rho),
+        Param::SmolarResidual => eos.smolar_residual(t, rho),
+        // `calc_gibbsmolar` levers in the dome; the (D,T) dome states throw
+        // through the broken sub-states, whose FIRST alpha0 call for Gibbs
+        // is the (0, 0) derivative — hence the nTau: 0 message.
+        Param::Gmolar | Param::Gmass => {
+            let g = match &state {
+                CubicState::Single { t, rho, .. } => eos.gibbsmolar(*t, *rho),
+                CubicState::TwoPhase(s) => {
+                    q * eos.gibbsmolar(s.t, s.rho_v) + (1.0 - q) * eos.gibbsmolar(s.t, s.rho_l)
+                }
+                CubicState::TwoPhaseDt(_) => {
+                    return Err(Error::Value(
+                        "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 0, nDelta: 0, tau: inf, delta: 0"
+                            .into(),
+                    ));
+                }
+            };
+            if out == Param::Gmass { g / mm } else { g }
+        }
+        // Transport / surface-tension error parity: the fabricated cubic
+        // fluids carry no transport models or surface-tension curve;
+        // Prandtl calls viscosity first, so it fails with its message.
+        Param::Viscosity | Param::Prandtl => {
+            return Err(Error::Value(
+                "Viscosity model is not available for this fluid".into(),
+            ));
+        }
+        Param::Conductivity => {
+            return Err(Error::Value(
+                "Thermal conductivity model is not available for this fluid".into(),
+            ));
+        }
+        Param::SurfaceTension => {
+            return Err(match &state {
+                CubicState::Single { .. } => Error::Value(
+                    "surface tension is only defined within the two-phase region;                          Try PQ or QT inputs"
+                        .into(),
+                ),
+                CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
+                    Error::NotImplemented("surface tension curve not provided".into())
+                }
+            });
+        }
         other => {
             return Err(Error::NotImplemented(format!(
                 "output parameter {} is not ported for the cubic backends yet",
@@ -943,28 +1151,6 @@ fn incomp_route(
         _ => {}
     }
 
-    // Molar outputs are not defined for the mass-based INCOMP backend.
-    let molar_err = |what: &str, use_instead: &str| -> Error {
-        Error::NotImplemented(format!(
-            "{what} is not defined for the INCOMP backend; use {use_instead} instead."
-        ))
-    };
-    match out {
-        Param::MolarMass => {
-            return Err(Error::NotImplemented(
-                "Molar mass is not defined for the INCOMP (incompressible) backend; INCOMP fluids are mass-based."
-                    .into(),
-            ));
-        }
-        Param::Dmolar => return Err(molar_err("Dmolar / rhomolar", "Dmass / rhomass")),
-        Param::Hmolar => return Err(molar_err("Hmolar / hmolar", "Hmass / hmass")),
-        Param::Smolar => return Err(molar_err("Smolar / smolar", "Smass / smass")),
-        Param::Umolar => return Err(molar_err("Umolar / umolar", "Umass / umass")),
-        Param::Cpmolar => return Err(molar_err("Cpmolar / cpmolar", "Cpmass / cpmass")),
-        Param::Cvmolar => return Err(molar_err("Cvmolar / cvmolar", "Cvmass / cvmass")),
-        _ => {}
-    }
-
     let keys = (Param::parse(name1), Param::parse(name2));
     let pair = match keys {
         (Some(k1), Some(k2)) => generate_update_pair(k1, prop1, k2, prop2),
@@ -987,6 +1173,31 @@ fn incomp_route(
     }
     if out == echo2 {
         return Ok(v2);
+    }
+
+    // Molar outputs are not defined for the mass-based INCOMP backend.
+    // Upstream throws these inside keyed_output — AFTER the echo and after
+    // the input pair has parsed — so a molar output that IS an input echoes,
+    // and an invalid pair gets the invalid-pair error, not this one.
+    let molar_err = |what: &str, use_instead: &str| -> Error {
+        Error::NotImplemented(format!(
+            "{what} is not defined for the INCOMP backend; use {use_instead} instead."
+        ))
+    };
+    match out {
+        Param::MolarMass => {
+            return Err(Error::NotImplemented(
+                "Molar mass is not defined for the INCOMP (incompressible) backend; INCOMP fluids are mass-based."
+                    .into(),
+            ));
+        }
+        Param::Dmolar => return Err(molar_err("Dmolar / rhomolar", "Dmass / rhomass")),
+        Param::Hmolar => return Err(molar_err("Hmolar / hmolar", "Hmass / hmass")),
+        Param::Smolar => return Err(molar_err("Smolar / smolar", "Smass / smass")),
+        Param::Umolar => return Err(molar_err("Umolar / umolar", "Umass / umass")),
+        Param::Cpmolar => return Err(molar_err("Cpmolar / cpmolar", "Cpmass / cpmass")),
+        Param::Cvmolar => return Err(molar_err("Cvmolar / cvmolar", "Cvmass / cvmass")),
+        _ => {}
     }
 
     // Composition gates (upstream update()).
@@ -1485,14 +1696,6 @@ fn mixture_keyed_output(
         MixState::Single(s) => (s.t, s.p, s.rhomolar, s.q),
         MixState::Two(s) => (s.t, s.p, s.rhomolar, s.q),
     };
-    let single_phase_rho = |what: &str| -> Result<f64> {
-        match state {
-            MixState::Single(s) => Ok(s.rhomolar),
-            MixState::Two(_) => Err(Error::Value(format!(
-                "Input is two-phase and {what} is not defined"
-            ))),
-        }
-    };
     Ok(match out {
         Param::T => t,
         Param::P => p,
@@ -1520,13 +1723,41 @@ fn mixture_keyed_output(
             };
             if out == Param::Umass { u / mm } else { u }
         }
-        Param::Cpmolar => model.cpmolar(z, t, single_phase_rho("cpmolar")?),
-        Param::Cpmass => model.cpmolar(z, t, single_phase_rho("cpmass")?) / mm,
-        Param::Cvmolar => model.cvmolar(z, t, single_phase_rho("cvmolar")?),
-        Param::Cvmass => model.cvmolar(z, t, single_phase_rho("cvmass")?) / mm,
-        Param::SpeedSound => model.speed_sound(z, t, single_phase_rho("speed_sound")?),
-        Param::Gmolar => model.gibbsmolar_nocache(z, t, single_phase_rho("gibbsmolar")?),
-        Param::Gmass => model.gibbsmolar_nocache(z, t, single_phase_rho("gibbsmass")?) / mm,
+        // `calc_cpmolar`/`calc_cvmolar` have no two-phase branch upstream: the
+        // raw single-phase formula is evaluated at the bulk mixture density
+        // with the overall composition, dome or not.
+        Param::Cpmolar => model.cpmolar(z, t, rhomolar),
+        Param::Cpmass => model.cpmolar(z, t, rhomolar) / mm,
+        Param::Cvmolar => model.cvmolar(z, t, rhomolar),
+        Param::Cvmass => model.cvmolar(z, t, rhomolar) / mm,
+        // `calc_speed_sound`: the saturated branch at Q == 0 or 1, and
+        // upstream's verbatim refusal strictly inside the dome.
+        Param::SpeedSound => match state {
+            MixState::Single(s) => model.speed_sound(z, t, s.rhomolar),
+            MixState::Two(s) => {
+                if s.q.abs() < f64::EPSILON {
+                    model.speed_sound(&s.x_liq, t, s.rhomolar_liq)
+                } else if (s.q - 1.0).abs() < f64::EPSILON {
+                    model.speed_sound(&s.y_vap, t, s.rhomolar_vap)
+                } else {
+                    return Err(Error::Value(
+                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
+                    ));
+                }
+            }
+        },
+        // `calc_gibbsmolar`: the lever rule over the saturated branches in the
+        // dome, with no Q == 0/1 special case.
+        Param::Gmolar | Param::Gmass => {
+            let g = match state {
+                MixState::Single(s) => model.gibbsmolar_nocache(z, t, s.rhomolar),
+                MixState::Two(s) => {
+                    s.q * model.gibbsmolar_nocache(&s.y_vap, t, s.rhomolar_vap)
+                        + (1.0 - s.q) * model.gibbsmolar_nocache(&s.x_liq, t, s.rhomolar_liq)
+                }
+            };
+            if out == Param::Gmass { g / mm } else { g }
+        }
         Param::SurfaceTension => {
             return Err(Error::NotImplemented(
                 "surface tension not implemented for mixtures".into(),
@@ -1535,11 +1766,16 @@ fn mixture_keyed_output(
         Param::Viscosity => {
             // Upstream's "highly approximate" mixture model: log-linear
             // mixing of PURE-component viscosities, each evaluated as a
-            // pure fluid at the BULK (rhomolar, T).
+            // pure fluid at the BULK (rhomolar, T). Upstream runs a FULL
+            // pure-fluid DmolarT update per component, so when the bulk
+            // state sits inside that pure fluid's dome the pressure the
+            // transport model sees is the pure SATURATION pressure — not
+            // the raw single-phase EOS pressure, which is grossly different
+            // there (friction-theory viscosity consumes p directly).
             let mut summer = 0.0_f64;
             for (i, comp) in components.iter().enumerate() {
                 let flash = fluid_flash(comp);
-                let p_pure = flash.eos.pressure(t, rhomolar);
+                let p_pure = flash.dmolar_t_state(rhomolar, t)?.p();
                 let v = viscosity_model(comp)?;
                 let eta = rustprop_heos::transport::viscosity(
                     &flash.eos,
@@ -1556,10 +1792,15 @@ fn mixture_keyed_output(
         }
         Param::Conductivity => {
             // Linear mixing of pure-component conductivities at bulk state.
+            // Same full pure DmolarT update as the viscosity arm: in-dome
+            // bulk states must hand the models the pure saturation pressure
+            // (latent for conductivity — it only bites when a component's
+            // friction-theory viscosity feeds Olchowy-Sengers, e.g. SF6 or
+            // n-Pentane).
             let mut summer = 0.0;
             for (i, comp) in components.iter().enumerate() {
                 let flash = fluid_flash(comp);
-                let p_pure = flash.eos.pressure(t, rhomolar);
+                let p_pure = flash.dmolar_t_state(rhomolar, t)?.p();
                 let tr = comp.transport.as_ref().ok_or_else(|| {
                     Error::Value(
                         "Thermal conductivity model is not available for this fluid".into(),
@@ -1729,11 +1970,15 @@ fn pcsaft_route(
         Param::Dmolar => backend.rhomolar,
         Param::Dmass => backend.rhomolar * mm,
         Param::Alphar => backend.calc_alphar(),
+        // Upstream overrides `calc_compressibility_factor` with the PC-SAFT
+        // hard-chain/dispersion formula; `p/(rho*R*T)` only agrees to the
+        // density solver's tolerance, so the kernel call is the fidelity path.
+        Param::Z => backend.calc_compressibility_factor(),
         Param::HmolarResidual => backend.calc_hmolar_residual(),
         Param::SmolarResidual => backend.calc_smolar_residual(),
         Param::GmolarResidual => backend.calc_gibbsmolar_residual(),
         // Every absolute caloric/transport output is a base-class
-        // NotImplementedError upstream (PCSAFT overrides none of them).
+        // NotImplementedError upstream (PCSAFT overrides none of the rest).
         other => {
             return Err(Error::NotImplemented(format!(
                 "Output [{}] is not implemented for this backend",

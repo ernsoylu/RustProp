@@ -74,6 +74,47 @@ impl HelmholtzEos {
                     / (1.0 + 2.0 * delta * residual.d10 + delta.powi(2) * residual.d20))
     }
 
+    /// Compressibility factor [-] (upstream `calc_compressibility_factor`,
+    /// `HelmholtzEOSMixtureBackend.h`): `Z = 1 + delta*dalphar_dDelta` — NOT
+    /// `p/(rho*R*T)`, which differs in the dome where upstream still serves
+    /// the raw formula at the bulk density.
+    pub fn compressibility_factor(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        1.0 + delta * self.alphar_all(tau, delta).d10
+    }
+
+    /// Ideal-gas molar isobaric heat capacity [J/mol/K] (upstream
+    /// `calc_cpmolar_idealgas`).
+    pub fn cp0molar(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        self.gas_constant * (1.0 - tau.powi(2) * self.alpha0_all(tau, delta).d02)
+    }
+
+    /// Molar Helmholtz energy [J/mol] for a homogeneous phase (upstream
+    /// `calc_helmholtzmolar`, homogeneous branch).
+    pub fn helmholtzmolar(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        let ideal = self.alpha0_all(tau, delta);
+        self.gas_constant * t * (ideal.d00 + residual.d00)
+    }
+
+    /// Residual molar enthalpy [J/mol] (upstream inline
+    /// `calc_hmolar_residual` — raw at the bulk density, dome included).
+    pub fn hmolar_residual(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        self.gas_constant * t * (tau * residual.d01 + delta * residual.d10)
+    }
+
+    /// Residual molar entropy [J/mol/K] (upstream inline
+    /// `calc_smolar_residual` — raw at the bulk density, dome included).
+    pub fn smolar_residual(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        self.gas_constant * (tau * residual.d01 - residual.d00)
+    }
+
     /// Speed of sound [m/s] for a homogeneous phase (upstream
     /// `calc_speed_sound`, single-phase branch).
     pub fn speed_sound(&self, t: f64, rhomolar: f64) -> f64 {

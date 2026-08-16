@@ -1011,6 +1011,11 @@ fn conductivity_structured(
             *t_ref,
         )?,
         Some(ConductivityCritical::Hardcoded { name }) => match *name {
+            // Upstream maps the JSON "None" tag to CONDUCTIVITY_CRITICAL_NONE
+            // (FluidLibrary.h:902-903) and evaluates it as critical = 0.0
+            // (HelmholtzEOSMixtureBackend.cpp:1023-1025) — the pseudo-pure
+            // blends (R404A/R407C/R410A/R507A) carry it.
+            "None" => 0.0,
             "Ammonia" => conductivity_critical_ammonia(t, rhomolar * eos.molar_mass),
             "R123" => {
                 let tau = eos.t_reducing / t;

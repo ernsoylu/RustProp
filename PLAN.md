@@ -1738,6 +1738,117 @@ Append-only; newest last. Seeded entries:
   verbatim, so the difference is root conditioning inside the residual, not
   solver structure. The test asserts the divergence STILL REPRODUCES — a
   known divergence that silently heals is still a lie in the test.
+- 2026-08-16 — Post-completion audit sweep (NEXT-STEPS candidates #1 + #2), run as parallel
+  investigation with every claim adversarially verified by running the wheel against the port
+  CLI before any code moved. Outcomes:
+  - The six remaining `partial_cmp().unwrap()` sites are NOT latent panics. Two are
+    `#[cfg(test)]`-only; the four production sites sort values whose provenance excludes NaN
+    structurally (`get_x_for_y` roots are always endpoints/midpoints of finite brackets;
+    `determine_extrema`'s im/range filter rejects NaN exactly as upstream's does). Left
+    untouched: upstream would sort NaN through silently, and a defensive `total_cmp` would be
+    dead code guarding an unreachable state. NEXT-STEPS' partial_cmp bullet is closed.
+  - TEN invented guards confirmed (wheel answers, port refused) and fixed: blend conductivity
+    (hardcoded critical "None" → upstream's `CONDUCTIVITY_CRITICAL_NONE`, critical = 0.0 —
+    R404A/R407C/R410A/R507A now serve L, 32/32 probes bitwise); mixture two-phase Cp/Cv (raw
+    single-phase formula at bulk density), speed of sound (Q = 0/1 saturated branches,
+    verbatim refusal between), and Gibbs (lever) — the pure-fluid sweep defects' mixture
+    twins; IF97 Q on (T,P) (the −1.0 unset-quality sentinel, even exactly on the saturation
+    curve); the IF97 (H,P)/(P,S)/(H,S)/(P,Q) output families; the cubic route's inherited
+    outputs; the HEOS pure keyed_output family (below); PCSAFT Z (via the kernel's
+    `calc_compressibility_factor` — `p/(rho*R*T)` only matches to density-solver tolerance);
+    P_min (upstream serves iP_min/iP_triple from one shared arm).
+  - Echo routes: 8 of 10 conform (verified on the nuanced cases — raw-value echo before
+    mass→molar conversion, out-of-range Q, unflashable states). IF97 gained upstream's
+    generic pre-dispatch echo; INCOMP's molar-output rejection moved below the echo, which
+    also restores upstream's invalid-pair error precedence (`Cpmolar` with a non-pair input).
+- 2026-08-16 — HEOS pure keyed_output completed with the full audited family: Phase (the
+  `_phase` index as float; every dome flash reports 6), Z (`1 + delta*ar_delta` at bulk — NOT
+  p/(rho*R*T), which differs two-phase), PIP, Prandtl (cpmass*eta/lambda through the existing
+  arms), Cp0molar/Cp0mass, Helmholtzmolar/mass (levers like Gibbs, no endpoint shortcut),
+  Hmolar_residual/Smolar_residual (raw at bulk, dome included), isothermal_compressibility and
+  isobaric_expansion_coefficient (through the Phase-12a StateDerivs Jacobian machinery, raw at
+  bulk), fundamental_derivative_of_gas_dynamics (Colonna Eq. 1 with the Dmass/Smolar index
+  mix; speed_sound is the two-phase gate). Every formula and two-phase rule was pinned by a
+  dedicated research pass against upstream source AND wheel probes (bitwise where
+  flash-independent).
+- 2026-08-16 — Cubic route additions: Z, Cp0molar/Cp0mass, Hmolar_residual, Smolar_residual,
+  Gmolar/Gmass (lever in the dome; the (D,T)-dome broken-sub-state throw carries the
+  `nTau: 0` alpha0 message — Gibbs' first alpha0 call is the (0,0) derivative), the
+  fabricated-fluid limit trivials (Tmin = 0.3*Tc, Tmax = 10*Tc, pmax = 100*pc,
+  pmin = ptriple = 0.01*pc, Ttriple = 0, reducing state = 1), and transport/surface-tension
+  error parity. Two dome quirks reproduced: (D,T)-dome speed of sound gets the
+  distribution-of-phases refusal (upstream checks Q before touching sub-states), and
+  (D,T)-dome Smolar errors with an EMPTY message (upstream's batched
+  `calc_all_alpha0_derivs_nocache` has no ValidNumber guard, so NaN propagates and PropsSI
+  surfaces an empty errstring; Hmolar/Umolar keep the guarded `nTau: 1` message).
+- 2026-08-16 — Cubic PT Phase QUIRK reproduced: upstream's `recalculate_singlephase_phase`
+  runs INSIDE `solver_rho_Tp`, before `update` assigns `_rhomolar` — it reads the `clear()`ed
+  `-_HUGE`, so the subcritical density test is always false and every subcritical PT state
+  reports iphase_gas, liquid-like roots included. The port models the stale density with an
+  explicit −inf. The DmolarT path keeps real-density classification (upstream assigns
+  `_rhomolar` before that call).
+- 2026-08-16 — `rhomass_reducing` was an invented ANSWER: upstream's `trivial_keyed_output`
+  has no case for it and refuses. The port now refuses verbatim on the HEOS and cubic routes.
+- 2026-08-16 — HEOS single-phase phase labels on the DT/HP/PS/DP tails now end in
+  `recalculated_singlephase_phase`, as upstream's flash tails do. DISCOVERY: for DmolarT the
+  v8.0.0 TAG source alone would label a compressed liquid `liquid`, but the shipped wheel
+  reclassifies by the final pressure (Methane at 26.8 kmol/m³ / 119 K / 20.4 MPa → 
+  supercritical_liquid) — the wheel's behavior is ported. Found by the sweep's new Phase
+  records the moment the output existed.
+- 2026-08-16 — IF97 route rebuilt into upstream's own update/serve shape: generic echo, the
+  full output family on every supported pair, Qmass, and `forward_phase` = the SHIPPED
+  wheel's `set_phase` (critical-point band `|T−Tc| < 3.3e-6 && |p−pc| < 3.3e-5`; subcritical
+  gas only below `psat*(1−3.3e-5)`, the band itself LIQUID; no PT two-phase throw). SECOND
+  wheel-vs-tag discovery: the 8.0.0 wheel's IF97 `set_phase` does not match the v8.0.0 tag
+  source (which has a ±3.3e-5 saturation band and a two-phase throw) even though the wheel's
+  gitrevision equals the tag commit — the wheel ships pre-refactor logic. Also reproduced
+  verbatim: the `HmolarSmolar` conversion-clobber defect (molar inputs used as mass) and the
+  reverse-phase `Tsat97(p)` p>pcrit throw. 1,097 wheel-vs-CLI comparisons, all bitwise.
+- 2026-08-16 — Mixture transport pressure: upstream's mixture eta/lambda run a FULL pure
+  DmolarT update per component before evaluating, so an in-dome bulk state hands the model
+  the pure fluid's SATURATION pressure — not the raw single-phase EOS pressure the port
+  passed (worst case −15.3 GPa vs 9.76 kPa; Methane's friction-theory viscosity consumes p
+  directly). Fixed for viscosity AND its latent conductivity twin (bites when a component
+  pairs friction-theory viscosity with Olchowy–Sengers, e.g. SF6/n-Pentane). Five
+  Methane/Nitrogen two-phase V sweep records went bitwise.
+- 2026-08-16 — Mixture stability warm solves now carry upstream's SatL/SatV CONSTRUCTOR phase
+  imposition (`specify_phase(iphase_liquid/gas)` at construction,
+  HelmholtzEOSMixtureBackend.cpp:143/147 — `clear()` never resets it; the port had passed
+  `Unknown`, disabling `solver_rho_Tp`'s mechanical-stability retry). Without the retry,
+  near-pure-water liquid trials stayed pinned on a spurious density root below the
+  0.9/SRK-covolume bracket cap. Both CO2[0.7]&Water[0.3] sweep records went BITWISE, and the
+  He[0.3]&Ar[0.7] 447 MPa cp record healed with them. Noted for later, not ported now:
+  upstream's stability feed-solve fallback (`VLERoutines.cpp` ~2110) permanently clears
+  SatL's imposition for that backend instance — a rare path no golden reaches; and
+  `solver_rho_tp_global`'s side-root Brent failures return −1 in the port where upstream
+  throws (latent, unexercised).
+- 2026-08-16 — Acceptance sweep EXTENDED 3,720 → 5,485 records (fresh rng 20260816 appended
+  after every original draw; the original 3,720 verified bitwise-frozen): 865 mixture/blend
+  draws, 620 wide-output draws (the new HEOS/cubic families), 140 IF97 flash-pair draws,
+  40 PC-SAFT Z, 100 pseudo-pure transport. Plus two NEW low-level fixtures replayed by their
+  own `#[ignore]`d weekly tests: acceptance_tabular.jsonl (1,950 records over TTSE+BICUBIC on
+  Water/n-Propane; LogPH-pair inversions at 1e-8 for documented node-provenance noise) and
+  acceptance_svdsbtl.jsonl (1,000 records, 995 bitwise; two new ingested artifacts —
+  n-Propane and CO2 PT surfaces — provenance-proven against the committed Water blob).
+- 2026-08-16 — The extension found FIVE genuinely new mixture defects beyond the guard
+  records. Two were port bugs (transport pressure and phase imposition, above). THREE are
+  wheel-side failures now pinned in acceptance.rs as excused divergences that assert the
+  PORT's answer: two mixture HSU_P records (Methane/Ethane (P,S)→Q and CO2/Water (P,S)→H)
+  where upstream's residual sweep MUTATES the shared backend — the Tmax-endpoint PT
+  evaluation leaves stale SatL/SatV state that disables the two-phase split for the rest of
+  the solve, so the wheel converges on a corrupted branch and contradicts its own fresh PT
+  flash at the T it returns (verified: a fresh wheel PT flash at the port's converged T
+  reproduces the port BITWISE, both records) — the port's stateless residual cannot and
+  should not express that history-dependence; and one shallow-TPD record (CO2/Water (H,P)→D
+  at 44.3 MPa) where upstream's stability solve finds the split at only one T in its window
+  and otherwise lands the metastable single-phase root while the port lands the lower-Gibbs
+  split consistently.
+- 2026-08-16 — Cubic sub-pascal PQ divergence: the extension seed hit the same equal-Gibbs
+  secant give-up at 1.30 and 1.95 Pa, so the error-only gate widened to the observed
+  envelope's decade (10 Pa). Still asserted to reproduce.
+- 2026-08-16 — Derivative-coefficient sweep outputs (beta, kappa_T, PIP, FD) get a 1e-7 tier:
+  they are Jacobian ratios at flash-solved states, so the flash's 1e-9 amplifies through the
+  ratio (observed 2.7e-8 on an (H,P) n-Propane beta draw).
 
 ---
 

@@ -68,5 +68,11 @@ jobs:
       - run: cargo test --release -p rustprop-golden-tests --test mixtures mixture_sweep -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test tabular_state tabular_pairs -- --ignored --nocapture
       # The final acceptance suite: a seeded randomized sweep across every
-      # engine (PLAN.md 15.3).
+      # engine (PLAN.md 15.3), extended 2026-08 with mixtures/blends, wide
+      # outputs, IF97 flash pairs, PC-SAFT Z and pseudo-pure transport.
       - run: cargo test --release -p rustprop-golden-tests --test acceptance -- --ignored --nocapture
+      # Low-level acceptance: randomized Tabular draws (four ~100 s table
+      # builds) and SVDSBTL surface evals (fast; #[ignore]d for family
+      # symmetry only).
+      - run: cargo test --release -p rustprop-golden-tests --test acceptance_tabular -- --ignored --nocapture
+      - run: cargo test --release -p rustprop-golden-tests --test acceptance_svdsbtl -- --ignored --nocapture

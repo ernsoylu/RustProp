@@ -236,16 +236,23 @@ impl<'m> SatState<'m> {
         self.set_state(t, rhomolar);
     }
 
-    /// `update_TP_guessrho` returning the solved density.
+    /// `update_TP_guessrho` returning the solved density. `phase` is the
+    /// imposition upstream's SatL/SatV carry from CONSTRUCTION
+    /// (`specify_phase(iphase_liquid)` / `iphase_gas`,
+    /// `HelmholtzEOSMixtureBackend.cpp:143/147`; `clear()` never resets it) —
+    /// it is what lets `solver_rho_Tp`'s mechanical-stability check reject a
+    /// spurious warm root and re-solve from the phase's own seed. Passing
+    /// `Unknown` here disabled that retry and pinned near-pure-water liquid
+    /// phases on a spurious density branch (found by the acceptance sweep on
+    /// CO2[0.7]&Water[0.3]).
     pub(crate) fn update_tp_guessrho_result(
         &mut self,
         t: f64,
         p: f64,
         rho_guess: f64,
+        phase: Phase,
     ) -> Result<f64> {
-        // No imposed phase on this path (upstream SatL/SatV in the stability
-        // machinery carry no specify_phase) — no stability retries fire.
-        self.update_tp_guessrho(t, p, rho_guess, Phase::Unknown)?;
+        self.update_tp_guessrho(t, p, rho_guess, phase)?;
         Ok(self.rhomolar)
     }
 

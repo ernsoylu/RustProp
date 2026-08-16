@@ -239,9 +239,18 @@ pub(crate) fn solver_rho_tp_global(
 
 /// `solve_trial_rho_warm`: warm-started trial-phase density at (T, p) with
 /// branch-jump rejection and the global-solver fallback. Updates the state.
-fn solve_trial_rho_warm(sat: &mut SatState<'_>, t: f64, p: f64, rho_warm: &mut f64) -> Result<f64> {
+/// `phase` is the SatL/SatV constructor imposition (liquid for the satl
+/// instance, gas for satv) that arms the warm solve's mechanical-stability
+/// retry.
+fn solve_trial_rho_warm(
+    sat: &mut SatState<'_>,
+    t: f64,
+    p: f64,
+    rho_warm: &mut f64,
+    phase: Phase,
+) -> Result<f64> {
     if *rho_warm > 0.0 {
-        let warm = sat.update_tp_guessrho_result(t, p, *rho_warm);
+        let warm = sat.update_tp_guessrho_result(t, p, *rho_warm, phase);
         if let Ok(r) = warm {
             if r.is_finite() && r > 0.0 && r < 2.0 * *rho_warm && r > 0.5 * *rho_warm {
                 *rho_warm = r;
@@ -344,7 +353,10 @@ pub fn check_stability_michelsen(
                 let y_norm: Vec<f64> = y_cap.iter().map(|v| v / sum_y).collect();
 
                 satv.set_mole_fractions(&y_norm);
-                if solve_trial_rho_warm(&mut satv, the_t, the_p, &mut rho_warm).is_err() {
+                // Upstream runs every trial direction through SatV, whose
+                // constructor imposition is gas.
+                if solve_trial_rho_warm(&mut satv, the_t, the_p, &mut rho_warm, Phase::Gas).is_err()
+                {
                     ss_decided = true;
                     break;
                 }
@@ -486,7 +498,7 @@ fn minimize_tpd(
         let y_norm: Vec<f64> = y_cap.iter().map(|v| v / sum_y).collect();
 
         satv.set_mole_fractions(&y_norm);
-        if solve_trial_rho_warm(satv, the_t, the_p, &mut rho_warm).is_err() {
+        if solve_trial_rho_warm(satv, the_t, the_p, &mut rho_warm, Phase::Gas).is_err() {
             return false;
         }
 
@@ -567,7 +579,7 @@ fn minimize_tpd(
             let sum_y2: f64 = y_cap.iter().sum();
             let y_norm2: Vec<f64> = y_cap.iter().map(|v| v / sum_y2).collect();
             satv.set_mole_fractions(&y_norm2);
-            if solve_trial_rho_warm(satv, the_t, the_p, &mut rho_warm).is_err() {
+            if solve_trial_rho_warm(satv, the_t, the_p, &mut rho_warm, Phase::Gas).is_err() {
                 trust_radius = step_size / 3.0;
                 diagonal_shift = 0.0;
                 for i in 0..n {
@@ -659,14 +671,14 @@ fn successive_substitution_guessrho(
         let rho_vap_prev = *rhomolar_vap;
         satl.set_mole_fractions(x);
         if satl
-            .update_tp_guessrho(t, p, *rhomolar_liq, Phase::Unknown)
+            .update_tp_guessrho(t, p, *rhomolar_liq, Phase::Liquid)
             .is_err()
         {
             break;
         }
         satv.set_mole_fractions(y);
         if satv
-            .update_tp_guessrho(t, p, *rhomolar_vap, Phase::Unknown)
+            .update_tp_guessrho(t, p, *rhomolar_vap, Phase::Gas)
             .is_err()
         {
             break;
@@ -920,12 +932,13 @@ pub fn ptflash_twophase_solve_michelsen(
     macro_rules! evaluate_phases {
         () => {{
             satl.set_mole_fractions(&io.x);
-            let ok_l = solve_trial_rho_warm(satl, io.t, io.p, &mut rho_warm_l);
+            let ok_l = solve_trial_rho_warm(satl, io.t, io.p, &mut rho_warm_l, Phase::Liquid);
             let mut ok = false;
             if let Ok(r) = ok_l {
                 io.rhomolar_liq = r;
                 satv.set_mole_fractions(&io.y);
-                if let Ok(rv) = solve_trial_rho_warm(satv, io.t, io.p, &mut rho_warm_v) {
+                if let Ok(rv) = solve_trial_rho_warm(satv, io.t, io.p, &mut rho_warm_v, Phase::Gas)
+                {
                     io.rhomolar_vap = rv;
                     ok = true;
                 }
