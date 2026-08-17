@@ -68,6 +68,36 @@ impl HelmholtzDerivs {
     }
 }
 
+/// Single-slot memo for one derivative matrix, keyed on the EXACT bit
+/// patterns of (tau, delta). The `Resid1D` residuals evaluate
+/// call/deriv/second_deriv/third_deriv at the same point every solver
+/// iteration (Householder4 makes four same-point calls, Halley three); the
+/// matrix is a deterministic function of (tau, delta), so a hit returns
+/// f64s bit-identical to the recompute it elides — the same reasoning as
+/// `StateDerivs` (derivs.rs), which upstream matches with `AbstractState`'s
+/// per-update caches.
+#[derive(Default)]
+pub(crate) struct DerivsMemo {
+    key: Option<(u64, u64)>,
+    val: HelmholtzDerivs,
+}
+
+impl DerivsMemo {
+    pub(crate) fn get_or_compute(
+        &mut self,
+        tau: f64,
+        delta: f64,
+        compute: impl FnOnce(f64, f64) -> HelmholtzDerivs,
+    ) -> HelmholtzDerivs {
+        let key = (tau.to_bits(), delta.to_bits());
+        if self.key != Some(key) {
+            self.val = compute(tau, delta);
+            self.key = Some(key);
+        }
+        self.val
+    }
+}
+
 /// Standalone ideal-gas Helmholtz evaluator over a document's `alpha0` term
 /// list — shared with the cubic backend exactly as upstream shares
 /// `parse_alpha0` / `IdealHelmholtzContainer` between the fluid libraries.

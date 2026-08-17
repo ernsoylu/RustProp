@@ -8,6 +8,7 @@
 
 #![allow(clippy::needless_range_loop)]
 
+use crate::alpha::{DerivsMemo, HelmholtzDerivs};
 use crate::mixture::MixtureModel;
 use crate::mixture::XnFlag;
 use crate::mixture_flash::MixtureState;
@@ -50,24 +51,35 @@ struct DpdrhoResid<'a> {
     /// Pressure at the last `call` point (the slow heavy-side probe gates on
     /// upstream's `this->p()` after the state update inside `call`).
     p_last: f64,
+    memo: DerivsMemo,
+}
+
+impl DpdrhoResid<'_> {
+    /// The mixture alphar matrix at (self.tau, delta), computed once per
+    /// point.
+    fn ar(&mut self, delta: f64) -> HelmholtzDerivs {
+        let (model, x, tau) = (self.model, self.x, self.tau);
+        self.memo
+            .get_or_compute(tau, delta, |tau, delta| model.alphar_all(x, tau, delta))
+    }
 }
 
 impl Resid1D for DpdrhoResid<'_> {
     fn call(&mut self, rhomolar: f64) -> f64 {
         self.delta = rhomolar / self.rhor;
-        let d = self.model.alphar_all(self.x, self.tau, self.delta);
+        let d = self.ar(self.delta);
         self.p_last = rhomolar * self.model.gas_constant() * self.t * (1.0 + self.delta * d.d10);
         self.model.gas_constant()
             * self.t
             * (1.0 + 2.0 * self.delta * d.d10 + self.delta * self.delta * d.d20)
     }
     fn deriv(&mut self, _rhomolar: f64) -> f64 {
-        let d = self.model.alphar_all(self.x, self.tau, self.delta);
+        let d = self.ar(self.delta);
         self.model.gas_constant() * self.t / self.rhor
             * (2.0 * d.d10 + 4.0 * self.delta * d.d20 + self.delta * self.delta * d.d30)
     }
     fn second_deriv(&mut self, _rhomolar: f64) -> f64 {
-        let d = self.model.alphar_all(self.x, self.tau, self.delta);
+        let d = self.ar(self.delta);
         self.model.gas_constant() * self.t / (self.rhor * self.rhor)
             * (6.0 * d.d20 + 6.0 * self.delta * d.d30 + self.delta * self.delta * d.d40)
     }
@@ -99,6 +111,7 @@ fn solver_dpdrho0_tp(
         tau,
         delta: f64::NAN,
         p_last: f64::NAN,
+        memo: DerivsMemo::default(),
     };
 
     let mut light = -1.0;

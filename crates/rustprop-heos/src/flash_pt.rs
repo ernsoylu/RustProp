@@ -5,7 +5,7 @@
 //! `solver_rho_Tp` with its SRK guess (`solver_rho_Tp_SRK`).
 //!
 
-use crate::alpha::HelmholtzEos;
+use crate::alpha::{DerivsMemo, HelmholtzDerivs, HelmholtzEos};
 use crate::ancillary;
 use crate::saturation::SaturationSuperAncillary;
 use crate::solvers::{Resid1D, brent, halley, householder4, solve_cubic};
@@ -43,35 +43,44 @@ struct SolverTpResid<'a> {
     p: f64,
     rhor: f64,
     delta: f64,
+    memo: DerivsMemo,
+}
+
+impl SolverTpResid<'_> {
+    /// The alphar matrix at (t_reducing/t, delta), computed once per point.
+    fn ar(&mut self, delta: f64) -> HelmholtzDerivs {
+        let eos = self.eos;
+        self.memo
+            .get_or_compute(eos.t_reducing / self.t, delta, |tau, delta| {
+                eos.alphar_all(tau, delta)
+            })
+    }
 }
 
 impl Resid1D for SolverTpResid<'_> {
     fn call(&mut self, rhomolar: f64) -> f64 {
         self.delta = rhomolar / self.rhor; // needed for derivative
-        let peos = self.eos.pressure(self.t, rhomolar);
+        // `calc_pressure` off the shared matrix — the same tau/delta
+        // expressions and arithmetic as `HelmholtzEos::pressure`.
+        let d = self.ar(self.delta);
+        let peos = rhomolar * self.eos.gas_constant * self.t * (1.0 + self.delta * d.d10);
         (peos - self.p) / self.p
     }
     fn deriv(&mut self, _rhomolar: f64) -> f64 {
-        let d = self
-            .eos
-            .alphar_all(self.eos.t_reducing / self.t, self.delta);
+        let d = self.ar(self.delta);
         self.eos.gas_constant
             * self.t
             * (1.0 + 2.0 * self.delta * d.d10 + self.delta * self.delta * d.d20)
             / self.p
     }
     fn second_deriv(&mut self, _rhomolar: f64) -> f64 {
-        let d = self
-            .eos
-            .alphar_all(self.eos.t_reducing / self.t, self.delta);
+        let d = self.ar(self.delta);
         self.eos.gas_constant * self.t / self.rhor
             * (2.0 * d.d10 + 4.0 * self.delta * d.d20 + self.delta * self.delta * d.d30)
             / self.p
     }
     fn third_deriv(&mut self, _rhomolar: f64) -> f64 {
-        let d = self
-            .eos
-            .alphar_all(self.eos.t_reducing / self.t, self.delta);
+        let d = self.ar(self.delta);
         self.eos.gas_constant * self.t / (self.rhor * self.rhor)
             * (6.0 * d.d20 + 6.0 * self.delta * d.d30 + self.delta * self.delta * d.d40)
             / self.p
@@ -290,19 +299,18 @@ impl PtFlash {
         }
     }
 
-    /// dp/drho|T (upstream `first_partial_deriv(iP, iDmolar, iT)`).
-    fn dpdrho_t(&self, t: f64, rhomolar: f64) -> f64 {
+    /// dp/drho|T and d2p/drho2|T off ONE derivative matrix (upstream
+    /// `first_partial_deriv(iP, iDmolar, iT)` /
+    /// `second_partial_deriv(iP, iDmolar, iT, ...)`) — the post-solve
+    /// stability checks always consume the pair at the same point.
+    fn dpdrho_d2pdrho2_t(&self, t: f64, rhomolar: f64) -> (f64, f64) {
         let delta = rhomolar / self.eos.rhomolar_reducing;
         let d = self.eos.alphar_all(self.eos.t_reducing / t, delta);
-        self.eos.gas_constant * t * (1.0 + 2.0 * delta * d.d10 + delta * delta * d.d20)
-    }
-
-    /// d2p/drho2|T (upstream `second_partial_deriv(iP, iDmolar, iT, ...)`).
-    fn d2pdrho2_t(&self, t: f64, rhomolar: f64) -> f64 {
-        let delta = rhomolar / self.eos.rhomolar_reducing;
-        let d = self.eos.alphar_all(self.eos.t_reducing / t, delta);
-        self.eos.gas_constant * t / self.eos.rhomolar_reducing
-            * (2.0 * d.d10 + 4.0 * delta * d.d20 + delta * delta * d.d30)
+        (
+            self.eos.gas_constant * t * (1.0 + 2.0 * delta * d.d10 + delta * delta * d.d20),
+            self.eos.gas_constant * t / self.eos.rhomolar_reducing
+                * (2.0 * d.d10 + 4.0 * delta * d.d20 + delta * delta * d.d30),
+        )
     }
 
     /// Upstream `solver_rho_Tp_SRK` for a single component.
@@ -358,6 +366,7 @@ impl PtFlash {
             p,
             rhor: self.eos.rhomolar_reducing,
             delta: f64::NAN,
+            memo: DerivsMemo::default(),
         };
         match householder4(&mut resid, rho_guess, 1e-8, 20) {
             Ok(rho) if rho.is_finite() && rho >= 0.0 => Ok(rho),
@@ -429,6 +438,7 @@ impl PtFlash {
             p,
             rhor: self.eos.rhomolar_reducing,
             delta: f64::NAN,
+            memo: DerivsMemo::default(),
         };
 
         let mut rhomolar_guess = self.solver_rho_tp_srk(t, p, phase)?;
@@ -444,8 +454,11 @@ impl PtFlash {
             // First Halley from the saturated-liquid ancillary, with the
             // upstream stability checks; then a bounded Brent fallback.
             let attempt = halley(&mut resid, rho_l_anc, 1e-8, 100).and_then(|rho| {
-                if !rho.is_finite() || self.dpdrho_t(t, rho) < 0.0 || self.d2pdrho2_t(t, rho) < 0.0
-                {
+                if !rho.is_finite() {
+                    return Err(Error::Value("Liquid density is invalid".into()));
+                }
+                let (dpdrho, d2pdrho2) = self.dpdrho_d2pdrho2_t(t, rho);
+                if dpdrho < 0.0 || d2pdrho2 < 0.0 {
                     Err(Error::Value("Liquid density is invalid".into()))
                 } else {
                     Ok(rho)
@@ -505,8 +518,7 @@ impl PtFlash {
                 return Err(Error::Value("invalid density".into()));
             }
             if phase == Phase::Gas {
-                let dpdrho = self.dpdrho_t(t, rho);
-                let d2pdrho2 = self.d2pdrho2_t(t, rho);
+                let (dpdrho, d2pdrho2) = self.dpdrho_d2pdrho2_t(t, rho);
                 if dpdrho < 0.0 || d2pdrho2 > 0.0 {
                     // Retry with a tiny density to land on the gas branch
                     return householder4(&mut resid, 1e-6, 1e-8, 100);
