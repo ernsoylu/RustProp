@@ -1951,6 +1951,28 @@ Append-only; newest last. Seeded entries:
   file gains exactly those four `None` lines) and the fidelity walker bitwise-walks the
   four blocks for pseudo-pure fluids while keeping them informational-only for pure
   fluids, asserting the Some/None split matches `pseudo_pure` exactly.
+- 2026-08-17 — The cubic sub-pascal PQ divergence is FIXED, superseding the "root
+  conditioning inside the residual" hypothesis recorded above (the 15.3 tolerance-policy
+  entry and the 2026-08-16 10 Pa gate-widening entry — kept as history, not rewritten).
+  ROOT CAUSE: two floating-point association deviations in `CubicEos::psi_plus` case 0
+  versus upstream. (a) Upstream computes `A_term * c_term / (Delta_1 - Delta_2)` with
+  `c_term = 1/bm` — reciprocal-then-multiply (GeneralizedCubic.cpp:553-556,
+  GeneralizedCubic.h:566-568); the port divided directly (`a_term / b / (d1 - d2)`).
+  (b) Upstream's `A_term` groups `delta*rho_r*(Delta_i*bm + cm) + 1` — with rho_r = 1,
+  cm = 0 that is `delta*(Delta_i*b) + 1` (GeneralizedCubic.h:619-623); the port computed
+  `(delta*Delta_i)*b + 1`. Site (b) is bit-inert for SRK (Delta_1 = 1, Delta_2 = 0) but
+  bites for PR. A third suspected site — upstream's `am` passing through
+  `sqrt(aii*aii)` — was proven bit-inert for pure fluids and is deliberately NOT
+  replicated. MECHANISM: at sub-pascal PQ the vapour-root cancellation puts ~1e-9
+  absolute noise into the equal-Gibbs residual against its 1e-10 tolerance, so
+  convergence hinges on the secant's 1e-14 fixed-point exits — the ulp-level association
+  difference alone decided converge-vs-give-up. VALIDATION: all 58 gate-band flashes
+  (SRK|PR, (P,Q), P < 10 Pa) in the acceptance fixture converge; the nine formerly
+  erroring records match the wheel bitwise except two U outputs at 1-2 ulp (1.5e-16,
+  3.4e-16); the full cubic golden battery is unmoved. The acceptance allowance, its
+  Err-branch excuse and the heal-detection assert are deleted (the assert fired first,
+  as designed); the near-vacuum 1e-4 tolerance TIER stays — it serves saturation states
+  on every backend, not the deleted cubic excuse.
 
 ---
 

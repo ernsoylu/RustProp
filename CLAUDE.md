@@ -188,8 +188,8 @@ conductivity finding); (3) speed of sound refused at Q==0/1 where upstream retur
 saturated branch; (4) Gibbs energy refused in the dome where upstream applies the lever
 rule; (5) the ECHO ROUTE missing from the cubic and incompressible paths — upstream
 returns an output that IS an input without updating the state, so `PropsSI("T","T",...)`
-answers even where the flash cannot converge. One known divergence remains, asserted
-explicitly so it cannot silently widen OR silently heal: cubic PQ below one pascal.
+answers even where the flash cannot converge. The one divergence this sweep left standing —
+cubic PQ below one pascal — was root-caused and FIXED on 2026-08-17 (see below).
 
 **2026-08-16 post-completion audit (NEXT-STEPS candidates #1+#2) is DONE**: the six
 `partial_cmp().unwrap()` sites proved NaN-unreachable (closed, unchanged); TEN more invented
@@ -207,8 +207,13 @@ NEW mixture defects: two port bugs fixed to bitwise (mixture transport uses the 
 component's DmolarT-flash pressure; stability warm solves carry SatL/SatV's constructor phase
 imposition), three wheel-side failures pinned in acceptance.rs as port-asserted divergences
 (mixture HSU_P shared-state corruption ×2, shallow-TPD metastable root ×1 — each proven by
-the wheel contradicting its own fresh PT flash). Cubic sub-pascal PQ gate widened to the
-observed 10 Pa envelope. ~38,400 committed oracle records; all suites green.
+the wheel contradicting its own fresh PT flash). The cubic sub-pascal PQ divergence (gate then
+at the observed 10 Pa envelope) is FIXED as of 2026-08-17: two association deviations in
+`psi_plus(0)` vs upstream (direct division instead of multiply-by-`c_term = 1/bm`; ungrouped
+`delta*Delta_i*b` instead of `delta*(Delta_i*bm)`) put ulp-level noise into the equal-Gibbs
+residual exactly where near-vacuum vapour-root cancellation left no headroom — all 58
+gate-band flashes now converge, matching the wheel to ≤2 ulp, and the acceptance allowance is
+deleted. ~38,400 committed oracle records; all suites green.
 
 **2026-08-17: the OUTPUT TAIL and the mixture latents are closed.** Every output the wheel
 serves is now ported on the HEOS and cubic routes (ideal-gas family, residual Gibbs, the

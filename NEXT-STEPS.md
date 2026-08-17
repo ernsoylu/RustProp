@@ -75,7 +75,6 @@ heal. Do not "fix" one without checking the assertion that pins it.
 
 | Divergence | Where | Why it stands |
 |---|---|---|
-| Cubic PQ flashes below **10 Pa**: upstream's equal-Gibbs secant converges, this port's gives up (12 records of 6,020; observed give-ups at 0.18–1.95 Pa) | `tests/golden/tests/acceptance.rs`, asserted to STILL reproduce, error-only | Seed, step, tolerance and iteration cap are upstream's verbatim; the difference is root conditioning inside the residual, at the extreme cold end of the cubic's own saturation range (SRK CO2 bottoms out at 91 K / 0.18 Pa — the real triple is 217 K) |
 | THREE pinned mixture records where the port answers and the wheel's recorded value is provably not the wheel's own equilibrium (mixture HSU_P shared-state corruption ×2; shallow-TPD metastable root ×1) | `acceptance.rs` `mixture_divergences`, each pinned to the PORT's value with heal detection | Upstream's HSU_P residual mutates the shared backend (a Tmax-endpoint PT evaluation corrupts SatL/SatV and disables the two-phase split for the rest of the solve); a fresh wheel PT flash at the port's converged T reproduces the port BITWISE. The corruption is history-dependence the port's stateless flashes deliberately cannot express |
 | The imposition-clear channel of the same corruption (upstream's stability feed fallback permanently clears SatL's constructor liquid imposition for the backend instance): the wheel's Nitrogen[0.97]&Water[0.03] sweep-pair inversions contradict its own forward flashes by up to 1.7 K or error outright | `hsu_p_imposition_clear_divergence_pinned` in `tests/golden/tests/mixtures.rs`, asserting the port's self-consistent inversions | Only observable through sweep-pair flashes (scalar PT builds a fresh backend per call); reproducing it would make PS/HP flashes history-dependent — same ruling as the row above. Full mechanism in the 2026-08-17 Decisions entries |
 | `HAPropsSI` errors return `Result` instead of upstream's `+inf`-with-a-global | humid-air suite | A global error slot is not a thing a WASM library should have |
@@ -225,21 +224,21 @@ unported by `hsu_p_imposition_clear_divergence_pinned`, the Brent-throw
 latent proved not-constructible, and the hunt's bonus find — swallowed
 density-solve failures in `successive_substitution_guessrho` — is fixed.)*
 
-### 1. The cubic sub-pascal secant (medium, low)
+*(2026-08-17, later: the previous #1 — the cubic sub-pascal secant — is
+FIXED, not excused: two association deviations in `psi_plus(0)` put ulp-level
+noise into the equal-Gibbs residual exactly where near-vacuum cancellation
+left no headroom. All 58 gate-band flashes now converge, the nine formerly
+erroring records match the wheel to ≤2 ulp, and the acceptance allowance is
+deleted. See the Decisions log.)*
 
-The one open SOLVER divergence (the three pinned mixture records are the
-wheel failing, not the port). The call parameters are verbatim; the difference is
-inside `saturation_residual`'s density root selection at near-vacuum. Worth
-doing only if someone actually needs cubic VLE below a pascal.
-
-### 2. Performance (medium, unmeasured)
+### 1. Performance (medium, unmeasured)
 
 Nothing in this project has been profiled. The obvious candidate is the
 LogPH table build at ~100 s per process. Before optimising anything, measure
 — and note that `StateDerivs` caching already took LogPT from 50 s to 3.2 s
 without changing a single result.
 
-### 3. Documentation for consumers (small, medium)
+### 2. Documentation for consumers (small, medium)
 
 The README quickstart is real and doc-tested. What does not exist: per-engine
 guidance on *which* backend to choose, and a worked WASM example beyond the
