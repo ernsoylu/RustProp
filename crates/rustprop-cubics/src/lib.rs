@@ -197,10 +197,16 @@ impl CubicEos {
     fn psi_plus(&self, delta: f64, idelta: usize) -> f64 {
         match idelta {
             0 => {
-                let a_term = ((delta * self.delta_1 * self.b + 1.0)
-                    / (delta * self.delta_2 * self.b + 1.0))
+                // A_term groups delta * (Delta_i*bm) + 1 (GeneralizedCubic.h:619-623
+                // with cm = 0, rho_r = 1).
+                let a_term = ((delta * (self.delta_1 * self.b) + 1.0)
+                    / (delta * (self.delta_2 * self.b) + 1.0))
                     .ln();
-                a_term / self.b / (self.delta_1 - self.delta_2)
+                // Upstream multiplies by c_term = 1/bm (GeneralizedCubic.cpp:553-556).
+                // The ulp between these associations and direct division decides the
+                // equal-Gibbs secant at sub-pascal PQ, where vapour-root cancellation
+                // sits at the residual's tolerance floor.
+                a_term * (1.0 / self.b) / (self.delta_1 - self.delta_2)
             }
             1 => 1.0 / self.pi_12(delta, 0),
             2 => {

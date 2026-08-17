@@ -63,28 +63,6 @@ fn acceptance_sweep_matches_oracle() {
     // tail.
     assert_eq!(recs.len(), 6020);
 
-    // The one place this port and upstream part company, kept explicit
-    // rather than filtered out of the fixture so it cannot quietly widen.
-    //
-    // Cubic PQ flashes at near-vacuum pressures: upstream's equal-Gibbs
-    // secant converges where this port's gives up, at the extreme cold end
-    // of the cubic's own saturation range (SRK::CarbonDioxide bottoms out at
-    // 91 K / 0.18 Pa — CO2's real triple point is 217 K, so these are pure
-    // extrapolation). The seed, step, tolerance and iteration cap are
-    // upstream's verbatim; the difference is root conditioning inside the
-    // residual, not solver structure. The original draws failed only below
-    // one pascal; the 2026-08 extension draws hit the same secant give-up at
-    // 1.3 and 1.95 Pa, so the gate is the observed envelope's decade, 10 Pa.
-    // The allowance excuses only ERRORS — a converged-but-wrong value in
-    // this band still fails — and the heal-detection assert below keeps it
-    // honest.
-    let known_divergence = |rec: &rustprop_golden_tests::GoldenRecord| {
-        (rec.backend == "SRK" || rec.backend == "PR")
-            && rec.name1 == "P"
-            && rec.name2 == "Q"
-            && rec.val1 < 10.0
-    };
-
     // Three mixture records where the WHEEL's recorded answer is demonstrably
     // not its own equilibrium, each triaged to a specific upstream mechanism
     // and pinned to the PORT's answer so the divergence can neither widen nor
@@ -132,7 +110,6 @@ fn acceptance_sweep_matches_oracle() {
     ];
 
     let mut failures = Vec::new();
-    let mut diverged = 0usize;
     let mut diverged_mixture = 0usize;
     let mut by_backend: std::collections::BTreeMap<String, usize> =
         std::collections::BTreeMap::new();
@@ -256,14 +233,10 @@ fn acceptance_sweep_matches_oracle() {
                 }
             }
             Err(e) => {
-                if known_divergence(rec) {
-                    diverged += 1;
-                } else {
-                    failures.push(format!(
-                        "{}: errored where upstream answered: {e}",
-                        rec.id()
-                    ));
-                }
+                failures.push(format!(
+                    "{}: errored where upstream answered: {e}",
+                    rec.id()
+                ));
             }
         }
     }
@@ -285,14 +258,7 @@ fn acceptance_sweep_matches_oracle() {
             .collect::<Vec<_>>()
             .join("\n")
     );
-    // If the cubic secant ever gets fixed, this fires and the allowance
-    // above should be deleted — a known divergence that silently heals is
-    // still a lie in the test.
-    assert!(
-        diverged > 0,
-        "the documented sub-pascal cubic divergence no longer reproduces; remove the allowance"
-    );
-    // Same heal detection for the three pinned mixture records: if one comes
+    // Heal detection for the three pinned mixture records: if one comes
     // to match the wheel (e.g. after an upstream-side re-generation or a
     // solver change), its excuse never fires and this forces removing it.
     assert_eq!(
@@ -301,7 +267,7 @@ fn acceptance_sweep_matches_oracle() {
         "a pinned mixture divergence no longer reproduces; remove its entry"
     );
     println!(
-        "acceptance sweep: {} records, {diverged} known cubic divergences, {diverged_mixture} pinned mixture divergences",
+        "acceptance sweep: {} records, {diverged_mixture} pinned mixture divergences",
         recs.len()
     );
 }
