@@ -2124,6 +2124,58 @@ Append-only; newest last. Seeded entries:
   `expected` is then a placeholder 0.0, JSON Lines having no NaN literal), and the
   generator's `error_record` RAISES if the oracle in fact answers, so a stale pin fails
   regeneration loudly instead of silently becoming a value record.
+- 2026-08-17 — the single-phase HSU_P bisection STAND-IN IS CLOSED (Wave-2 R8): the
+  (P,X) temperature solve in `px_solve_single_phase` now runs the verbatim Boost
+  TOMS748 already in the tree (`solvers::toms748_solve`, landed in 10f) at upstream's
+  `eps_tolerance<double>(30)` with `max_iter = 100`, and it re-evaluates at the returned
+  bracket midpoint `0.5*(l+r)` with the probe's iteration counter reset — the state
+  served is THAT evaluation's, on the cold density path, exactly as
+  FlashRoutines.cpp:3173-3178. The residual is now upstream's `solver_resid` functor
+  (`PxResid`) rather than a closure, because the functor is stateful: it carries the last
+  three converged densities so a probe can seed its inner (T,p) density solve from the
+  previous probe's answer (`update_TP_guessrho` -> `solver_rho_Tp(T, p, guess)`, the
+  existing `solver_rho_tp_guessed`) under upstream's literal gate
+  `iter < 2 || |rhomolar1/rhomolar0 - 1| > 0.05 || force_robust_density`, with
+  `force_robust_density = (p > p_crit)` read once at construction — above the critical
+  pressure the carried-rho Newton hops branches inside the vdW loop below T_crit and
+  blows up where dp/drho -> 0 just above it, so upstream forces every supercritical-
+  pressure probe cold, and the port does too (measured: warm probes = 0 on every
+  supercritical golden). The phase the guessed solve consults is upstream's `_phase`,
+  not the bracket's working label: `clear()` does not reset `_phase`, so `px_probe_rho`
+  now returns the phase the cold probe left the state holding (identity for the imposed
+  liquid/gas brackets, the `pt_flash` determination otherwise). Upstream's
+  post-solve `is_in_closed_range(Tmin, Tmax, T)` guard is carried although
+  `toms748_solve` cannot return a T outside `[t_min, t_max]` — noted as unreachable at
+  the site, same treatment as the `post_update` phase-unknown arm. Upstream's
+  `eos0`/`eos1` companions are deliberately NOT carried: their only consumer is the
+  "above/below the maximum value" diagnostic of the still-unported derivative-path tail.
+  ONE UPSTREAM PATH DELIBERATELY LEFT OUT: `PXFLASH_DIRECT_EOS`, upstream's cache-bypass
+  for warm probes (default ON, but gated on `is_pure()`, so pseudo-pure never sees it),
+  which redoes the warm density solve as a Householder3 straight off
+  `residual_helmholtz->all` at a 1e-12 relative pressure residual. Upstream describes it
+  as "bit-equivalent within ULP" to the cached path and wraps it in a `catch (...)` that
+  falls through to precisely the `update_TP_guessrho` branch ported here — the port takes
+  upstream's own fallback, not an invented one. It exists to dodge a `CachedElement`
+  layer this port does not have (each residual owns a `DerivsMemo`), so porting it would
+  be porting a workaround; the price is ULP-scale disagreement on warm probes, which is
+  exactly what the 2.0e-16 median displacement below is.
+  MEASURED EFFECT — every committed (P, caloric) golden replayed (1,433 records over 16
+  fixtures) before and after: median relative displacement from the wheel 1.77e-10 ->
+  2.04e-16, p90 7.28e-10 -> 1.40e-13, p99 2.42e-9 -> 8.72e-10, max 1.52e-8 -> 1.07e-8,
+  and BITWISE agreement 262/1433 -> 608/1433. Not one golden moved past its tolerance,
+  so nothing was regenerated. Probe count over the same 1,128 solves: mean 8.79, mode 8,
+  7-9 for the representative subcritical liquid/gas HP and PS solves (upstream's ~9-14
+  band); the 22 solves above 12 probes are all supercritical-pressure, i.e. the widest
+  brackets with the warm carry forced off, and 16 is TOMS748's honest count there.
+  Cost: `tools/perf-bench` "HP liquid Water (T)" 386.8 -> 110.9 us/op and "HP gas Water
+  (T)" 404.2 -> 116.4 us/op (3.5x, quietest of three back-to-back passes; PERF.md carries
+  the conditions), and the LogPH grid builds that ride on HP flashes fall with them —
+  `acceptance_tabular` 204 s -> 17.7 s, `tabular_state` 183.5 s -> 20.8 s, `acceptance`
+  64.6 s -> 19.7 s. Also fixed in the same commit, R3's flag on
+  `tests/golden/tests/flash_pairs_extra.rs`: the tolerance rule read
+  `rec.name1 == "P" || rec.out == "P"`, but P sits SECOND in the 11 `(Hmolar, P)`
+  records, so those rode the 1e-9 tier the comment never claimed for them; the rule now
+  tests both input names, as it plainly intended.
 
 ---
 
