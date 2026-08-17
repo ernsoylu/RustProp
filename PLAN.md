@@ -2027,6 +2027,44 @@ Append-only; newest last. Seeded entries:
   200x200 checksum also unchanged. Measured (i7-1185G7 powersave, PERF.md): single-phase HP
   963/839 us -> 380/305 us, warm PT 17.7 -> 7.1 us, mixture PT 16.9 -> 6.8 ms, LogPH 200x200
   build 36.2 -> 12.4 s; memo-untouched raw-kernel rows moved <=14% (the noise band).
+- 2026-08-17 — pseudo-pure (H,P)/(P,S)/(P,U)/(D,P) flashes (Wave-2 R6): the last
+  pseudo-pure input pairs, closing `p_phase_determination_pure_or_pseudopure`'s
+  classic-ancillary arm. `p_phase_determination_pseudo_pure` (flash_px.rs) ports it
+  verbatim: `p > max_sat_p.p` splits supercritical on the STATES.critical calorics
+  (`calc_X_nocache(Tcrit, rhocrit)`) or density; triple..max_sat_p inverts pL/pV for
+  `_TLanc`/`_TVanc` and applies the rational-polynomial caloric bands (hL/hLV at TLanc,
+  sL at TLanc but sLV at TVanc — upstream's asymmetry reproduced; U = h − p/rho off the
+  rhoL(TLanc)/rhoV(TVanc) ancillaries with 1.5x bands; D at 0.95*rhoV(TVanc)/
+  1.05*rhoL(TLanc)); inconclusive states run the slow VLE — the ported pseudo-pure PQ at
+  Q=0 — and the lever rule with each branch at its own glide temperature (Q in
+  (−1e-9, 1+1e-9) loads the two-phase state with RAW `Q*V + (1−Q)*L` mixes as upstream);
+  below `ptriple*0.9999` is gas outright. `HSU_P` single-phase reuses the shared 30-bit
+  bisection stand-in via the extracted `px_solve_single_phase` (byte-identical move) with
+  upstream's brackets — gas [SatV->T() | TVanc−0.01, 1.5*Tmax], liquid [melt/Tmin floor,
+  SatL->T() | TLanc+0.01]; `DP` seeds Halley per upstream (liquid SatL->T()|TLanc,
+  supercritical-liquid 1.1*Tcrit, gas-like Peng-Robinson) into the existing `solve_t_dp`.
+  PORT BUG FOUND AND FIXED on the way: `solver_rho_tp_guessed` lacked the phase-imposed
+  stability retries — upstream's `SatL`/`SatV` sub-backends carry CONSTRUCTOR phase
+  impositions (`HelmholtzEOSMixtureBackend` ctor, same mechanism as the mixture
+  stability-warm-solve fix of 2026-08-16), so `update_TP_guessrho` runs the shared tail's
+  liquid retry (from 3*rho_reducing on `dp/drho<0 || d2p/drho2<0`) and gas retry (from
+  1e-6 on `dp/drho<0 || d2p/drho2>0`). Without them the R410A PQ liquid branch at
+  0.995*max_sat_p converged to the wrong (vapor-side) root — 5722 vs the wheel's 7230
+  mol/m^3 — poisoning every consumer of the slow VLE; with them the branch density is
+  BITWISE with the wheel and the near-max HSU_P/DP two-phase states match exactly.
+  Self-validation (wheel, ~660 states over all six fluids x four pairs, liquid/gas/
+  supercritical/two-phase Q in {0.3,0.5,0.7}/near-max/sub-triple): worst rtol H 7.4e-9,
+  S 7.5e-9, U 7.5e-9 (the shared 30-bit bisection tolerance), D 3.6e-11; the Air 1-bar
+  low-quality window fails IDENTICALLY (Q<=0.035 errors in both, Q>=0.036 converges in
+  both, converged Q bitwise). ONE divergence pinned, not fixed: R507A gas-classified
+  caloric states at p = 0.995*max_sat_p — the bracket's Tmin probe (TVanc−0.01, 0.24 K
+  below Tcrit) converges Householder4 to the dense root, BOTH implementations then fire
+  the gas stability retry from 1e-6, and the retry trajectory is CHAOTIC through the vdW
+  loop: the wheel's happens to land the root at iter 27, ours (EOS sums agree at 1e-13,
+  not bitwise) wanders to max-iters and errors loudly. A needle, not a window — 0.9925
+  and 0.9975 of max_sat_p both agree at <=2e-9; matching it would require bitwise alphar
+  arithmetic (same ruling as the SVDSBTL ulp row). Facade guard narrowed to exactly
+  these pairs; every other pseudo-pure pair keeps its verbatim NotImplemented.
 
 ---
 

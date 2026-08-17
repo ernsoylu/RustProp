@@ -307,11 +307,22 @@ fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosStat
         other => (other, v1, v2),
     };
     // Pseudo-pure fluids: the ported paths are the ones upstream's
-    // ancillary machinery serves directly (QT at Q in {0,1}, PQ, PT); the
+    // ancillary machinery serves directly (QT at Q in {0,1}, PQ, PT) plus
+    // the classic-ancillary (H,P)/(P,S)/(P,U)/(D,P) flashes
+    // (`p_phase_determination_pure_or_pseudopure`'s pseudo-pure arm); the
     // remaining pairs route into superancillary-only machinery and stay
     // loud errors until their classic legacy solvers are ported.
     if flash.fluid().eos.pseudo_pure
-        && !matches!(pair, InputPair::PT | InputPair::QT | InputPair::PQ)
+        && !matches!(
+            pair,
+            InputPair::PT
+                | InputPair::QT
+                | InputPair::PQ
+                | InputPair::HmolarP
+                | InputPair::PSmolar
+                | InputPair::PUmolar
+                | InputPair::DmolarP
+        )
     {
         return Err(Error::NotImplemented(format!(
             "input pair {} is not ported yet for pseudo-pure fluids",

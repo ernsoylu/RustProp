@@ -89,9 +89,11 @@ fn pseudo_pure_error_conditions() {
         ),
         other => panic!("expected Value error, got {other:?}"),
     }
-    // Unported pairs stay loud.
+    // Unported pairs stay loud ((D,T) still routes through the guard;
+    // (H,P)/(P,S)/(P,U)/(D,P) are served since the classic-ancillary
+    // flash port).
     assert!(matches!(
-        props_si("T", "Hmolar", 5000.0, "P", 1e6, "HEOS::Air").unwrap_err(),
+        props_si("P", "Dmolar", 5000.0, "T", 100.0, "HEOS::Air").unwrap_err(),
         Error::NotImplemented(_)
     ));
 }
