@@ -1974,6 +1974,41 @@ Append-only; newest last. Seeded entries:
   as designed); the near-vacuum 1e-4 tolerance TIER stays — it serves saturation states
   on every backend, not the deleted cubic excuse.
 
+- 2026-08-17 — Pre-tag hygiene bundle (release pipeline + packaging + docs), one decision
+  per item: (1) `release.yml`: the crates-io job now requires a `refs/tags/v*` ref (a
+  `workflow_dispatch` run — kept for verify-only rehearsals — could otherwise have
+  published), the verify job asserts the pushed tag equals the workspace version via
+  `cargo metadata`, and `concurrency: release-${{ github.ref }}` serializes runs.
+  (2) MSRV: workspace `rust-version` said 1.85 but rustprop-heos uses let-chains
+  (stabilized 1.88; e.g. flash_hs.rs:698) — declared 1.88 and added a CI `msrv` job
+  (`cargo +1.88 check` of the facade and wasm crates with `all-backends`); the stale
+  ci.yml comment calling rust-toolchain.toml "pinned" corrected (it floats on stable).
+  Side effect ruled on: with MSRV >= 1.88 clippy proposes collapsing nested
+  `if let` + `if` into let-chains at 18 ported sites — refused via a workspace
+  `collapsible_if = "allow"` because the nested shape mirrors upstream C++ control flow.
+  (3) crates.io metadata in `[workspace.package]`: `readme = "README.md"` (cargo
+  re-anchors the workspace-relative path per inheriting crate — verified with
+  `cargo package --list`), keywords, categories (science/mathematics/wasm), inherited by
+  all 12 shipped crates; LICENSE plain-copied into every crate dir so the CoolProp
+  attribution travels inside each `.crate`; docs.rs metadata builds rustprop and
+  rustprop-wasm with `all-backends`, rustprop-data with its five aggregate data features.
+  (4) README: the two contradictory Status sections merged (~39,100 records), sizes
+  re-anchored to WASM-SIZES.md (127.7 KB IF97 / 310.2 KB HEOS+Water — the old "~136 KB"
+  was a pre-bindgen facade-only figure), MSRV stated, install snippet + facade feature
+  table added, the owner-machine PATH note dropped (it lives in CLAUDE.md).
+  (5) Crate-root docs: rustprop-tabular and rustprop-svdsbtl no longer open with "Not
+  yet ported"; both state the LOW-LEVEL-ONLY contract (upstream
+  `available_in_high_level()` is false); rustprop-heos's Phase-4-era doc now describes
+  the shipped scope. (6) cfg-gate bug: `props_api` was gated on any(heos, if97, cubics,
+  incompressible) — a pcsaft-only build had no `props_si` although the PCSAFT route
+  exists and is golden-tested. `pcsaft` added to the facade gate and both rustprop-wasm
+  gates; regression pinned by crates/rustprop/tests/pcsaft_only.rs (oracle Z for
+  PCSAFT::TOLUENE at 300 K / 101325 Pa). (7) `Error` is `#[non_exhaustive]` — semver
+  headroom for upstream tracking (the omitted host-integration codes, codes a future
+  release adds); no downstream exhaustive match existed, so nothing changed shape.
+  RULING, so the question is closed: `Param`/`InputPair`/`Phase` stay DELIBERATELY
+  exhaustive — compiler-forced match exhaustiveness is a port-completeness tool.
+
 ---
 
 ## Status: all fifteen phases complete

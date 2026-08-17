@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 rustprop-core.workspace = true
@@ -47,3 +50,7 @@ all-backends = [
 
 [lints]
 workspace = true
+
+# docs.rs builds with every engine visible; default features are empty.
+[package.metadata.docs.rs]
+features = ["all-backends"]

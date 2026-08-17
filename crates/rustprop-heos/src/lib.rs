@@ -1,8 +1,14 @@
 //! HEOS engine — multiparameter Helmholtz EOS for pure fluids and mixtures (port of CoolProp 8 src/Backends/Helmholtz)
 //!
-//! Phase 4 of PLAN.md. Currently ported: the Helmholtz term machinery
-//! ([`alpha`]) for the families Water uses, golden-verified term-by-term
-//! against the CoolProp 8.0.0 wheel's `AbstractState` derivative accessors.
+//! Fully ported and golden-verified against the CoolProp 8.0.0 wheel: the
+//! Helmholtz term machinery ([`alpha`]), classic and super-ancillaries
+//! ([`ancillary`], [`superancillary`]), every `PropsSI`-reachable flash pair
+//! for the 130 pure and 6 pseudo-pure fluids ([`flash_pt`], [`flash_px`],
+//! [`flash_hs`]), melting lines ([`melting`]), transport and surface tension
+//! ([`transport`]), the generic partial-derivative machinery ([`derivs`]),
+//! and the mixture model — GERG reducing/departure functions, VLE, Michelsen
+//! stability/split, and the sweep pairs ([`mixture`], [`mixture_vle`],
+//! [`mixture_flash`], [`mixture_stability`], [`mixture_sweep`]).
 
 pub mod alpha;
 pub mod ancillary;

@@ -28,26 +28,67 @@ Fidelity is the rule: the same algorithms and the same fluid data as upstream Co
 
 Engine and fluid selection is a compile-time choice, so a bundle carries only what
 the application asked for. Measured bytes per feature set are in
-[WASM-SIZES.md](WASM-SIZES.md) — IF97 alone is 124 KB, HEOS with Water 304 KB, and
-everything at once 4.2 MB. Regenerate with `tools/wasm-size-table.sh`.
+[WASM-SIZES.md](WASM-SIZES.md) — IF97 alone is 127.7 KB, HEOS with Water 310.2 KB,
+and everything at once 4.2 MB. Regenerate with `tools/wasm-size-table.sh`.
 
 ```bash
 wasm-pack build crates/rustprop-wasm --target web --features heos,water
 ```
 
+## Installing
+
+Requires Rust 1.88 or newer (the workspace MSRV, checked in CI).
+
+```bash
+cargo add rustprop --features if97              # a single self-contained engine
+cargo add rustprop --features all-backends      # everything (largest binary)
+```
+
+Engines that read per-fluid data use two dependencies — the facade selects the
+engine, `rustprop-data` selects exactly the fluids your binary carries:
+
+```bash
+cargo add rustprop --features heos
+cargo add rustprop-data --features water,r134a
+```
+
+Facade features (`default = []`):
+
+| Feature | Engine |
+|---|---|
+| `heos` | Multiparameter Helmholtz EOS; add fluids via `rustprop-data` |
+| `heos-mixtures` | HEOS mixtures (adds the binary-pair + departure-function data) |
+| `if97` | IAPWS-IF97 water/steam, self-contained |
+| `cubics` | SRK / Peng-Robinson, 116-fluid table included |
+| `incompressible` | Brines and secondary working fluids, 126 fluids included |
+| `pcsaft` | PC-SAFT EOS, 180-fluid table included |
+| `humid-air` | `HAPropsSI` psychrometrics (pulls Water + Air data) |
+| `tabular` | TTSE / bicubic tables — low-level API, pulls `heos` |
+| `svdsbtl` | SVD-compressed tabular lookup — low-level API |
+| `all-backends` | Every engine plus all 130 HEOS fluids |
+
 ## Project status
 
-All fifteen phases of `PLAN.md` are complete — every engine ported, ~33,900
-committed oracle records, CI green. See **[NEXT-STEPS.md](NEXT-STEPS.md)** for
-current status, known divergences from upstream, and what to work on next.
+All fifteen phases of `PLAN.md` are complete — every engine ported and
+golden-verified against the CoolProp 8.0.0 oracle wheel (~39,100 committed
+oracle records), CI green:
+
+- **IF97**: 356 records at rtol 1e-11; all IAPWS published check tables pass.
+- **HEOS**: all 130 superancillary pure fluids plus the 6 pseudo-pure blends,
+  every `PropsSI`-reachable input pair, transport, surface tension, melting
+  lines, and the full mixture VLE/flash machinery (154 predefined blends).
+- **Cubics, PC-SAFT, incompressible, humid air**: complete, upstream quirks
+  reproduced rather than repaired.
+- **Tabular (TTSE/bicubic) and SVDSBTL**: low-level APIs only, exactly as
+  upstream (`available_in_high_level()` is false there too).
+
+See **[NEXT-STEPS.md](NEXT-STEPS.md)** for current status, known divergences
+from upstream, and what to work on next. The porting plan, fidelity rules, and
+upstream mapping live in `CLAUDE.md` and `PLAN.md`.
 
 ## Building
 
-`~/.cargo/bin` may not be on `PATH` in this environment:
-
 ```bash
-export PATH="$HOME/.cargo/bin:$PATH"
-
 cargo build                                           # native
 cargo test                                            # all tests
 cargo run -p rustprop-cli                             # example CLI
@@ -67,24 +108,12 @@ $ cargo run -p rustprop-cli -- props H T 300 P 101325 IF97::Water
 ```
 
 or from Rust (features select the engines and, per fluid, the data your binary carries —
-`heos` + `rustprop-data/water` compiles to ~136 KB of wasm):
+`heos` + `rustprop-data/water` is a 310 KB wasm-pack bundle, see [WASM-SIZES.md](WASM-SIZES.md)):
 
 ```rust
 // Equivalent to PropsSI("Dmolar", "T", 300, "P", 101325, "Water")
 let d = rustprop::props_si("Dmolar", "T", 300.0, "P", 101325.0, "Water")?;
 ```
-
-## Status
-
-Golden-verified against the CoolProp 8.0.0 oracle wheel (~12,000 committed records):
-
-- **IF97** steam engine (356 records at rtol 1e-11; all IAPWS published check tables pass).
-- **HEOS** pure fluids: all 130 superancillary fluids generated, bitwise data-fidelity-walked,
-  and smoke-tested; 12 fluids carry full per-suite batteries (Helmholtz terms through every
-  flash pair, including (H,S)); all eight input pairs; `PropsSI`-style string API with
-  mass-basis aliases, trivial outputs, and upstream error conditions.
-
-The porting plan, fidelity rules, and upstream mapping live in `CLAUDE.md` and `PLAN.md`.
 
 ## License
 

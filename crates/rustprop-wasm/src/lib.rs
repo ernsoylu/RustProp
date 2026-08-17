@@ -35,7 +35,8 @@ pub fn upstream_version() -> String {
     feature = "heos",
     feature = "if97",
     feature = "cubics",
-    feature = "incompressible"
+    feature = "incompressible",
+    feature = "pcsaft"
 ))]
 #[wasm_bindgen]
 pub fn props_si(
@@ -65,7 +66,8 @@ pub fn props_si(
     feature = "heos",
     feature = "if97",
     feature = "cubics",
-    feature = "incompressible"
+    feature = "incompressible",
+    feature = "pcsaft"
 ))]
 #[wasm_bindgen]
 pub fn props_si_many(

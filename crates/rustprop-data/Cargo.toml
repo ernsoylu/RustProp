@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 rustprop-core.workspace = true
@@ -293,3 +296,13 @@ all-fluids = [
 
 [lints]
 workspace = true
+
+# docs.rs builds with the aggregate data features visible; defaults are empty.
+[package.metadata.docs.rs]
+features = [
+    "all-fluids",
+    "mixture-data",
+    "cubic-fluids",
+    "incompressible-fluids",
+    "pcsaft-fluids",
+]
