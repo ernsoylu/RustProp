@@ -648,7 +648,15 @@ fn minimize_tpd(
 // Wilson-seeded speculative split
 // ---------------------------------------------------------------------------
 
-/// `successive_substitution_guessrho`.
+/// `successive_substitution_guessrho`. A density-solve failure PROPAGATES —
+/// upstream's `update_TP_guessrho` calls here are unguarded
+/// (`VLERoutines.cpp:1845-1847`), so the throw escapes the whole Wilson
+/// guess block and the PT flash's catch treats it as not-two-phase.
+/// Swallowing it instead kept the PARTIAL seed alive, and `solve_michelsen`
+/// could converge it to a degenerate one-component-per-phase "equilibrium"
+/// that slips through the verify's y_i < 1e-12 skip (found on
+/// Methane[0.5]&Ethane[0.5] at 225 K / 8.75 MPa, where the wheel stays
+/// single-phase liquid).
 #[allow(clippy::too_many_arguments)]
 fn successive_substitution_guessrho(
     satl: &mut SatState<'_>,
@@ -661,7 +669,7 @@ fn successive_substitution_guessrho(
     t: f64,
     p: f64,
     num_steps: i32,
-) {
+) -> Result<()> {
     let n = z.len();
     let tol = 1e-10;
     let mut ln_k = vec![0.0; n];
@@ -670,19 +678,9 @@ fn successive_substitution_guessrho(
         let rho_liq_prev = *rhomolar_liq;
         let rho_vap_prev = *rhomolar_vap;
         satl.set_mole_fractions(x);
-        if satl
-            .update_tp_guessrho(t, p, *rhomolar_liq, Phase::Liquid)
-            .is_err()
-        {
-            break;
-        }
+        satl.update_tp_guessrho(t, p, *rhomolar_liq, Phase::Liquid)?;
         satv.set_mole_fractions(y);
-        if satv
-            .update_tp_guessrho(t, p, *rhomolar_vap, Phase::Gas)
-            .is_err()
-        {
-            break;
-        }
+        satv.update_tp_guessrho(t, p, *rhomolar_vap, Phase::Gas)?;
         *rhomolar_liq = satl.rhomolar;
         *rhomolar_vap = satv.rhomolar;
 
@@ -725,6 +723,7 @@ fn successive_substitution_guessrho(
             break;
         }
     }
+    Ok(())
 }
 
 /// `guess_split_from_wilson`: ideal K-factor split seed + SS refinement.
@@ -793,7 +792,8 @@ fn guess_split_from_wilson(
         t,
         p,
         num_steps,
-    );
+    )
+    .ok()?;
     Some((x, y, rhomolar_liq, rhomolar_vap))
 }
 

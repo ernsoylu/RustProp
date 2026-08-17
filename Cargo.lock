@@ -159,6 +159,7 @@ name = "rustprop-cubics"
 version = "0.1.0"
 dependencies = [
  "rustprop-core",
+ "rustprop-data",
  "rustprop-heos",
 ]
 

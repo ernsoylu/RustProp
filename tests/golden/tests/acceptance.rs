@@ -40,6 +40,7 @@ fn rtol_for(rec: &rustprop_golden_tests::GoldenRecord) -> f64 {
         (_, "isobaric_expansion_coefficient")
         | (_, "isothermal_compressibility")
         | (_, "PIP")
+        | (_, "isentropic_expansion_coefficient")
         | (_, "fundamental_derivative_of_gas_dynamics") => 1e-7,
         ("IF97", _) => 1e-11,
         ("INCOMP", _) => 1e-10,
@@ -57,8 +58,10 @@ fn acceptance_sweep_matches_oracle() {
     // 3,720 records from the original 15.3 seed (20260807, bitwise frozen)
     // plus 1,765 from the 2026-08 extension seed (20260816): 865 mixtures +
     // blends, 620 wide outputs, 140 IF97 flash pairs, 40 PC-SAFT Z, 100
-    // pseudo-pure transport.
-    assert_eq!(recs.len(), 5485);
+    // pseudo-pure transport; plus 535 from the output-tail seed (20260817):
+    // 330 HEOS output tail, 55 environmental trivials, 150 cubics output
+    // tail.
+    assert_eq!(recs.len(), 6020);
 
     // The one place this port and upstream part company, kept explicit
     // rather than filtered out of the fixture so it cannot quietly widen.
@@ -161,15 +164,26 @@ fn acceptance_sweep_matches_oracle() {
                 // through zero measures nothing. R for entropy and heat
                 // capacities, R*T for enthalpy and internal energy.
                 let scale = match rec.out.as_str() {
-                    "S" | "SMASS" | "SMOLAR" | "C" | "CVMASS" | "CMASS" | "Smolar_residual" => {
-                        Some(8.314_462_618)
-                    }
+                    // The ideal-gas entropies ride the entropy scale: s0 is
+                    // reference-offset exactly like S (this fixture's
+                    // smallest Smolar_idealgas is 28 J/mol/K, but s0 falls
+                    // with ln(rho) and crosses zero at high pressure).
+                    "S" | "SMASS" | "SMOLAR" | "C" | "CVMASS" | "CMASS" | "Smolar_residual"
+                    | "Smolar_idealgas" | "Smass_idealgas" => Some(8.314_462_618),
                     // Free energies and residual enthalpy cross zero exactly
                     // like H/U do (Gmolar and Helmholtzmolar sit at O(100)
                     // J/mol near ambient), so they take the same thermal
-                    // scale.
+                    // scale. The 20260817 tail joins the family: residual
+                    // Gibbs crosses zero in its draws (14 negative / 8
+                    // positive, smallest |value| 2.9e-3 J/mol), and the
+                    // reference-offset ideal-gas calorics approach it
+                    // (Umolar_idealgas bottoms out at 59 J/mol, well under
+                    // R*300 — a relative check there measures flash noise,
+                    // not agreement).
                     "H" | "U" | "HMASS" | "UMASS" | "G" | "Gmolar" | "Helmholtzmolar"
-                    | "Hmolar_residual" => Some(8.314_462_618 * 300.0),
+                    | "Hmolar_residual" | "Helmholtzmass" | "Gmolar_residual"
+                    | "Hmolar_idealgas" | "Umolar_idealgas" | "Hmass_idealgas"
+                    | "Umass_idealgas" => Some(8.314_462_618 * 300.0),
                     // Dimensionless O(1) quantities that legitimately cross
                     // zero: PIP passes through 0 between its liquid (~-7)
                     // and vapour (~+1) branches; the expansion coefficient
@@ -177,6 +191,29 @@ fn acceptance_sweep_matches_oracle() {
                     // natural magnitudes.
                     "PIP" => Some(1.0),
                     "isobaric_expansion_coefficient" => Some(1e-3),
+                    // Reduced-Helmholtz values and residual delta/tau
+                    // derivatives: dimensionless O(1..10), crossing zero
+                    // between attraction- and repulsion-dominated states
+                    // (alphar draws split 19 negative / 5 positive with
+                    // smallest |value| 3.8e-6; dalphar_ddelta 20/6,
+                    // dalphar_dtau 20/1; alpha0 dips to |0.44|). The
+                    // ideal-gas delta derivatives are signed powers of
+                    // 1/delta and dalpha0_dtau bottoms out at 1.33 in the
+                    // fixture, so they need no guard.
+                    "alphar" | "alpha0" | "dalphar_ddelta_consttau" | "dalphar_dtau_constdelta" => {
+                        Some(1.0)
+                    }
+                    // Virial coefficients cross zero at their Boyle points
+                    // (fixture sign splits: Bvirial 20 negative / 2
+                    // positive, Cvirial 3/21, dBvirial_dT 2/20 — quantum
+                    // fluids above B's maximum — dCvirial_dT 15/6). Each
+                    // scale is its observed median-magnitude decade:
+                    // |B| med 4.2e-4, |C| med 5.7e-9, |dB/dT| med 6.6e-7,
+                    // |dC/dT| med 2.6e-11.
+                    "Bvirial" => Some(1e-4),
+                    "Cvirial" => Some(1e-8),
+                    "dBvirial_dT" => Some(1e-6),
+                    "dCvirial_dT" => Some(1e-10),
                     _ => None,
                 };
                 let ok = match scale {

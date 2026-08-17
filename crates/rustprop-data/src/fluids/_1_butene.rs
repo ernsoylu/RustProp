@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static _1_BUTENE: FluidData = FluidData {
     name: "1-Butene",
     cas: "106-98-9",
     aliases: &["1Butene", "1BUTENE", "1-BUTENE", "Butene"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: -1.0,
+        gwp500: -1.0,
+        odp: -1.0,
+        hh: 0.0,
+        ph: 0.0,
+        fh: 4.0,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.05610631999999999,

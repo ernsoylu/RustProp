@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static R365MFC: FluidData = FluidData {
     name: "R365MFC",
     cas: "406-58-6",
     aliases: &["R365mfc"],
+    environmental: Environmental {
+        gwp20: 2520.0,
+        gwp100: 794.0,
+        gwp500: 241.0,
+        odp: -1.0,
+        hh: -1.0,
+        ph: -1.0,
+        fh: -1.0,
+    },
     eos: Eos {
         gas_constant: 8.3144621,
         molar_mass: 0.14807452,

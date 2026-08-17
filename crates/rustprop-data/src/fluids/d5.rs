@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static D5: FluidData = FluidData {
     name: "D5",
     cas: "541-02-6",
     aliases: &["Decamethylcyclopentasiloxane", "DECAMETHYLCYCLOPENTASILOXANE"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: -1.0,
+        gwp500: -1.0,
+        odp: -1.0,
+        hh: -1.0,
+        ph: -1.0,
+        fh: -1.0,
+    },
     eos: Eos {
         gas_constant: 8.3144598,
         molar_mass: 0.3707697,

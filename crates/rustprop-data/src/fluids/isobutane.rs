@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static ISOBUTANE: FluidData = FluidData {
     name: "IsoButane",
     cas: "75-28-5",
     aliases: &["isobutane", "Isobutane", "ISOBUTANE", "R600A", "R600a", "ISOBUTAN"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: -1.0,
+        gwp500: -1.0,
+        odp: -1.0,
+        hh: 1.0,
+        ph: 0.0,
+        fh: 4.0,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.0581222,

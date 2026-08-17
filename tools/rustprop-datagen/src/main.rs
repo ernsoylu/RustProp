@@ -47,6 +47,33 @@ struct InfoJson {
     cas: String,
     #[serde(rename = "ALIASES")]
     aliases: Vec<String>,
+    /// Absent for 11 documents; upstream then keeps the default-constructed
+    /// `EnvironmentalFactorsStruct` (every field `_HUGE`).
+    #[serde(rename = "ENVIRONMENTAL")]
+    environmental: Option<EnvJson>,
+}
+
+/// `INFO.ENVIRONMENTAL` — exactly the seven doubles upstream's
+/// `parse_environmental` (FluidLibrary.h) reads with the throwing
+/// `get_double`, so all are required here too. The block's `ASHRAE34` and
+/// `Name` strings are not carried (ASHRAE34 is PropsSI-unreachable; Name is
+/// unread by upstream's parse).
+#[derive(Deserialize)]
+struct EnvJson {
+    #[serde(rename = "GWP20")]
+    gwp20: f64,
+    #[serde(rename = "GWP100")]
+    gwp100: f64,
+    #[serde(rename = "GWP500")]
+    gwp500: f64,
+    #[serde(rename = "ODP")]
+    odp: f64,
+    #[serde(rename = "HH")]
+    hh: f64,
+    #[serde(rename = "PH")]
+    ph: f64,
+    #[serde(rename = "FH")]
+    fh: f64,
 }
 
 #[derive(Deserialize)]
@@ -351,10 +378,19 @@ struct StatesJson {
 
 /// Shortest round-trip f64 literal (Rust `{:?}` guarantees exact re-parse).
 /// NaN (a document field upstream never reads, e.g. a sat_min caloric)
-/// emits as the `f64::NAN` path expression.
+/// emits as the `f64::NAN` path expression; +inf (upstream's `_HUGE`
+/// default for a missing ENVIRONMENTAL block) as `f64::INFINITY`.
 fn f(v: f64) -> String {
     if v.is_nan() {
         return "f64::NAN".into();
+    }
+    if v.is_infinite() {
+        return if v > 0.0 {
+            "f64::INFINITY"
+        } else {
+            "f64::NEG_INFINITY"
+        }
+        .into();
     }
     format!("{v:?}")
 }
@@ -605,7 +641,7 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     }
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States{sa}{surf}{melt}{timp}}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States{sa}{surf}{melt}{timp}}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -614,6 +650,23 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     writeln!(w, "    cas: {:?},", doc.info.cas).unwrap();
     let aliases: Vec<String> = doc.info.aliases.iter().map(|a| format!("{a:?}")).collect();
     writeln!(w, "    aliases: &[{}],", aliases.join(", ")).unwrap();
+    // Missing block -> upstream's default-constructed struct: every field
+    // _HUGE (FluidLibrary.cpp, "Environmental data are missing" branch).
+    const HUGE: f64 = f64::INFINITY;
+    let env = doc.info.environmental.as_ref();
+    writeln!(w, "    environmental: Environmental {{").unwrap();
+    for (field, v) in [
+        ("gwp20", env.map_or(HUGE, |e| e.gwp20)),
+        ("gwp100", env.map_or(HUGE, |e| e.gwp100)),
+        ("gwp500", env.map_or(HUGE, |e| e.gwp500)),
+        ("odp", env.map_or(HUGE, |e| e.odp)),
+        ("hh", env.map_or(HUGE, |e| e.hh)),
+        ("ph", env.map_or(HUGE, |e| e.ph)),
+        ("fh", env.map_or(HUGE, |e| e.fh)),
+    ] {
+        writeln!(w, "        {field}: {},", f(v)).unwrap();
+    }
+    writeln!(w, "    }},").unwrap();
     writeln!(w, "    eos: Eos {{").unwrap();
     writeln!(w, "        gas_constant: {},", f(eos.gas_constant)).unwrap();
     writeln!(w, "        molar_mass: {},", f(eos.molar_mass)).unwrap();

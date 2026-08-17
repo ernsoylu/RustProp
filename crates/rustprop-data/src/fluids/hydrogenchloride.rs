@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static HYDROGENCHLORIDE: FluidData = FluidData {
     name: "HydrogenChloride",
     cas: "7647-01-0",
     aliases: &["HydrogenChloride", "HYDROGENCHLORIDE", "HCl", "HCL"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: -1.0,
+        gwp500: -1.0,
+        odp: -1.0,
+        hh: -1.0,
+        ph: -1.0,
+        fh: -1.0,
+    },
     eos: Eos {
         gas_constant: 8.3144598,
         molar_mass: 0.0364609,

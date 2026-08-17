@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static R1243ZF: FluidData = FluidData {
     name: "R1243zf",
     cas: "677-21-4",
     aliases: &["R1243ZF", "R-1243zf", "3,3,3-trifluoroprop-1-ene"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: 0.29,
+        gwp500: -1.0,
+        odp: 0.0,
+        hh: 1.0,
+        ph: 0.0,
+        fh: -1.0,
+    },
     eos: Eos {
         gas_constant: 8.314462618,
         molar_mass: 0.09605113,

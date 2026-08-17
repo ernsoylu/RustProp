@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States};
 
 pub static SES36: FluidData = FluidData {
     name: "SES36",
     cas: "SES36.ppf",
     aliases: &[],
+    environmental: Environmental {
+        gwp20: f64::INFINITY,
+        gwp100: f64::INFINITY,
+        gwp500: f64::INFINITY,
+        odp: f64::INFINITY,
+        hh: f64::INFINITY,
+        ph: f64::INFINITY,
+        fh: f64::INFINITY,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.18485,

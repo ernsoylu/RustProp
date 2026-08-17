@@ -552,6 +552,72 @@ fn keyed_output(
             )? * (state.rhomolar() * mm)
                 / (2.0 * w * w)
         }
+        // The ideal-gas caloric family and residual Gibbs — raw at the bulk
+        // state everywhere, dome included, like the other residuals.
+        Param::HmolarIdealgas => flash.eos.hmolar_idealgas(state.t(), state.rhomolar()),
+        Param::HmassIdealgas => flash.eos.hmolar_idealgas(state.t(), state.rhomolar()) / mm,
+        Param::SmolarIdealgas => flash.eos.smolar_idealgas(state.t(), state.rhomolar()),
+        Param::SmassIdealgas => flash.eos.smolar_idealgas(state.t(), state.rhomolar()) / mm,
+        Param::UmolarIdealgas => flash.eos.umolar_idealgas(state.t(), state.rhomolar()),
+        Param::UmassIdealgas => flash.eos.umolar_idealgas(state.t(), state.rhomolar()) / mm,
+        Param::GmolarResidual => flash.eos.gmolar_residual(state.t(), state.rhomolar()),
+        // `(rho/p) * d(P)/d(Dmolar)|Smolar` (AbstractState.cpp) — the p is
+        // the STATE's pressure (saturation p for dome inputs), the partial
+        // is at the bulk state.
+        Param::IsentropicExpansionCoefficient => {
+            let d = StateDerivs::new(&flash.eos, state.t(), state.rhomolar());
+            state.rhomolar() / state.p()
+                * d.first_partial_deriv(Param::P, Param::Dmolar, Param::Smolar)?
+        }
+        // The keyed alphar/alpha0 derivative strings, at the bulk state.
+        Param::Alphar
+        | Param::Alpha0
+        | Param::DalpharDdeltaConsttau
+        | Param::DalpharDtauConstdelta
+        | Param::Dalpha0DdeltaConsttau
+        | Param::Dalpha0DtauConstdelta
+        | Param::D2alpha0Ddelta2Consttau
+        | Param::D3alpha0Ddelta3Consttau => {
+            let (ar, a0) = flash.eos.alpha_all(state.t(), state.rhomolar());
+            match out {
+                Param::Alphar => ar.d00,
+                Param::Alpha0 => a0.d00,
+                Param::DalpharDdeltaConsttau => ar.d10,
+                Param::DalpharDtauConstdelta => ar.d01,
+                Param::Dalpha0DdeltaConsttau => a0.d10,
+                Param::Dalpha0DtauConstdelta => a0.d01,
+                Param::D2alpha0Ddelta2Consttau => a0.d20,
+                _ => a0.d30,
+            }
+        }
+        Param::Bvirial => flash.eos.bvirial(state.t(), state.rhomolar()),
+        Param::Cvirial => flash.eos.cvirial(state.t(), state.rhomolar()),
+        Param::DBvirialDT => flash.eos.dbvirial_dt(state.t(), state.rhomolar()),
+        Param::DCvirialDT => flash.eos.dcvirial_dt(state.t(), state.rhomolar()),
+        // Served literally as `_reducing.T/_T` and `_rhomolar/_reducing.rho`.
+        Param::Tau => flash.eos.tau_delta_keyed(state.t(), state.rhomolar()).0,
+        Param::Delta => flash.eos.tau_delta_keyed(state.t(), state.rhomolar()).1,
+        // `calc_Qmass` (AbstractState.cpp): exact Q == 0/1 passes Q through;
+        // otherwise the mass-basis lever `mv/(mv+ml)` is COMPUTED, not
+        // simplified — for a pure fluid the phase molar masses are equal and
+        // the roundtrip differs from Q only in the last ulp, which the wheel
+        // reproduces. Single-phase states refuse.
+        Param::Qmass => match state {
+            HeosState::SinglePhase { .. } => {
+                return Err(Error::Value(
+                    "Qmass requires a two-phase state (0 <= Q <= 1)".into(),
+                ));
+            }
+            HeosState::TwoPhase { q, .. } => {
+                if *q == 0.0 || *q == 1.0 {
+                    *q
+                } else {
+                    let mv = q * mm;
+                    let ml = (1.0 - q) * mm;
+                    mv / (mv + ml)
+                }
+            }
+        },
         Param::Viscosity => {
             // Upstream calc_viscosity evaluates at the state's (T, rhomolar)
             // regardless of phase (two-phase uses the mixture density).
@@ -692,6 +758,7 @@ fn trivial_output(flash: &PtFlash, data: &'static FluidData, out: Param) -> Resu
         Param::PMax => data.eos.p_max,
         Param::TReducing => data.eos.reducing.t,
         Param::RhomolarReducing => data.eos.reducing.rhomolar,
+        Param::PReducing => data.eos.reducing.p,
         // Upstream's `trivial_keyed_output` has NO rhomass_reducing case —
         // the parameter parses but the accessor refuses. Answering it here
         // was an invented output.
@@ -705,6 +772,37 @@ fn trivial_output(flash: &PtFlash, data: &'static FluidData, out: Param) -> Resu
         Param::MolarMass => data.eos.molar_mass,
         Param::AcentricFactor => data.eos.acentric,
         Param::GasConstant => data.eos.gas_constant,
+        // Environmental factors (`INFO.ENVIRONMENTAL`, default-resolved to
+        // +inf where the document lacks the block). GWP/ODP gate on
+        // upstream's `!ValidNumber(v) || v < 0` (the data's unspecified
+        // sentinel is -1); FH/HH/PH are served RAW — a blockless fluid's
+        // +inf crosses the wheel as an error with an EMPTY message.
+        Param::GWP20 | Param::GWP100 | Param::GWP500 | Param::ODP => {
+            let v = match out {
+                Param::GWP20 => data.environmental.gwp20,
+                Param::GWP100 => data.environmental.gwp100,
+                Param::GWP500 => data.environmental.gwp500,
+                _ => data.environmental.odp,
+            };
+            if !v.is_finite() || v < 0.0 {
+                return Err(Error::Value(format!(
+                    "{} value is not specified or invalid",
+                    out.short_name()
+                )));
+            }
+            v
+        }
+        Param::FH | Param::HH | Param::PH => {
+            let v = match out {
+                Param::FH => data.environmental.fh,
+                Param::HH => data.environmental.hh,
+                _ => data.environmental.ph,
+            };
+            if !v.is_finite() {
+                return Err(Error::Value(String::new()));
+            }
+            v
+        }
         other => {
             return Err(Error::NotImplemented(format!(
                 "trivial output parameter {} is not ported yet",
@@ -753,7 +851,7 @@ fn cubic_route(
     fluid: &str,
 ) -> Result<f64> {
     use rustprop_core::params::Phase;
-    use rustprop_cubics::{CubicEos, CubicKind, CubicSatState};
+    use rustprop_cubics::{CubicEos, CubicKind, CubicSatState, StateDerivs};
 
     let kind = match kind {
         CubicRouteKind::Srk => CubicKind::Srk,
@@ -798,6 +896,23 @@ fn cubic_route(
         return Err(Error::Value(format!(
             "This input [{}: \"{}\"] is not valid for trivial_keyed_output",
             out.index(),
+            out.short_name()
+        )));
+    }
+    // Environmental trivials on the fabricated cubic fluid: `_reducing.p`
+    // and `environment.*` are UNSET, so upstream's keyed_output returns inf
+    // and PropsSI surfaces an error with an EMPTY message (wheel:
+    // `ValueError('')`), while the GWP/ODP accessors gate on their -1
+    // sentinel first and refuse with their own text. All state-free.
+    if matches!(out, Param::PReducing | Param::FH | Param::HH | Param::PH) {
+        return Err(Error::Value(String::new()));
+    }
+    if matches!(
+        out,
+        Param::GWP20 | Param::GWP100 | Param::GWP500 | Param::ODP
+    ) {
+        return Err(Error::Value(format!(
+            "{} value is not specified or invalid",
             out.short_name()
         )));
     }
@@ -882,6 +997,43 @@ fn cubic_route(
         /// remain readable. Oracle-verified.
         TwoPhaseDt(CubicSatState),
     }
+
+    // Upstream `calc_speed_sound` behaviour, shared by the SpeedSound arm
+    // and the fundamental derivative's w gate: saturated-branch value at
+    // Q == 0/1, the verbatim distribution-of-phases refusal strictly
+    // inside. Upstream checks Q BEFORE touching the sub-states, so a (D,T)
+    // dome state gets the refusal, not the broken-sub-state throw
+    // (wheel-confirmed); exact Q == 0/1 never arrives from the strict dome
+    // branch, so that throw is kept only for shape.
+    fn speed_sound_gated(eos: &CubicEos, state: &CubicState, q: f64) -> Result<f64> {
+        match state {
+            CubicState::Single { t, rho, .. } => Ok(eos.speed_sound(*t, *rho)),
+            CubicState::TwoPhase(s) => {
+                if q.abs() < f64::EPSILON {
+                    Ok(eos.speed_sound(s.t, s.rho_l))
+                } else if (q - 1.0).abs() < f64::EPSILON {
+                    Ok(eos.speed_sound(s.t, s.rho_v))
+                } else {
+                    Err(Error::Value(
+                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
+                    ))
+                }
+            }
+            CubicState::TwoPhaseDt(_) => {
+                if q.abs() >= f64::EPSILON && (q - 1.0).abs() >= f64::EPSILON {
+                    Err(Error::Value(
+                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
+                    ))
+                } else {
+                    Err(Error::Value(
+                        "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 1, nDelta: 0, tau: inf, delta: 0"
+                            .into(),
+                    ))
+                }
+            }
+        }
+    }
+
     let state = match pair {
         InputPair::PT => {
             let (rho, phase) = eos.pt_flash(v2, v1)?;
@@ -960,37 +1112,9 @@ fn cubic_route(
         Param::Cpmass => eos.cpmolar(t, rho) / mm,
         Param::Cvmolar => eos.cvmolar(t, rho),
         Param::Cvmass => eos.cvmolar(t, rho) / mm,
-        // Speed of sound IS guarded, with upstream's verbatim message.
-        Param::SpeedSound => match &state {
-            CubicState::Single { t, rho, .. } => eos.speed_sound(*t, *rho),
-            CubicState::TwoPhase(s) => {
-                if q.abs() < f64::EPSILON {
-                    eos.speed_sound(s.t, s.rho_l)
-                } else if (q - 1.0).abs() < f64::EPSILON {
-                    eos.speed_sound(s.t, s.rho_v)
-                } else {
-                    return Err(Error::Value(
-                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
-                    ));
-                }
-            }
-            // Upstream checks Q BEFORE touching the sub-states, so a (D,T)
-            // dome state gets the distribution-of-phases refusal, not the
-            // broken-sub-state throw (wheel-confirmed). Exact Q == 0/1 never
-            // arrives here — the dome branch is strict — so the sub-state
-            // throw below is kept only for shape.
-            CubicState::TwoPhaseDt(_) => {
-                if q.abs() >= f64::EPSILON && (q - 1.0).abs() >= f64::EPSILON {
-                    return Err(Error::Value(
-                        "Speed of sound is not defined for two-phase states because it depends on the distribution of phases.".into(),
-                    ));
-                }
-                return Err(Error::Value(
-                    "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 1, nDelta: 0, tau: inf, delta: 0"
-                        .into(),
-                ));
-            }
-        },
+        // Speed of sound IS guarded, with upstream's verbatim message; the
+        // shared gate also serves the fundamental derivative below.
+        Param::SpeedSound => speed_sound_gated(eos, &state, q)?,
         // Inherited-HEOS outputs over the cubic tau/delta convention — raw
         // at the bulk state in the dome, exactly like cp/cv.
         Param::Z => eos.compressibility_factor(t, rho),
@@ -1016,6 +1140,111 @@ fn cubic_route(
             };
             if out == Param::Gmass { g / mm } else { g }
         }
+        // The remaining inherited family, raw at the bulk state ((D,T) dome
+        // included — the bulk (t, rho) is valid there, only the sub-states
+        // are broken).
+        Param::GmolarResidual => eos.gibbsmolar_residual(t, rho),
+        Param::HmolarIdealgas => eos.hmolar_idealgas(t, rho),
+        Param::HmassIdealgas => eos.hmolar_idealgas(t, rho) / mm,
+        Param::SmolarIdealgas => eos.smolar_idealgas(t, rho),
+        Param::SmassIdealgas => eos.smolar_idealgas(t, rho) / mm,
+        Param::UmolarIdealgas => eos.umolar_idealgas(t, rho),
+        Param::UmassIdealgas => eos.umolar_idealgas(t, rho) / mm,
+        Param::Bvirial => eos.bvirial(t),
+        Param::Cvirial => eos.cvirial(t),
+        Param::DBvirialDT => eos.dbvirial_dt(t),
+        Param::DCvirialDT => eos.dcvirial_dt(t),
+        // The keyed alphar/alpha0 derivative strings in the cubic
+        // convention (alpha0 through the calc_alpha0_deriv_nocache rescale).
+        Param::Alphar
+        | Param::Alpha0
+        | Param::DalpharDdeltaConsttau
+        | Param::DalpharDtauConstdelta
+        | Param::Dalpha0DdeltaConsttau
+        | Param::Dalpha0DtauConstdelta
+        | Param::D2alpha0Ddelta2Consttau
+        | Param::D3alpha0Ddelta3Consttau => {
+            let ar = eos.alphar_all(1.0 / t, rho);
+            let a0 = eos.alpha0_all(1.0 / t, rho);
+            match out {
+                Param::Alphar => ar.d00,
+                Param::Alpha0 => a0.d00,
+                Param::DalpharDdeltaConsttau => ar.d10,
+                Param::DalpharDtauConstdelta => ar.d01,
+                Param::Dalpha0DdeltaConsttau => a0.d10,
+                Param::Dalpha0DtauConstdelta => a0.d01,
+                Param::D2alpha0Ddelta2Consttau => a0.d20,
+                _ => a0.d30,
+            }
+        }
+        // `calc_helmholtzmolar` levers like Gibbs; the (D,T)-dome throw
+        // carries the same (0, 0) alpha0 message as Gibbs.
+        Param::Helmholtzmolar | Param::Helmholtzmass => {
+            let a = match &state {
+                CubicState::Single { t, rho, .. } => eos.helmholtzmolar(*t, *rho),
+                CubicState::TwoPhase(s) => {
+                    q * eos.helmholtzmolar(s.t, s.rho_v)
+                        + (1.0 - q) * eos.helmholtzmolar(s.t, s.rho_l)
+                }
+                CubicState::TwoPhaseDt(_) => {
+                    return Err(Error::Value(
+                        "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: 0, nDelta: 0, tau: inf, delta: 0"
+                            .into(),
+                    ));
+                }
+            };
+            if out == Param::Helmholtzmass {
+                a / mm
+            } else {
+                a
+            }
+        }
+        // The generic (T, rho) Jacobian machinery over the cubic derivative
+        // matrix — same call shapes as the HEOS route, raw at bulk.
+        Param::PIP => {
+            let d = StateDerivs::new(eos, t, rho);
+            2.0 - rho
+                * (d.second_partial_deriv(
+                    Param::P,
+                    Param::Dmolar,
+                    Param::T,
+                    Param::T,
+                    Param::Dmolar,
+                )? / d.first_partial_deriv(Param::P, Param::T, Param::Dmolar)?
+                    - d.second_partial_deriv(
+                        Param::P,
+                        Param::Dmolar,
+                        Param::T,
+                        Param::Dmolar,
+                        Param::T,
+                    )? / d.first_partial_deriv(Param::P, Param::Dmolar, Param::T)?)
+        }
+        Param::IsothermalCompressibility => {
+            let d = StateDerivs::new(eos, t, rho);
+            d.first_partial_deriv(Param::Dmolar, Param::P, Param::T)? / rho
+        }
+        Param::IsobaricExpansionCoefficient => {
+            let d = StateDerivs::new(eos, t, rho);
+            -d.first_partial_deriv(Param::Dmolar, Param::T, Param::P)? / rho
+        }
+        Param::IsentropicExpansionCoefficient => {
+            let d = StateDerivs::new(eos, t, rho);
+            rho / p * d.first_partial_deriv(Param::P, Param::Dmolar, Param::Smolar)?
+        }
+        // Colonna Eq. 1 with the Dmass/Smolar index mix; speed_sound is the
+        // two-phase gate, the second partial stays at the bulk state.
+        Param::FundamentalDerivativeOfGasDynamics => {
+            let w = speed_sound_gated(eos, &state, q)?;
+            let d = StateDerivs::new(eos, t, rho);
+            1.0 + d.second_partial_deriv(
+                Param::P,
+                Param::Dmass,
+                Param::Smolar,
+                Param::Dmass,
+                Param::Smolar,
+            )? * (rho * mm)
+                / (2.0 * w * w)
+        }
         // Transport / surface-tension error parity: the fabricated cubic
         // fluids carry no transport models or surface-tension curve;
         // Prandtl calls viscosity first, so it fails with its message.
@@ -1040,6 +1269,30 @@ fn cubic_route(
                 }
             });
         }
+        // Keyed literally: `_reducing.T/_T` and `_rhomolar/_reducing.rho`
+        // with the cubic's (1 K, 1 mol/m^3) reducing state.
+        Param::Tau => 1.0 / t,
+        Param::Delta => rho,
+        // `calc_Qmass`: exact Q == 0/1 passes through, otherwise the
+        // computed mass lever (equal phase molar masses — the roundtrip's
+        // last-ulp wobble is upstream's). Answers on the (D,T) dome states
+        // too — the formula never touches the broken sub-states.
+        Param::Qmass => match &state {
+            CubicState::Single { .. } => {
+                return Err(Error::Value(
+                    "Qmass requires a two-phase state (0 <= Q <= 1)".into(),
+                ));
+            }
+            CubicState::TwoPhase(_) | CubicState::TwoPhaseDt(_) => {
+                if q == 0.0 || q == 1.0 {
+                    q
+                } else {
+                    let mv = q * mm;
+                    let ml = (1.0 - q) * mm;
+                    mv / (mv + ml)
+                }
+            }
+        },
         other => {
             return Err(Error::NotImplemented(format!(
                 "output parameter {} is not ported for the cubic backends yet",

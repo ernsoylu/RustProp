@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityInitialDensity, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static N_PROPANE: FluidData = FluidData {
     name: "n-Propane",
     cas: "74-98-6",
     aliases: &["Propane", "propane", "R290", "C3H8", "PROPANE", "N-PROPANE", "NC3H8", "n-C3H8"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: 3.0,
+        gwp500: -1.0,
+        odp: -1.0,
+        hh: 1.0,
+        ph: 0.0,
+        fh: 4.0,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.04409562,

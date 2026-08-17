@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static HFE143M: FluidData = FluidData {
     name: "HFE143m",
     cas: "421-14-7",
     aliases: &["HFE-143m", "HFE143M", "HFE-143M", "RE143A", "RE143a"],
+    environmental: Environmental {
+        gwp20: f64::INFINITY,
+        gwp100: f64::INFINITY,
+        gwp500: f64::INFINITY,
+        odp: f64::INFINITY,
+        hh: f64::INFINITY,
+        ph: f64::INFINITY,
+        fh: f64::INFINITY,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.10004,

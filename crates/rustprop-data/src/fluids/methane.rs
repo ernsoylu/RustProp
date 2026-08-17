@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, SimonMeltPart, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder};
 
 pub static METHANE: FluidData = FluidData {
     name: "Methane",
     cas: "74-82-8",
     aliases: &["CH4", "methane", "METHANE", "R50", "n-C1H4"],
+    environmental: Environmental {
+        gwp20: 72.0,
+        gwp100: 25.0,
+        gwp500: 7.6,
+        odp: -1.0,
+        hh: 0.0,
+        ph: 0.0,
+        fh: 4.0,
+    },
     eos: Eos {
         gas_constant: 8.31451,
         molar_mass: 0.0160428,

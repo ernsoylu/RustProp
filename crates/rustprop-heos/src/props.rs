@@ -115,6 +115,84 @@ impl HelmholtzEos {
         self.gas_constant * (tau * residual.d01 - residual.d00)
     }
 
+    /// Ideal-gas molar enthalpy [J/mol] (upstream `calc_hmolar_idealgas`
+    /// wrapper chain, `AbstractState.cpp`): `R*T*(1 + tau*dalpha0_dtau)`.
+    pub fn hmolar_idealgas(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        self.gas_constant * t * (1.0 + tau * self.alpha0_all(tau, delta).d01)
+    }
+
+    /// Ideal-gas molar entropy [J/mol/K]: `R*(tau*dalpha0_dtau - alpha0)`.
+    /// The alpha0 VALUE carries the log-delta term, so this is
+    /// delta-dependent and evaluates at the bulk density like everything
+    /// else.
+    pub fn smolar_idealgas(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let ideal = self.alpha0_all(tau, delta);
+        self.gas_constant * (tau * ideal.d01 - ideal.d00)
+    }
+
+    /// Ideal-gas molar internal energy [J/mol]: `R*T*tau*dalpha0_dtau`.
+    pub fn umolar_idealgas(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        self.gas_constant * t * tau * self.alpha0_all(tau, delta).d01
+    }
+
+    /// Residual molar Gibbs energy [J/mol] (upstream inline
+    /// `calc_gibbsmolar_residual`): `R*T*(alphar + delta*dalphar_ddelta)`,
+    /// raw at the bulk density, dome included.
+    pub fn gmolar_residual(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        self.gas_constant * t * (residual.d00 + delta * residual.d10)
+    }
+
+    /// Second virial coefficient [m^3/mol] (upstream `calc_Bvirial`,
+    /// `HelmholtzEOSMixtureBackend.cpp`): `dalphar_ddelta` at the CURRENT
+    /// tau and `delta = 1e-12`, over the reducing density.
+    pub fn bvirial(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d10 / self.rhomolar_reducing
+    }
+
+    /// Third virial coefficient [m^6/mol^2] (upstream `calc_Cvirial`).
+    pub fn cvirial(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d20 / (self.rhomolar_reducing * self.rhomolar_reducing)
+    }
+
+    /// `dBvirial/dT` (upstream `calc_dBvirial_dT`): the mixed derivative at
+    /// `delta = 1e-12` chained through `dtau/dT = -Tr/T^2`.
+    pub fn dbvirial_dt(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d11 / self.rhomolar_reducing * (-self.t_reducing / (t * t))
+    }
+
+    /// `dCvirial/dT` (upstream `calc_dCvirial_dT`).
+    pub fn dcvirial_dt(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d21 / (self.rhomolar_reducing * self.rhomolar_reducing)
+            * (-self.t_reducing / (t * t))
+    }
+
+    /// The keyed `Tau`/`Delta` pair — upstream serves them literally as
+    /// `_reducing.T/_T` and `_rhomolar/_reducing.rhomolar` (bulk density in
+    /// the dome).
+    pub fn tau_delta_keyed(&self, t: f64, rhomolar: f64) -> (f64, f64) {
+        self.tau_delta(t, rhomolar)
+    }
+
+    /// Both derivative matrices at the bulk state, for the keyed
+    /// alphar/alpha0 output strings.
+    pub fn alpha_all(
+        &self,
+        t: f64,
+        rhomolar: f64,
+    ) -> (crate::alpha::HelmholtzDerivs, crate::alpha::HelmholtzDerivs) {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        (self.alphar_all(tau, delta), self.alpha0_all(tau, delta))
+    }
+
     /// Speed of sound [m/s] for a homogeneous phase (upstream
     /// `calc_speed_sound`, single-phase branch).
     pub fn speed_sound(&self, t: f64, rhomolar: f64) -> f64 {

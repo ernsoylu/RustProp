@@ -23,9 +23,47 @@ use crate::alpha::{HelmholtzDerivs, HelmholtzEos};
 use rustprop_core::params::Param;
 use rustprop_core::{Error, Result};
 
+/// The EOS surface the generic (T, rho) machinery consumes: the alphar and
+/// alpha0 derivative matrices in the CONSUMER'S OWN tau/delta convention,
+/// plus the reducing state and the constants. `HelmholtzEos` is the original
+/// implementor; `rustprop-cubics` implements it for `CubicEos` (Tr = 1,
+/// rho_r = 1, R = R_U_CODATA, alpha0 rescaled into the cubic convention) so
+/// the identical Jacobian-ratio formulas serve both backends — exactly as
+/// upstream's `AbstractState::get_dT_drho` runs over whichever backend's
+/// cached derivatives.
+pub trait DerivEos {
+    fn alphar_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs;
+    fn alpha0_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs;
+    fn t_reducing(&self) -> f64;
+    fn rhomolar_reducing(&self) -> f64;
+    fn gas_constant(&self) -> f64;
+    fn molar_mass(&self) -> f64;
+}
+
+impl DerivEos for HelmholtzEos {
+    fn alphar_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        HelmholtzEos::alphar_all(self, tau, delta)
+    }
+    fn alpha0_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        HelmholtzEos::alpha0_all(self, tau, delta)
+    }
+    fn t_reducing(&self) -> f64 {
+        self.t_reducing
+    }
+    fn rhomolar_reducing(&self) -> f64 {
+        self.rhomolar_reducing
+    }
+    fn gas_constant(&self) -> f64 {
+        self.gas_constant
+    }
+    fn molar_mass(&self) -> f64 {
+        self.molar_mass
+    }
+}
+
 /// One state's Helmholtz derivatives, reused across parameter queries.
-pub struct StateDerivs<'a> {
-    eos: &'a HelmholtzEos,
+pub struct StateDerivs<'a, E: DerivEos = HelmholtzEos> {
+    eos: &'a E,
     t: f64,
     rhomolar: f64,
     tau: f64,
@@ -34,10 +72,10 @@ pub struct StateDerivs<'a> {
     a0: HelmholtzDerivs,
 }
 
-impl<'a> StateDerivs<'a> {
-    pub fn new(eos: &'a HelmholtzEos, t: f64, rhomolar: f64) -> Self {
-        let tau = eos.t_reducing / t;
-        let delta = rhomolar / eos.rhomolar_reducing;
+impl<'a, E: DerivEos> StateDerivs<'a, E> {
+    pub fn new(eos: &'a E, t: f64, rhomolar: f64) -> Self {
+        let tau = eos.t_reducing() / t;
+        let delta = rhomolar / eos.rhomolar_reducing();
         StateDerivs {
             eos,
             t,
@@ -52,13 +90,13 @@ impl<'a> StateDerivs<'a> {
     /// `(dX/dT|rho, dX/drho|T)` for parameter `index`.
     pub fn get_dt_drho(&self, index: Param) -> Result<(f64, f64)> {
         let (t, rhomolar) = (self.t, self.rhomolar);
-        let rhor = self.eos.rhomolar_reducing;
-        let tr = self.eos.t_reducing;
+        let rhor = self.eos.rhomolar_reducing();
+        let tr = self.eos.t_reducing();
         let dt_dtau = -t.powi(2) / tr;
-        let r = self.eos.gas_constant;
+        let r = self.eos.gas_constant();
         let (delta, tau) = (self.delta, self.tau);
         let (ar, a0) = (&self.ar, &self.a0);
-        let mm = self.eos.molar_mass;
+        let mm = self.eos.molar_mass();
 
         let (mut dt, mut drho) = match index {
             Param::T => (1.0, 0.0),
@@ -121,11 +159,11 @@ impl<'a> StateDerivs<'a> {
     /// `(d2X/dT2|rho, d2X/drho/dT, d2X/drho2|T)` for parameter `index`.
     pub fn get_dt_drho_second(&self, index: Param) -> Result<(f64, f64, f64)> {
         let (t, rhomolar) = (self.t, self.rhomolar);
-        let tr = self.eos.t_reducing;
-        let r = self.eos.gas_constant;
+        let tr = self.eos.t_reducing();
+        let r = self.eos.gas_constant();
         let (delta, tau) = (self.delta, self.tau);
         let (ar, a0) = (&self.ar, &self.a0);
-        let mm = self.eos.molar_mass;
+        let mm = self.eos.molar_mass();
 
         let (mut dt2, mut drho_dt, mut drho2) = match index {
             Param::T | Param::Dmass | Param::Dmolar => (0.0, 0.0, 0.0),
@@ -252,13 +290,18 @@ impl<'a> StateDerivs<'a> {
 // --- free-function forms (one state built per call) ------------------------
 
 /// `(dX/dT|rho, dX/drho|T)` for parameter `index`.
-pub fn get_dt_drho(eos: &HelmholtzEos, index: Param, t: f64, rhomolar: f64) -> Result<(f64, f64)> {
+pub fn get_dt_drho<E: DerivEos>(
+    eos: &E,
+    index: Param,
+    t: f64,
+    rhomolar: f64,
+) -> Result<(f64, f64)> {
     StateDerivs::new(eos, t, rhomolar).get_dt_drho(index)
 }
 
 /// `(d2X/dT2|rho, d2X/drho/dT, d2X/drho2|T)` for parameter `index`.
-pub fn get_dt_drho_second(
-    eos: &HelmholtzEos,
+pub fn get_dt_drho_second<E: DerivEos>(
+    eos: &E,
     index: Param,
     t: f64,
     rhomolar: f64,
@@ -267,8 +310,8 @@ pub fn get_dt_drho_second(
 }
 
 /// `calc_first_partial_deriv(Of, Wrt, Constant)`.
-pub fn first_partial_deriv(
-    eos: &HelmholtzEos,
+pub fn first_partial_deriv<E: DerivEos>(
+    eos: &E,
     of: Param,
     wrt: Param,
     constant: Param,
@@ -280,8 +323,8 @@ pub fn first_partial_deriv(
 
 /// `calc_second_partial_deriv(Of1, Wrt1, Constant1, Wrt2, Constant2)`.
 #[allow(clippy::too_many_arguments)]
-pub fn second_partial_deriv(
-    eos: &HelmholtzEos,
+pub fn second_partial_deriv<E: DerivEos>(
+    eos: &E,
     of1: Param,
     wrt1: Param,
     constant1: Param,

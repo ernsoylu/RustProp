@@ -1928,6 +1928,86 @@ def gen_acceptance_sweep():
             drawn += 1
     print(f"  pseudo-pure transport: {len(rows) - n_mark} records")
 
+    # ====================================================================
+    # 2026-08-17 extension: the remaining OUTPUT TAIL upstream serves —
+    # ideal-gas caloric parts, reduced-Helmholtz values and derivatives,
+    # virial coefficients, Tau/Delta, Qmass, environmental/trivial data —
+    # now that the port grows those arms. A THIRD fresh rng: the 5,485
+    # records above consume `rng`/`rng2` sequentially and must stay
+    # bitwise identical forever, so nothing below may touch them. Every
+    # section below shares `rng3` in this fixed order.
+    rng3 = random.Random(20260817)
+
+    # --- HEOS output tail -----------------------------------------------
+    # Skip-on-wheel-error does the phase gating: Qmass throws outside the
+    # dome; everything else evaluates wherever the wheel does — two-phase
+    # included, where alphar & co. are raw EOS evaluations at the mixture
+    # density (the Phase 6.1 conductivity shape).
+    n_mark = len(rows)
+    tail_outs = ["Hmolar_idealgas", "Smolar_idealgas", "Umolar_idealgas",
+                 "Hmass_idealgas", "Smass_idealgas", "Umass_idealgas",
+                 "Gmolar_residual", "isentropic_expansion_coefficient",
+                 "alphar", "alpha0", "dalphar_ddelta_consttau",
+                 "dalphar_dtau_constdelta", "dalpha0_ddelta_consttau",
+                 "dalpha0_dtau_constdelta", "d2alpha0_ddelta2_consttau",
+                 "d3alpha0_ddelta3_consttau", "Bvirial", "Cvirial",
+                 "dBvirial_dT", "dCvirial_dT", "Tau", "Delta", "Qmass"]
+    sweep_propssi("HEOS::", heos_fluids, tail_outs,
+                  ["PT", "PQ", "QT", "DT", "HP", "PS"], n=30, rng_=rng3)
+    print(f"  heos output tail: {len(rows) - n_mark} records")
+
+    # --- Environmental / trivial data -----------------------------------
+    # State-independent constants served through PropsSI: one record per
+    # (fluid, out) at a nominal state pins each ported data value —
+    # randomizing a constant would only re-record it. The wheel throws
+    # where the fluid's JSON carries no entry (Water GWP/ODP et al.);
+    # those are skipped, error parity being the phase suites' job.
+    n_mark = len(rows)
+    env_outs = ["FH", "HH", "PH", "GWP20", "GWP100", "GWP500", "ODP",
+                "p_reducing"]
+    for name in heos_fluids:
+        spec = f"HEOS::{name}"
+        try:
+            Tmin = PropsSI("Tmin", "", 0, "", 0, spec)
+            Tmax = PropsSI("Tmax", "", 0, "", 0, spec)
+        except Exception:
+            continue
+        T_env = min(max(300.0, Tmin), Tmax)
+        for out in env_outs:
+            try:
+                val = PropsSI(out, "T", T_env, "P", 101325.0, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            add("HEOS", name, out, "T", T_env, "P", 101325.0, val)
+    print(f"  environmental trivials: {len(rows) - n_mark} records")
+
+    # --- Cubics output tail ---------------------------------------------
+    # The same tail the cubics serve, plus Phase — correct since the
+    # labeling fix landed, so it goes in this time — and the cubic
+    # coefficient/residual set.
+    n_mark = len(rows)
+    cubic_tail_outs = ["Phase", "PIP", "isothermal_compressibility",
+                       "isobaric_expansion_coefficient",
+                       "isentropic_expansion_coefficient",
+                       "fundamental_derivative_of_gas_dynamics",
+                       "Helmholtzmolar", "Helmholtzmass", "Smolar_residual",
+                       "Gmolar_residual", "Hmolar_idealgas",
+                       "Smolar_idealgas", "Umolar_idealgas",
+                       "Hmass_idealgas", "alphar", "alpha0",
+                       "dalphar_ddelta_consttau", "dalphar_dtau_constdelta",
+                       "dalpha0_ddelta_consttau", "dalpha0_dtau_constdelta",
+                       "d2alpha0_ddelta2_consttau",
+                       "d3alpha0_ddelta3_consttau", "Bvirial", "Cvirial",
+                       "dBvirial_dT", "dCvirial_dT", "Tau", "Delta",
+                       "Qmass", "Cp0mass"]
+    sweep_propssi("SRK::", ["Water", "n-Propane", "CarbonDioxide"],
+                  cubic_tail_outs, ["PT", "PQ", "QT", "DT"], n=25, rng_=rng3)
+    sweep_propssi("PR::", ["Water", "n-Propane", "CarbonDioxide"],
+                  cubic_tail_outs, ["PT", "PQ", "QT", "DT"], n=25, rng_=rng3)
+    print(f"  cubics output tail: {len(rows) - n_mark} records")
+
     print(f"acceptance_sweep: {len(rows)} records")
     return rows
 

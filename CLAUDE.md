@@ -210,6 +210,21 @@ imposition), three wheel-side failures pinned in acceptance.rs as port-asserted 
 the wheel contradicting its own fresh PT flash). Cubic sub-pascal PQ gate widened to the
 observed 10 Pa envelope. ~38,400 committed oracle records; all suites green.
 
+**2026-08-17: the OUTPUT TAIL and the mixture latents are closed.** Every output the wheel
+serves is now ported on the HEOS and cubic routes (ideal-gas family, residual Gibbs, the
+eight keyed alphar/alpha0 derivative strings, virials, Tau/Delta, Qmass with the literal
+mv/(mv+ml) roundtrip, isentropic expansion, cubic PIP/kappa/beta/FD via a new `DerivEos`
+trait generalizing StateDerivs, CubicDerivs to third order) plus the ENVIRONMENTAL block
+(datagen'd `INFO.ENVIRONMENTAL`, +inf defaults for 11 blockless fluids, GWP/ODP −1-sentinel
+gate, FH/HH/PH raw with the empty-message +inf path; ASHRAE34 excluded as PropsSI-dead).
+Sweep 5,485 → 6,020 (third seed 20260817) — ZERO failures on first run. Latents: the
+imposition-clear corruption is real but only sweep-pair-reachable and stays UNPORTED,
+pinned by `hsu_p_imposition_clear_divergence_pinned` (the wheel contradicts its own forward
+flash); the side-root Brent throw is NOT CONSTRUCTIBLE (~26k-state exact-replica scan). One
+new port bug found and fixed: `successive_substitution_guessrho` now propagates
+density-solve failures as upstream does (a swallowed error let a degenerate Wilson split
+through on Methane/Ethane). ~39,100 committed oracle records.
+
 REMAINING FOR THE OWNER (cannot be done from here): claim the crates.io names and add
 the `CARGO_REGISTRY_TOKEN` secret, then tag v0.1.0. Publication is irreversible.
 

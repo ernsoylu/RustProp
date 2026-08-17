@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static M_XYLENE: FluidData = FluidData {
     name: "m-Xylene",
     cas: "108-38-3",
     aliases: &["mXylene", "m-xylene", "M-XYLENE", "MC8H10"],
+    environmental: Environmental {
+        gwp20: f64::INFINITY,
+        gwp100: f64::INFINITY,
+        gwp500: f64::INFINITY,
+        odp: f64::INFINITY,
+        hh: f64::INFINITY,
+        ph: f64::INFINITY,
+        fh: f64::INFINITY,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.106165,

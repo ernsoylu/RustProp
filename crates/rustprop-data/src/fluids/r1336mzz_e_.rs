@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static R1336MZZ_E_: FluidData = FluidData {
     name: "R1336mzz(E)",
     cas: "66711-86-2",
     aliases: &["(E)-1,1,1,4,4,4-HEXAFLUORO-2-BUTENE", "r1336mzz(e)", "R1336mzz(E)", "(E)-1,1,1,4,4,4-Hexafluoro-2-butene", "R1336MZZ(E)", "(e)-1,1,1,4,4,4-hexafluoro-2-butene", "R1336MZZE"],
+    environmental: Environmental {
+        gwp20: 0.0,
+        gwp100: 1.0,
+        gwp500: 0.0,
+        odp: 0.0,
+        hh: 0.0,
+        ph: 1e30,
+        fh: 0.0,
+    },
     eos: Eos {
         gas_constant: 8.314462618,
         molar_mass: 0.1640491,

@@ -185,6 +185,7 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         &[
             "2DPNG_URL",
             "CHEMSPIDER_ID",
+            // presence-optional; walked by check_environmental below
             "ENVIRONMENTAL",
             "FORMULA",
             "INCHI_KEY",
@@ -200,6 +201,7 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
     for (i, (r, j)) in fluid.aliases.iter().zip(aliases).enumerate() {
         w.string(r, j, &format!("INFO.ALIASES[{i}]"));
     }
+    check_environmental(&mut w, fluid, info.get("ENVIRONMENTAL"));
 
     // EOS[0] — some documents (Ammonia) carry alternate historical EOS
     // entries after index 0; upstream's backend evaluates EOSVector[0]
@@ -667,6 +669,48 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
         w.mismatches.len(),
         w.mismatches.join("\n")
     );
+}
+
+/// `INFO.ENVIRONMENTAL` — ported default-resolved (upstream
+/// `parse_environmental` / `EnvironmentalFactorsStruct`): a present block's
+/// seven doubles must match bitwise; a missing block must leave upstream's
+/// default-constructed struct — every field `_HUGE` (+inf). The block's
+/// `ASHRAE34` string is PropsSI-unreachable (get_fluid_param_string only)
+/// and `Name` is unread by upstream's parse — both deliberately skipped.
+fn check_environmental(w: &mut Walker, fluid: &FluidData, json: Option<&Value>) {
+    let env = &fluid.environmental;
+    let fields = [
+        (env.gwp20, "GWP20"),
+        (env.gwp100, "GWP100"),
+        (env.gwp500, "GWP500"),
+        (env.odp, "ODP"),
+        (env.hh, "HH"),
+        (env.ph, "PH"),
+        (env.fh, "FH"),
+    ];
+    match json {
+        Some(json) => {
+            let path = "INFO.ENVIRONMENTAL";
+            w.keys(
+                json,
+                path,
+                &["GWP20", "GWP100", "GWP500", "ODP", "HH", "PH", "FH"],
+                &["ASHRAE34", "Name"],
+            );
+            for (v, key) in fields {
+                w.num(v, &json[key], &format!("{path}.{key}"));
+            }
+        }
+        None => {
+            for (v, key) in fields {
+                if v != f64::INFINITY {
+                    w.mismatches.push(format!(
+                        "INFO.ENVIRONMENTAL.{key}: block absent in JSON but rust {v:?} != +inf"
+                    ));
+                }
+            }
+        }
+    }
 }
 
 /// EOS[0].SUPERANCILLARY contents, field-by-field (pure fluids only).

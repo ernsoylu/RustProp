@@ -6,8 +6,8 @@
 //! from `data/coolprop-json/Water.json`. Every field documents the JSON key it
 //! mirrors. Known present-but-not-yet-ported document parts (SUPERANCILLARY,
 //! critical_region_splines, hL/hLV/sL/sLV ancillaries, melting line, surface
-//! tension, TRANSPORT, ENVIRONMENTAL) are listed in the data-fidelity test's
-//! skip list and land with the phases that consume them.
+//! tension, TRANSPORT) are listed in the data-fidelity test's skip list and
+//! land with the phases that consume them.
 
 /// One fluid document (top-level array element of the CoolProp JSON).
 pub struct FluidData {
@@ -17,6 +17,9 @@ pub struct FluidData {
     pub cas: &'static str,
     /// `INFO.ALIASES`
     pub aliases: &'static [&'static str],
+    /// `INFO.ENVIRONMENTAL` — always present, with upstream's parse-time
+    /// defaults resolved in (see [`Environmental`])
+    pub environmental: Environmental,
     /// `EOS[0]` (CoolProp carries exactly one EOS per fluid document)
     pub eos: Eos,
     /// `ANCILLARIES`
@@ -25,6 +28,36 @@ pub struct FluidData {
     pub states: States,
     /// `TRANSPORT` — None when the document has no TRANSPORT block at all
     pub transport: Option<Transport>,
+}
+
+/// `INFO.ENVIRONMENTAL` (upstream `EnvironmentalFactorsStruct`,
+/// CoolPropFluid.h). Values are carried default-resolved: when a document
+/// has no ENVIRONMENTAL block, upstream leaves the default-constructed
+/// struct — every field `_HUGE` (FluidLibrary.cpp `parse_json`) — so the
+/// generated contents then hold `f64::INFINITY` in every field. When the
+/// block is present, upstream's `parse_environmental` (FluidLibrary.h)
+/// reads all seven keys unconditionally; the data uses `-1.0` as its
+/// "unspecified" sentinel for GWP/ODP. Serving (HelmholtzEOSMixtureBackend):
+/// GWP20/GWP100/GWP500/ODP throw `"<KEY> value is not specified or invalid"`
+/// when the value is non-finite or `< 0`; FH/HH/PH are returned raw with no
+/// guard. The JSON block's `ASHRAE34` string and `Name` key are not carried:
+/// `Name` is unread by upstream's parse, and ASHRAE34 is served only through
+/// `get_fluid_param_string` — it is unreachable via PropsSI.
+pub struct Environmental {
+    /// `.GWP20` — 20-year global warming potential (-1 = unspecified)
+    pub gwp20: f64,
+    /// `.GWP100` — 100-year global warming potential (-1 = unspecified)
+    pub gwp100: f64,
+    /// `.GWP500` — 500-year global warming potential (-1 = unspecified)
+    pub gwp500: f64,
+    /// `.ODP` — ozone depletion potential (-1 = unspecified)
+    pub odp: f64,
+    /// `.HH` — NFPA health hazard rating
+    pub hh: f64,
+    /// `.PH` — NFPA physical hazard rating
+    pub ph: f64,
+    /// `.FH` — NFPA flame hazard rating
+    pub fh: f64,
 }
 
 /// `TRANSPORT` (ported subset).

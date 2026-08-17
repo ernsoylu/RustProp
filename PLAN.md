@@ -1849,6 +1849,88 @@ Append-only; newest last. Seeded entries:
 - 2026-08-16 — Derivative-coefficient sweep outputs (beta, kappa_T, PIP, FD) get a 1e-7 tier:
   they are Jacobian ratios at flash-solved states, so the flash's 1e-9 amplifies through the
   ratio (observed 2.7e-8 on an (H,P) n-Propane beta draw).
+- 2026-08-17 — The OUTPUT TAIL (NEXT-STEPS candidate #1) is closed: every output the wheel
+  serves that the port refused is now implemented on both the HEOS and cubic routes, from the
+  2026-08-16 research spec's formulas, each probe-verified against the wheel (mostly bitwise;
+  worst cases a few ulps or flash-solver tolerance).
+  - HEOS + cubics: ideal-gas H/S/U (+mass twins), Gmolar_residual, the eight keyed
+    alphar/alpha0 derivative strings, Bvirial/Cvirial/dBvirial_dT/dCvirial_dT (delta = 1e-12
+    at the state's tau), Tau/Delta (served literally, bulk density in the dome),
+    isentropic_expansion_coefficient ((rho/p)·dP/dDmolar|Smolar with the STATE's p), Qmass
+    (upstream's literal mv/(mv+ml) roundtrip — the last-ulp wobble vs Q is upstream's; exact
+    Q == 0/1 passes through; single-phase refuses verbatim), p_reducing.
+  - Cubics additionally: PIP/kappa_T/beta/FD through the generic Jacobian machinery,
+    Helmholtzmolar/mass (lever; the (D,T)-dome throw carries the (0,0) alpha0 message like
+    Gibbs), and the environmental family as errors (p_reducing/FH/HH/PH -> upstream's
+    inf-keyed EMPTY-message error; GWP/ODP -> "<KEY> value is not specified or invalid").
+    FINDING: cubic Smolar_idealgas uses the RESCALED per-derivative alpha0 accessors, NOT
+    calc_smolar's batched-accessor defect — R*(tau·da0_dtau − alpha0) on the invariant
+    product reproduces the wheel bitwise.
+- 2026-08-17 — CubicDerivs extended to third order (psi_minus(3) = 2r^3,
+  psi_plus(3) = (−p0·p2 + 2p1^2)/p0^3, tau_times_a Leibniz), a cubic-convention alpha0
+  rescale layer added, and the Phase-12a StateDerivs machinery generalized over a new
+  `DerivEos` trait with `HelmholtzEos` as the default type parameter — every existing caller
+  source-compatible, zero arithmetic duplicated. 30 of 34 verification probes bitwise
+  (worst 3 ulps). Third-order terms cross-checked by finite differences of the
+  golden-verified second-order fields.
+- 2026-08-17 — ENVIRONMENTAL data block: `INFO.ENVIRONMENTAL` parsed into a new
+  always-present `Environmental` struct on `FluidData` (GWP20/100/500, ODP, HH, PH, FH),
+  default-resolved to +inf exactly as upstream's default-constructed
+  `EnvironmentalFactorsStruct` (`_HUGE`) — 11 of 136 fluids are blockless. ASHRAE34 is
+  deliberately NOT carried (PropsSI-unreachable; served only through
+  get_fluid_param_string). Serving semantics: GWP/ODP gate on upstream's
+  `!ValidNumber || v < 0` (the data's unspecified sentinel is −1, strictly per-key —
+  n-Propane answers GWP100=3 while GWP20 errors); FH/HH/PH are served RAW, and a blockless
+  fluid's +inf crosses the wheel as an error with an EMPTY message. data_fidelity walks the
+  new block bitwise for all 136 fluids (negative-tested).
+- 2026-08-17 — Acceptance sweep 5,485 -> 6,020 (third seed 20260817; both earlier prefixes
+  bitwise-frozen, determinism double-run proven): 330 HEOS-tail draws, 55 environmental
+  trivials, 150 cubic-tail draws (cubic Phase included now that its labeling matches).
+  FIRST RUN: zero failures — the whole tail agreed with the wheel on randomized states
+  before the coverage even landed. Near-zero scale guards documented per output from the
+  generated data's sign/magnitude distributions; isentropic_expansion_coefficient joins the
+  1e-7 Jacobian-ratio tier.
+- 2026-08-17 — WASM-SIZES.md regenerated: the tail + environmental data cost +4.3 KB on the
+  IF97 preset, +6.8 KB on HEOS+Water, +23 KB on all-backends (4.21 -> 4.23 MB).
+- 2026-08-17 — The two noted mixture latents (NEXT-STEPS candidate #2) are CLOSED, by a
+  dedicated evidence hunt (~3,000 wheel-vs-port comparisons, exact solver replicas on the
+  wheel's own EOS):
+  - Imposition-clear statefulness: CONFIRMED observable, but only through sweep-pair flashes
+    (one PropsSI call runs many inner PT evaluations on ONE upstream backend; scalar PT
+    builds a fresh AbstractState per call and cannot see it). For Nitrogen[0.97]&Water[0.03]
+    every feed solve at T >= ~340 K throws "One stationary point", firing upstream's
+    stability feed fallback whose `unspecify_phase()` permanently clears SatL's constructor
+    liquid imposition; later in-dome inner PT evaluations then run the GAS mechanical retry
+    and the wheel's HSU_P inversions CONTRADICT ITS OWN forward flashes (309.5966 K returned
+    for an Hmolar the wheel itself computes at exactly 310 K; the 320 K Smolar inversion
+    errors outright). Low-level discriminator: poisoning one wheel AbstractState with a
+    fallback-firing PT then probing in-dome shifts H by 19.6 J/mol, which over dH/dT ≈ 49
+    predicts the observed 0.40 K offset; a non-firing poison leaves the probe bitwise.
+    RULING (same as the two excused HSU_P records, which are a different, feed-failure-free
+    channel): the port stays stateless; the divergence is pinned by
+    `hsu_p_imposition_clear_divergence_pinned` in tests/golden/tests/mixtures.rs, asserting
+    the port's self-consistent inversions.
+  - Side-root Brent `.unwrap_or(-1.0)` vs upstream's throw: NOT CONSTRUCTIBLE. Upstream's
+    throw is real but every caller catches it; a divergence needs one ATTEMPTED side to fail
+    while the other succeeds, and an exact replica of `solver_dpdrho0_Tp` + the bracket
+    logic over ~26,000 two-stationary states across seven systems found zero such
+    configurations — structurally, the liquid side's outer endpoint is forced by the x1.05
+    expansion loop unless p exceeds GPa scale, where the vapor side is never attempted.
+    The port's shape stands.
+- 2026-08-17 — The hunt also found a REAL PORT BUG in the same path, now fixed:
+  `successive_substitution_guessrho` swallowed density-solve failures (`break` on error)
+  where upstream's calls are UNGUARDED (`VLERoutines.cpp:1845-1847`) and the throw escapes
+  the whole Wilson guess block into the PT flash's not-two-phase catch. The swallowed error
+  kept a partial seed alive and `solve_michelsen` could converge it to a degenerate
+  one-component-per-phase split that slips the verify's y_i < 1e-12 skip: Methane[0.5]&
+  Ethane[0.5] at 225 K / 8.75 MPa gave Q=0.49998 with x=[0.99996,...] where the wheel is
+  single-phase liquid (bubble at 4.37 MPa). The error now propagates as Result and
+  `guess_split_from_wilson` maps it to None; the repro lands the wheel's answer bitwise
+  (16913.6708259364 mol/m^3). The hunt's Methane/Ethane grid also confirmed a family of
+  WHEEL-side mid-dome failures (solve_michelsen nonconvergence fail-opens to the metastable
+  single-phase root at ~6 grid points; the wheel's own PQ flash at the port's Q returns the
+  port's T bitwise) — same excused family as the acceptance ledger, no committed record
+  reaches them.
 
 ---
 

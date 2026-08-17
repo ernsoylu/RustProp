@@ -11,5 +11,8 @@ repository.workspace = true
 rustprop-core.workspace = true
 rustprop-heos.workspace = true
 
+[dev-dependencies]
+rustprop-data = { workspace = true, features = ["cubic-fluids"] }
+
 [lints]
 workspace = true

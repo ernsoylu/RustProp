@@ -4,8 +4,8 @@ Read this first when picking the work back up. `PLAN.md` is the phase-by-phase
 roadmap and its Decisions log is the authoritative record of *why* things are
 the way they are; this file is the short version plus the open ends.
 
-Last updated: 2026-08-16, after the post-completion audit sweep (see the
-2026-08-16 block in PLAN.md's Decisions log for the full record).
+Last updated: 2026-08-17, after the output-tail + latents round (see the
+2026-08-16/17 blocks in PLAN.md's Decisions log for the full record).
 
 ---
 
@@ -18,9 +18,9 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | ~38,600 committed, generated from the CoolProp 8.0.0 wheel |
+| Oracle records | ~39,100 committed, generated from the CoolProp 8.0.0 wheel |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
-| Smallest useful bundle | 124 KB (IF97) — see `WASM-SIZES.md` |
+| Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
 The last work done (2026-08-16) was the post-completion audit that the
 2026-08-07 handoff ranked as candidates #1 and #2 — and it vindicated the
@@ -33,6 +33,13 @@ against its own equilibrium (pinned in `acceptance.rs`). The lesson stands,
 stronger: **randomized coverage finds what hand-chosen goldens do not** —
 and a new output is only real once the sweep draws it (the Phase output
 exposed a labeling divergence within minutes of existing).
+
+The 2026-08-17 round then closed the output tail (every wheel-served output
+now ported on both routes, environmental data included; sweep 6,020 records,
+zero failures on first run) and both mixture latents — one pinned unported
+with the wheel contradicting itself, one proved not-constructible by a
+~26,000-state exact-replica scan — and fixed the hunt's bonus find, a
+swallowed density-solve failure that let a degenerate Wilson split through.
 
 ---
 
@@ -68,8 +75,9 @@ heal. Do not "fix" one without checking the assertion that pins it.
 
 | Divergence | Where | Why it stands |
 |---|---|---|
-| Cubic PQ flashes below **10 Pa**: upstream's equal-Gibbs secant converges, this port's gives up (12 records of 5,485; observed give-ups at 0.18–1.95 Pa) | `tests/golden/tests/acceptance.rs`, asserted to STILL reproduce, error-only | Seed, step, tolerance and iteration cap are upstream's verbatim; the difference is root conditioning inside the residual, at the extreme cold end of the cubic's own saturation range (SRK CO2 bottoms out at 91 K / 0.18 Pa — the real triple is 217 K) |
+| Cubic PQ flashes below **10 Pa**: upstream's equal-Gibbs secant converges, this port's gives up (12 records of 6,020; observed give-ups at 0.18–1.95 Pa) | `tests/golden/tests/acceptance.rs`, asserted to STILL reproduce, error-only | Seed, step, tolerance and iteration cap are upstream's verbatim; the difference is root conditioning inside the residual, at the extreme cold end of the cubic's own saturation range (SRK CO2 bottoms out at 91 K / 0.18 Pa — the real triple is 217 K) |
 | THREE pinned mixture records where the port answers and the wheel's recorded value is provably not the wheel's own equilibrium (mixture HSU_P shared-state corruption ×2; shallow-TPD metastable root ×1) | `acceptance.rs` `mixture_divergences`, each pinned to the PORT's value with heal detection | Upstream's HSU_P residual mutates the shared backend (a Tmax-endpoint PT evaluation corrupts SatL/SatV and disables the two-phase split for the rest of the solve); a fresh wheel PT flash at the port's converged T reproduces the port BITWISE. The corruption is history-dependence the port's stateless flashes deliberately cannot express |
+| The imposition-clear channel of the same corruption (upstream's stability feed fallback permanently clears SatL's constructor liquid imposition for the backend instance): the wheel's Nitrogen[0.97]&Water[0.03] sweep-pair inversions contradict its own forward flashes by up to 1.7 K or error outright | `hsu_p_imposition_clear_divergence_pinned` in `tests/golden/tests/mixtures.rs`, asserting the port's self-consistent inversions | Only observable through sweep-pair flashes (scalar PT builds a fresh backend per call); reproducing it would make PS/HP flashes history-dependent — same ruling as the row above. Full mechanism in the 2026-08-17 Decisions entries |
 | `HAPropsSI` errors return `Result` instead of upstream's `+inf`-with-a-global | humid-air suite | A global error slot is not a thing a WASM library should have |
 | PC-SAFT `WATER` PT/DT errors loudly | PC-SAFT suite, error parity asserted | Upstream computes on children whose sigma is still the −1 sentinel and returns garbage densities |
 | Tabular msgpack+zlib disk cache under `~/.CoolProp/Tabular` not ported | documented in `PLAN.md` | No home directory in WASM. Cost: a LogPH table build runs ~100 s per process (40k HP flashes) — exactly the cost upstream's cache exists to avoid |
@@ -200,44 +208,28 @@ low-level backends: HEOS 2580 + 865 mix, SRK/PR 450 each, INCOMP 360,
 PCSAFT 280, HA 240, IF97 260, plus tabular 1,950 and SVDSBTL 1,000 in their
 own fixtures. The partial_cmp sites were proven NaN-unreachable and closed.)*
 
-### 1. The remaining output tail (small-medium, medium)
+*(2026-08-17: the previous #1 — the output tail — and #2 — the two mixture
+latents — are DONE; see PLAN.md's Decisions log. Every output the wheel
+serves is ported on both routes; the imposition-clear latent is pinned
+unported by `hsu_p_imposition_clear_divergence_pinned`, the Brent-throw
+latent proved not-constructible, and the hunt's bonus find — swallowed
+density-solve failures in `successive_substitution_guessrho` — is fixed.)*
 
-A research pass (2026-08-16) enumerated every output the wheel serves that
-the port still refuses — all with formulas and two-phase rules pinned. HEOS:
-the ideal-gas family (H/S/Umolar_idealgas + mass twins), Gmolar_residual,
-isentropic_expansion_coefficient, the keyed alpha0/alphar derivative
-strings, Bvirial/Cvirial/dB/dC, Tau/Delta, Qmass, p_reducing, and FH/HH/PH
-(these three need datagen to carry the ENVIRONMENTAL block first). Cubics:
-the same tail plus PIP/FD/kappa_T/beta, which need `CubicDerivs` extended to
-third order and the `StateDerivs` machinery generalized over an EOS trait
-(the extension formulas are in the Decisions log). All raw-at-bulk in the
-dome except where noted there. Widen the sweep's output lists in the same
-change so each new output is drawn.
-
-### 2. Two noted mixture latents (small, low)
-
-Left un-ported deliberately on 2026-08-16, neither reachable by any golden:
-upstream's stability feed-solve fallback permanently CLEARS SatL's
-constructor phase imposition for that backend instance (`VLERoutines.cpp`
-~2110) — the port would need a per-flash flag; and `solver_rho_tp_global`'s
-side-root Brent failures return −1 in the port where upstream throws
-(`mixture_stability.rs:206/209`). Align only with fresh wheel evidence.
-
-### 3. The cubic sub-pascal secant (medium, low)
+### 1. The cubic sub-pascal secant (medium, low)
 
 The one open SOLVER divergence (the three pinned mixture records are the
 wheel failing, not the port). The call parameters are verbatim; the difference is
 inside `saturation_residual`'s density root selection at near-vacuum. Worth
 doing only if someone actually needs cubic VLE below a pascal.
 
-### 4. Performance (medium, unmeasured)
+### 2. Performance (medium, unmeasured)
 
 Nothing in this project has been profiled. The obvious candidate is the
 LogPH table build at ~100 s per process. Before optimising anything, measure
 — and note that `StateDerivs` caching already took LogPT from 50 s to 3.2 s
 without changing a single result.
 
-### 5. Documentation for consumers (small, medium)
+### 3. Documentation for consumers (small, medium)
 
 The README quickstart is real and doc-tested. What does not exist: per-engine
 guidance on *which* backend to choose, and a worked WASM example beyond the

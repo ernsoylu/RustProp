@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension};
 
 pub static N_UNDECANE: FluidData = FluidData {
     name: "n-Undecane",
     cas: "1120-21-4",
     aliases: &["Undecane", "UNDECANE", "N-UNDECANE", "C11", "NC11H24", "n-C11H24"],
+    environmental: Environmental {
+        gwp20: f64::INFINITY,
+        gwp100: f64::INFINITY,
+        gwp500: f64::INFINITY,
+        odp: f64::INFINITY,
+        hh: f64::INFINITY,
+        ph: f64::INFINITY,
+        fh: f64::INFINITY,
+    },
     eos: Eos {
         gas_constant: 8.314472,
         molar_mass: 0.15630826,

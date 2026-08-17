@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData};
 
 pub static N_PERFLUOROBUTANE: FluidData = FluidData {
     name: "n-Perfluorobutane",
     cas: "355-25-9",
     aliases: &["C4F10", "n-Perfluorobutane"],
+    environmental: Environmental {
+        gwp20: -99999999999.0,
+        gwp100: 0.0,
+        gwp500: -9999999999.0,
+        odp: 99999999.0,
+        hh: -999999999.0,
+        ph: -999999.0,
+        fh: 99999999.0,
+    },
     eos: Eos {
         gas_constant: 8.314462618,
         molar_mass: 0.238027,

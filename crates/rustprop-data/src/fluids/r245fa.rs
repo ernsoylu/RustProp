@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel};
 
 pub static R245FA: FluidData = FluidData {
     name: "R245fa",
     cas: "460-73-1",
     aliases: &["R245FA"],
+    environmental: Environmental {
+        gwp20: 3380.0,
+        gwp100: 1030.0,
+        gwp500: 314.0,
+        odp: -1.0,
+        hh: 2.0,
+        ph: 1.0,
+        fh: 0.0,
+    },
     eos: Eos {
         gas_constant: 8.3144621,
         molar_mass: 0.13404794,

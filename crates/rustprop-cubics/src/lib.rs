@@ -29,8 +29,13 @@ mod superanc_tables;
 use rustprop_core::fluid::{ChebyshevInterval, CubicFluid};
 use rustprop_core::params::Phase;
 use rustprop_core::{Error, Result};
-use rustprop_heos::alpha::Alpha0Eval;
+use rustprop_heos::alpha::{Alpha0Eval, HelmholtzDerivs};
+use rustprop_heos::derivs::DerivEos;
 use rustprop_heos::solvers::{bounded_secant, secant, solve_cubic};
+
+// Re-exported so the facade's cubics-only feature can drive the generic
+// (T, rho) Jacobian machinery without depending on rustprop-heos directly.
+pub use rustprop_heos::derivs::StateDerivs;
 
 /// Upstream `R_U_CODATA` (Configuration.h) — the gas constant handed to
 /// `SRKBackend`/`PengRobinsonBackend` by default.
@@ -44,7 +49,10 @@ pub enum CubicKind {
 }
 
 /// The derivative bundle the property formulas consume, in the cubic's own
-/// (tau = 1/T, delta = rho) variables.
+/// (tau = 1/T, delta = rho) variables. `dxy` = x delta-derivatives, y
+/// tau-derivatives. Third order is carried for the generic (T, rho)
+/// partial-derivative machinery (PIP, the compressibilities, virial
+/// T-derivatives).
 #[derive(Default, Clone, Copy)]
 pub struct CubicDerivs {
     pub d00: f64,
@@ -53,6 +61,10 @@ pub struct CubicDerivs {
     pub d20: f64,
     pub d11: f64,
     pub d02: f64,
+    pub d30: f64,
+    pub d21: f64,
+    pub d12: f64,
+    pub d03: f64,
 }
 
 /// One pure fluid under one cubic EOS.
@@ -143,7 +155,7 @@ impl CubicEos {
         ]
     }
 
-    /// `d^n/dtau^n (tau * a)` for n = 0..=2 (upstream `tau_times_a`,
+    /// `d^n/dtau^n (tau * a)` for n = 0..=3 (upstream `tau_times_a`,
     /// Leibniz: `tau*a^(n) + n*a^(n-1)`).
     fn tau_times_a(&self, tau: f64, a: &[f64; 5], n: usize) -> f64 {
         if n == 0 {
@@ -162,6 +174,7 @@ impl CubicEos {
             0 => -bracket.ln(),
             1 => r,
             2 => r * r,
+            3 => 2.0 * r * r * r,
             _ => unreachable!(),
         }
     }
@@ -195,11 +208,19 @@ impl CubicEos {
                 let p1 = self.pi_12(delta, 1);
                 -p1 / (p0 * p0)
             }
+            3 => {
+                // Upstream: rho_r*(-p0*p2 + 2*p1*p1)/p0^3 with rho_r = 1
+                // (PI_12(delta, 3) is identically zero, so no p3 term).
+                let p0 = self.pi_12(delta, 0);
+                let p1 = self.pi_12(delta, 1);
+                let p2 = self.pi_12(delta, 2);
+                (-p0 * p2 + 2.0 * p1 * p1) / (p0 * p0 * p0)
+            }
             _ => unreachable!(),
         }
     }
 
-    /// All residual derivatives through second order in the cubic's own
+    /// All residual derivatives through third order in the cubic's own
     /// (tau = 1/T, delta = rho) variables — upstream
     /// `CubicResidualHelmholtz::all`'s product structure: every mixed
     /// derivative is `psi_minus[n_d] - (tau*a)^(n_t) / R * psi_plus[n_d]`
@@ -211,15 +232,18 @@ impl CubicEos {
         let ta0 = self.tau_times_a(tau, &a, 0) / r;
         let ta1 = self.tau_times_a(tau, &a, 1) / r;
         let ta2 = self.tau_times_a(tau, &a, 2) / r;
+        let ta3 = self.tau_times_a(tau, &a, 3) / r;
         let pm = [
             self.psi_minus(delta, 0),
             self.psi_minus(delta, 1),
             self.psi_minus(delta, 2),
+            self.psi_minus(delta, 3),
         ];
         let pp = [
             self.psi_plus(delta, 0),
             self.psi_plus(delta, 1),
             self.psi_plus(delta, 2),
+            self.psi_plus(delta, 3),
         ];
         CubicDerivs {
             d00: pm[0] - ta0 * pp[0],
@@ -228,6 +252,10 @@ impl CubicEos {
             d20: pm[2] - ta0 * pp[2],
             d11: -ta1 * pp[1],
             d02: -ta2 * pp[0],
+            d30: pm[3] - ta0 * pp[3],
+            d21: -ta1 * pp[2],
+            d12: -ta2 * pp[1],
+            d03: -ta3 * pp[0],
         }
     }
 
@@ -240,6 +268,46 @@ impl CubicEos {
         let delta_star = rho / self.fluid.rhomolarc;
         let d = self.alpha0.all(tau_star, delta_star);
         (d.d00, tau_star * d.d01, tau_star * tau_star * d.d02)
+    }
+
+    /// The full alpha0 derivative matrix in the CUBIC (tau = 1/T,
+    /// delta = rho) convention — upstream `calc_alpha0_deriv_nocache`
+    /// (HelmholtzEOSMixtureBackend.cpp:3580): the fabricated fluid's alpha0
+    /// container evaluated at `taustar = (Tc/Tr)*tau`, `deltastar =
+    /// (rhor/rhomolarc)*delta`, then each derivative rescaled
+    /// `* (rhor/rhomolarc)^nDelta / (Tr/Tc)^nTau` (Tr = rhor = 1 here, so
+    /// `* (1/rhomolarc)^nDelta / (1/Tc)^nTau`), with `powf` mirroring
+    /// upstream's `pow` calls. This is the rescale behind every keyed
+    /// `dalpha0_*` output and the generic derivative machinery; only
+    /// `calc_smolar`'s batched accessor skips it (see `smolar`).
+    /// Fourth-order fields get the same chain-rule scale for consistency;
+    /// upstream has no cubic call surface for them.
+    pub fn alpha0_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        let tc = self.fluid.tc;
+        let rc = self.fluid.rhomolarc;
+        let tau_star = tc * tau;
+        let delta_star = delta / rc;
+        let d = self.alpha0.all(tau_star, delta_star);
+        let sd = 1.0 / rc; // rhor / rhomolarc
+        let st = 1.0 / tc; // Tr / Tc
+        let s = |v: f64, nd: i32, nt: i32| v * sd.powf(nd as f64) / st.powf(nt as f64);
+        HelmholtzDerivs {
+            d00: s(d.d00, 0, 0),
+            d10: s(d.d10, 1, 0),
+            d01: s(d.d01, 0, 1),
+            d20: s(d.d20, 2, 0),
+            d11: s(d.d11, 1, 1),
+            d02: s(d.d02, 0, 2),
+            d30: s(d.d30, 3, 0),
+            d21: s(d.d21, 2, 1),
+            d12: s(d.d12, 1, 2),
+            d03: s(d.d03, 0, 3),
+            d40: s(d.d40, 4, 0),
+            d31: s(d.d31, 3, 1),
+            d22: s(d.d22, 2, 2),
+            d13: s(d.d13, 1, 3),
+            d04: s(d.d04, 0, 4),
+        }
     }
 
     /// `p = rho R T (1 + delta * dalphar_ddelta)` — the corrected form of
@@ -353,6 +421,75 @@ impl CubicEos {
         let dr = self.alphar_all(1.0 / t, rho);
         let (a0, _, _) = self.alpha0_products(t, rho);
         R_U_CODATA * t * (1.0 + a0 + dr.d00 + rho * dr.d10)
+    }
+
+    /// Molar Helmholtz energy [J/mol] — inherited `calc_helmholtzmolar`
+    /// homogeneous branch: `A = R*T*(alpha0 + alphar)`.
+    pub fn helmholtzmolar(&self, t: f64, rho: f64) -> f64 {
+        let dr = self.alphar_all(1.0 / t, rho);
+        let (a0, _, _) = self.alpha0_products(t, rho);
+        R_U_CODATA * t * (a0 + dr.d00)
+    }
+
+    /// Residual molar Gibbs energy [J/mol] — inherited
+    /// `calc_gibbsmolar_residual`: `R*T*(alphar + delta*dalphar_ddelta)`,
+    /// raw at the bulk state.
+    pub fn gibbsmolar_residual(&self, t: f64, rho: f64) -> f64 {
+        let dr = self.alphar_all(1.0 / t, rho);
+        R_U_CODATA * t * (dr.d00 + rho * dr.d10)
+    }
+
+    /// Ideal-gas molar enthalpy [J/mol] — `AbstractState::hmolar_idealgas`:
+    /// `R*T*(1 + tau*dalpha0_dtau)` on the RESCALED individual accessor,
+    /// whose `tau*da0_dtau` is the convention-invariant product (unlike
+    /// `calc_smolar`'s batched-accessor defect).
+    pub fn hmolar_idealgas(&self, t: f64, rho: f64) -> f64 {
+        let (_, tau_da0, _) = self.alpha0_products(t, rho);
+        R_U_CODATA * t * (1.0 + tau_da0)
+    }
+
+    /// Ideal-gas molar entropy [J/mol/K] — `AbstractState::smolar_idealgas`:
+    /// `R*(tau*dalpha0_dtau - alpha0)`. Both operands come from the RESCALED
+    /// individual accessors (`dalpha0_dTau()` / `alpha0()` →
+    /// `calc_alpha0_deriv_nocache`), NOT the batched
+    /// `calc_all_alpha0_derivs_nocache` that `calc_smolar` uses — so the
+    /// tau-product is invariant and this shares no part of the smolar
+    /// defect. Oracle: 67.93894818182274 at SRK::Water T=300, P=101325.
+    pub fn smolar_idealgas(&self, t: f64, rho: f64) -> f64 {
+        let (a0, tau_da0, _) = self.alpha0_products(t, rho);
+        R_U_CODATA * (tau_da0 - a0)
+    }
+
+    /// Ideal-gas molar internal energy [J/mol] —
+    /// `AbstractState::umolar_idealgas`: `R*T*tau*dalpha0_dtau`.
+    pub fn umolar_idealgas(&self, t: f64, rho: f64) -> f64 {
+        let (_, tau_da0, _) = self.alpha0_products(t, rho);
+        R_U_CODATA * t * tau_da0
+    }
+
+    /// Second virial coefficient [m^3/mol] — inherited `calc_Bvirial`:
+    /// `(1/rhor)*dalphar_ddelta(tau, 1e-12)` with rhor = 1.
+    pub fn bvirial(&self, t: f64) -> f64 {
+        self.alphar_all(1.0 / t, 1e-12).d10
+    }
+
+    /// Third virial coefficient [m^6/mol^2] — inherited `calc_Cvirial`:
+    /// `(1/rhor^2)*d2alphar_ddelta2(tau, 1e-12)`.
+    pub fn cvirial(&self, t: f64) -> f64 {
+        self.alphar_all(1.0 / t, 1e-12).d20
+    }
+
+    /// `dB/dT` — inherited `calc_dBvirial_dT`:
+    /// `(1/rhor)*d2alphar_ddelta_dtau(tau, 1e-12) * dtau_dT` with
+    /// `dtau_dT = -Tr/T^2 = -1/T^2`.
+    pub fn dbvirial_dt(&self, t: f64) -> f64 {
+        self.alphar_all(1.0 / t, 1e-12).d11 * (-1.0 / (t * t))
+    }
+
+    /// `dC/dT` — inherited `calc_dCvirial_dT`:
+    /// `(1/rhor^2)*d3alphar_ddelta2_dtau(tau, 1e-12) * dtau_dT`.
+    pub fn dcvirial_dt(&self, t: f64) -> f64 {
+        self.alphar_all(1.0 / t, 1e-12).d21 * (-1.0 / (t * t))
     }
 
     /// Upstream `calc_rhomolar_critical` — the Kazakov curve fit (NOT the
@@ -640,6 +777,49 @@ impl CubicEos {
     }
 }
 
+/// The generic (T, rho) partial-derivative machinery
+/// (`rustprop_heos::derivs::StateDerivs`) over the cubic backend — upstream
+/// runs `AbstractState::get_dT_drho` over the cubic's cached derivative
+/// matrix exactly as over HEOS's. The cubic's own convention is Tr = 1,
+/// rho_r = 1, R = R_U_CODATA; alphar comes from
+/// `CubicResidualHelmholtz::all`, alpha0 from `calc_alpha0_deriv_nocache`'s
+/// rescale (`alpha0_all` above). Fourth-order alphar fields are left zero:
+/// `StateDerivs` reads at most third order, and upstream's cubic `all` fills
+/// them only for its own 4th-order call surface, which is not ported.
+impl DerivEos for CubicEos {
+    fn alphar_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        let d = CubicEos::alphar_all(self, tau, delta);
+        HelmholtzDerivs {
+            d00: d.d00,
+            d10: d.d10,
+            d01: d.d01,
+            d20: d.d20,
+            d11: d.d11,
+            d02: d.d02,
+            d30: d.d30,
+            d21: d.d21,
+            d12: d.d12,
+            d03: d.d03,
+            ..Default::default()
+        }
+    }
+    fn alpha0_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        CubicEos::alpha0_all(self, tau, delta)
+    }
+    fn t_reducing(&self) -> f64 {
+        1.0
+    }
+    fn rhomolar_reducing(&self) -> f64 {
+        1.0
+    }
+    fn gas_constant(&self) -> f64 {
+        R_U_CODATA
+    }
+    fn molar_mass(&self) -> f64 {
+        self.fluid.molemass
+    }
+}
+
 /// A (Dmolar, T) cubic state.
 pub enum CubicDtState {
     Single {
@@ -708,3 +888,332 @@ pub struct CubicSatState {
 }
 
 pub use rustprop_core::UPSTREAM_VERSION;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rustprop_core::params::Param;
+    use rustprop_heos::derivs::StateDerivs;
+
+    fn eos(kind: CubicKind, name: &str) -> CubicEos {
+        let data = rustprop_data::cubics::CUBIC_FLUIDS
+            .iter()
+            .find(|f| f.name == name)
+            .expect("fluid in cubic table");
+        CubicEos::new(kind, data)
+    }
+
+    #[track_caller]
+    fn assert_rel(actual: f64, expected: f64, rtol: f64, what: &str) {
+        let err = ((actual - expected) / expected).abs();
+        assert!(
+            err <= rtol,
+            "{what}: got {actual:.17e}, wheel {expected:.17e}, rel err {err:.3e} > {rtol:.1e}"
+        );
+    }
+
+    /// The new third-order alphar fields against central differences of the
+    /// golden-verified second-order fields.
+    #[test]
+    fn third_order_alphar_matches_finite_differences() {
+        for (eos, tau, delta) in [
+            (eos(CubicKind::Srk, "WATER"), 1.0 / 300.0, 41892.19240933652),
+            (
+                eos(CubicKind::PengRobinson, "N-PROPANE"),
+                1.0 / 320.0,
+                202.19964739479565,
+            ),
+        ] {
+            let d = eos.alphar_all(tau, delta);
+            let hd = 1e-6 * delta;
+            let ht = 1e-6 * tau;
+            let dp = eos.alphar_all(tau, delta + hd);
+            let dm = eos.alphar_all(tau, delta - hd);
+            let tp = eos.alphar_all(tau + ht, delta);
+            let tm = eos.alphar_all(tau - ht, delta);
+            let rtol = 1e-6;
+            assert_rel(
+                d.d30,
+                (dp.d20 - dm.d20) / (2.0 * hd),
+                rtol,
+                "d30 vs FD(d20)",
+            );
+            assert_rel(
+                d.d21,
+                (dp.d11 - dm.d11) / (2.0 * hd),
+                rtol,
+                "d21 vs FD(d11)",
+            );
+            assert_rel(
+                d.d12,
+                (tp.d11 - tm.d11) / (2.0 * ht),
+                rtol,
+                "d12 vs FD(d11)",
+            );
+            assert_rel(
+                d.d03,
+                (tp.d02 - tm.d02) / (2.0 * ht),
+                rtol,
+                "d03 vs FD(d02)",
+            );
+            // Cross-checks through the other variable.
+            assert_rel(
+                d.d21,
+                (tp.d20 - tm.d20) / (2.0 * ht),
+                rtol,
+                "d21 vs FD(d20)",
+            );
+            assert_rel(
+                d.d12,
+                (dp.d02 - dm.d02) / (2.0 * hd),
+                rtol,
+                "d12 vs FD(d02)",
+            );
+        }
+    }
+
+    /// The cubic-convention alpha0 matrix against the wheel's keyed
+    /// `dalpha0_*` outputs (SRK::Water T=300, P=101325; rho is the wheel's
+    /// density root).
+    #[test]
+    fn alpha0_matrix_matches_wheel() {
+        let eos = eos(CubicKind::Srk, "WATER");
+        let (t, rho) = (300.0, 41892.19240933652);
+        let a0 = eos.alpha0_all(1.0 / t, rho);
+        let rtol = 1e-13;
+        assert_rel(a0.d01, 5228.34514185985, rtol, "dalpha0_dtau_constdelta");
+        assert_rel(
+            a0.d10,
+            2.3870796501381716e-05,
+            rtol,
+            "dalpha0_ddelta_consttau",
+        );
+        assert_rel(
+            a0.d20,
+            -5.698149256103775e-10,
+            rtol,
+            "d2alpha0_ddelta2_consttau",
+        );
+        assert_rel(
+            a0.d30,
+            2.7203872265390565e-14,
+            rtol,
+            "d3alpha0_ddelta3_consttau",
+        );
+    }
+
+    /// The new property methods against wheel values (SRK::Water T=300,
+    /// P=101325 from the spec's Part 2 table, plus a fresh PR::n-Propane
+    /// state probed 2026-08-17).
+    #[test]
+    fn new_property_methods_match_wheel() {
+        let srk = eos(CubicKind::Srk, "WATER");
+        let (t, rho) = (300.0, 41892.19240933652);
+        let rtol = 1e-12;
+        assert_rel(
+            srk.hmolar_idealgas(t, rho),
+            45965.219022242796,
+            rtol,
+            "Hmolar_idealgas",
+        );
+        assert_rel(
+            srk.smolar_idealgas(t, rho),
+            67.93894818182274,
+            rtol,
+            "Smolar_idealgas",
+        );
+        assert_rel(
+            srk.umolar_idealgas(t, rho),
+            43470.880236796824,
+            rtol,
+            "Umolar_idealgas",
+        );
+        assert_rel(
+            srk.gibbsmolar_residual(t, rho),
+            -26394.231653381616,
+            rtol,
+            "Gmolar_residual",
+        );
+        assert_rel(
+            srk.helmholtzmolar(t, rho),
+            -813.1157941411406,
+            rtol,
+            "Helmholtzmolar",
+        );
+        assert_rel(srk.bvirial(t), -0.00037031381518632956, rtol, "Bvirial");
+        assert_rel(srk.cvirial(t), 8.716342737432009e-09, rtol, "Cvirial");
+        assert_rel(
+            srk.dbvirial_dt(t),
+            1.9788439201291845e-06,
+            rtol,
+            "dBvirial_dT",
+        );
+        assert_rel(
+            srk.dcvirial_dt(t),
+            -4.1807133419866773e-11,
+            rtol,
+            "dCvirial_dT",
+        );
+
+        let pr = eos(CubicKind::PengRobinson, "N-PROPANE");
+        let (t, rho) = (320.0, 202.19964739479565);
+        assert_rel(
+            pr.hmolar_idealgas(t, rho),
+            29570.873486797595,
+            rtol,
+            "PR Hmolar_idealgas",
+        );
+        assert_rel(
+            pr.smolar_idealgas(t, rho),
+            117.17530240282125,
+            rtol,
+            "PR Smolar_idealgas",
+        );
+        assert_rel(
+            pr.umolar_idealgas(t, rho),
+            26910.245448988557,
+            rtol,
+            "PR Umolar_idealgas",
+        );
+        assert_rel(
+            pr.gibbsmolar_residual(t, rho),
+            -378.2725735622879,
+            rtol,
+            "PR Gmolar_residual",
+        );
+        assert_rel(
+            pr.helmholtzmolar(t, rho),
+            -10776.29937655468,
+            rtol,
+            "PR Helmholtzmolar",
+        );
+        assert_rel(pr.bvirial(t), -0.00035896737773585385, rtol, "PR Bvirial");
+        assert_rel(pr.cvirial(t), 4.9907523151543885e-08, rtol, "PR Cvirial");
+        assert_rel(
+            pr.dbvirial_dt(t),
+            1.9959910596557732e-06,
+            rtol,
+            "PR dBvirial_dT",
+        );
+        assert_rel(
+            pr.dcvirial_dt(t),
+            -2.2466814828132958e-10,
+            rtol,
+            "PR dCvirial_dT",
+        );
+    }
+
+    /// End-to-end proof of the generic (T, rho) machinery over the cubic:
+    /// PIP, both compressibilities, the isentropic expansion coefficient and
+    /// the fundamental derivative of gas dynamics against the wheel, exactly
+    /// the AbstractState formula chains props_api will wire up.
+    #[test]
+    fn derivative_machinery_matches_wheel() {
+        struct Case {
+            eos: CubicEos,
+            t: f64,
+            p: f64,
+            rho: f64,
+            pip: f64,
+            kappa: f64,
+            beta: f64,
+            isentropic: f64,
+            fd: f64,
+        }
+        for c in [
+            Case {
+                eos: eos(CubicKind::Srk, "WATER"),
+                t: 300.0,
+                p: 101325.0,
+                rho: 41892.19240933652,
+                pip: 14.350546351600986,
+                kappa: 1.534208236534884e-10,
+                beta: 0.0007050575617414767,
+                isentropic: 87819.91820691254,
+                fd: 10.175578115135734,
+            },
+            Case {
+                eos: eos(CubicKind::PengRobinson, "N-PROPANE"),
+                t: 320.0,
+                p: 500000.0,
+                rho: 202.19964739479565,
+                pip: 0.7929063097130047,
+                kappa: 2.159523584210258e-06,
+                beta: 0.003832759413225277,
+                isentropic: 1.069334363260059,
+                fd: 1.0101341740122103,
+            },
+        ] {
+            let (rho, _phase) = c.eos.pt_flash(c.t, c.p).expect("PT flash");
+            assert_rel(rho, c.rho, 1e-9, "density root");
+            let d = StateDerivs::new(&c.eos, c.t, rho);
+            let rtol = 1e-9;
+
+            // calc_PIP (HelmholtzEOSMixtureBackend.h:603)
+            let pip = 2.0
+                - rho
+                    * (d.second_partial_deriv(
+                        Param::P,
+                        Param::Dmolar,
+                        Param::T,
+                        Param::T,
+                        Param::Dmolar,
+                    )
+                    .unwrap()
+                        / d.first_partial_deriv(Param::P, Param::T, Param::Dmolar)
+                            .unwrap()
+                        - d.second_partial_deriv(
+                            Param::P,
+                            Param::Dmolar,
+                            Param::T,
+                            Param::Dmolar,
+                            Param::T,
+                        )
+                        .unwrap()
+                            / d.first_partial_deriv(Param::P, Param::Dmolar, Param::T)
+                                .unwrap());
+            assert_rel(pip, c.pip, rtol, "PIP");
+
+            // calc_isothermal_compressibility (AbstractState.cpp:950)
+            let kappa = d
+                .first_partial_deriv(Param::Dmolar, Param::P, Param::T)
+                .unwrap()
+                / rho;
+            assert_rel(kappa, c.kappa, rtol, "isothermal_compressibility");
+
+            // calc_isobaric_expansion_coefficient (AbstractState.cpp:953)
+            let beta = -d
+                .first_partial_deriv(Param::Dmolar, Param::T, Param::P)
+                .unwrap()
+                / rho;
+            assert_rel(beta, c.beta, rtol, "isobaric_expansion_coefficient");
+
+            // calc_isentropic_expansion_coefficient (AbstractState.cpp:956)
+            let isentropic = rho / c.p
+                * d.first_partial_deriv(Param::P, Param::Dmolar, Param::Smolar)
+                    .unwrap();
+            assert_rel(
+                isentropic,
+                c.isentropic,
+                rtol,
+                "isentropic_expansion_coefficient",
+            );
+
+            // fundamental_derivative_of_gas_dynamics (AbstractState.cpp:975)
+            let w = c.eos.speed_sound(c.t, rho);
+            let rhomass = rho * c.eos.molar_mass();
+            let fd = 1.0
+                + d.second_partial_deriv(
+                    Param::P,
+                    Param::Dmass,
+                    Param::Smolar,
+                    Param::Dmass,
+                    Param::Smolar,
+                )
+                .unwrap()
+                    * rhomass
+                    / (2.0 * w * w);
+            assert_rel(fd, c.fd, rtol, "fundamental_derivative_of_gas_dynamics");
+        }
+    }
+}

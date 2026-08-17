@@ -582,3 +582,37 @@ fn mixture_sweep_matches_oracle() {
         failures.join("\n")
     );
 }
+
+/// The wheel's HSU_P imposition-clear corruption, pinned (2026-08-17
+/// Decisions log). For Nitrogen[0.97]&Water[0.03], every feed density solve
+/// at T >= ~340 K throws "One stationary point", firing upstream's stability
+/// feed fallback (`VLERoutines.cpp:2110-2112`) whose `unspecify_phase()`
+/// permanently CLEARS SatL's constructor liquid imposition for that backend
+/// INSTANCE. A sweep-pair flash evaluates many inner PT states on one
+/// backend, so its high-T endpoint evaluations corrupt SatL and the wheel's
+/// inversions then contradict its own forward flashes:
+/// T(Hmolar, P=1e6) returns 309.5966 for the Hmolar the wheel itself
+/// computes at exactly 310 K (bitwise equal to the port's forward answer),
+/// and T(P=1e6, Smolar-at-320-K) errors outright. The port's residual is a
+/// pure function of (z, T, p); reproducing the corruption would make PS/HP
+/// flashes history-dependent, which the stateless architecture deliberately
+/// cannot express — the same ruling as the two excused HSU_P acceptance
+/// records (which are a DIFFERENT channel: those systems have no feed
+/// failures). This asserts the port's SELF-CONSISTENT answers so the
+/// divergence can neither widen nor silently drift.
+#[test]
+fn hsu_p_imposition_clear_divergence_pinned() {
+    let spec = "HEOS::Nitrogen[0.97]&Water[0.03]";
+    // Hmolar is the wheel's (and the port's) own forward answer at 310 K.
+    let t = rustprop::props_si("T", "Hmolar", 9045.240957020049, "P", 1e6, spec).unwrap();
+    assert!(
+        (t - 310.0).abs() < 1e-6,
+        "H,P inversion drifted from the pinned self-consistent root: {t}"
+    );
+    // Smolar is the forward answer at 320 K; the wheel's inversion errors.
+    let t = rustprop::props_si("T", "P", 1e6, "Smolar", 171.00273598017768, spec).unwrap();
+    assert!(
+        (t - 320.0).abs() < 1e-6,
+        "P,S inversion drifted from the pinned self-consistent root: {t}"
+    );
+}

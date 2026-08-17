@@ -4,12 +4,21 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, ChebyshevInterval, SuperAncCheckPoint, SuperAncillaryData, SurfaceTension, MeltingLine, MeltingLineKind, PolyMeltPart};
 
 pub static ETHYLENE: FluidData = FluidData {
     name: "Ethylene",
     cas: "74-85-1",
     aliases: &["ethylene", "ETHYLENE", "R1150"],
+    environmental: Environmental {
+        gwp20: -1.0,
+        gwp100: 6.8,
+        gwp500: -1.0,
+        odp: -1.0,
+        hh: 2.0,
+        ph: 2.0,
+        fh: 4.0,
+    },
     eos: Eos {
         gas_constant: 8.31451,
         molar_mass: 0.02805376,
