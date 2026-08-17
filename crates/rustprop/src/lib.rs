@@ -37,14 +37,16 @@ pub mod if97_api;
     feature = "heos",
     feature = "if97",
     feature = "cubics",
-    feature = "incompressible"
+    feature = "incompressible",
+    feature = "pcsaft"
 ))]
 pub mod props_api;
 #[cfg(any(
     feature = "heos",
     feature = "if97",
     feature = "cubics",
-    feature = "incompressible"
+    feature = "incompressible",
+    feature = "pcsaft"
 ))]
 pub use props_api::props_si;
 

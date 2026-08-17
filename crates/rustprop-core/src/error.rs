@@ -11,6 +11,12 @@
 //! `what()`, `Display` shows only the message.
 
 /// Error condition, mirroring upstream `CoolPropBaseError::ErrCode`.
+///
+/// `#[non_exhaustive]`: semver headroom for tracking upstream (the omitted
+/// host-integration codes, or codes a future CoolProp release adds). By
+/// explicit ruling, `Param`/`InputPair`/`Phase` stay exhaustive — there,
+/// compiler-forced match exhaustiveness is a port-completeness tool.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     /// `NotImplementedError`
