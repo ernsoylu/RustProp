@@ -274,6 +274,10 @@ pub static KRYPTON: FluidData = FluidData {
             t_min: 115.77000000000001,
             t_max: 209.4799999999995,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.0447], n: &[1.245], tc: 209.48 }),
         melting_line: Some(MeltingLine {
             t_m: 115.95,

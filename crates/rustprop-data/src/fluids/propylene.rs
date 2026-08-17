@@ -322,6 +322,10 @@ pub static PROPYLENE: FluidData = FluidData {
             t_min: 87.95300000000002,
             t_max: 364.2109999999991,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.05268], n: &[1.186], tc: 364.211 }),
         melting_line: Some(MeltingLine {
             t_m: 88.05999999999997,

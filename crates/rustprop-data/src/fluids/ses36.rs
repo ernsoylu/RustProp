@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, RationalPolyAncillary};
 
 pub static SES36: FluidData = FluidData {
     name: "SES36",
@@ -122,6 +122,34 @@ pub static SES36: FluidData = FluidData {
             t_min: 200.0,
             t_max: 450.69000000000005,
         },
+        h_l: Some(RationalPolyAncillary {
+            a: &[-90751.87711255281, -882.7688707226558, 16.90796578142739, -0.10654584144594297, 0.00036169710502510663, -6.989650297101517e-7, 7.242329065232665e-10, -3.1441810430639936e-13],
+            b: &[1.0, -0.0021970345052858553],
+            max_abs_error: 236.4175681628749,
+            t_min: 200.0,
+            t_max: 450.6,
+        }),
+        h_lv: Some(RationalPolyAncillary {
+            a: &[-9445.113221227526, 2078.936243268868, -27.139282619132647, 0.16427399428114442, -0.0005602710431491984, 1.106337285065809e-6, -1.1851887917786378e-9, 5.355817218756505e-13],
+            b: &[1.0, -0.002196513707501151],
+            max_abs_error: 604.0703510835851,
+            t_min: 200.0,
+            t_max: 450.6,
+        }),
+        s_l: Some(RationalPolyAncillary {
+            a: &[-418.6587023459173, 2.5211996561776844, -0.006137214640352245, -1.0719249147537204e-6, 6.662750203687484e-8, -2.170867948430337e-10, 3.00787731113147e-13, -1.605066614795231e-16],
+            b: &[1.0, -0.0021943265311199114],
+            max_abs_error: 0.5864022060984269,
+            t_min: 200.0,
+            t_max: 450.6,
+        }),
+        s_lv: Some(RationalPolyAncillary {
+            a: &[703.7621553322332, -10.053618610335299, 0.07927638956468902, -0.000381106888737545, 1.1093700389503594e-6, -1.9044150815065928e-9, 1.7704383450993817e-12, -6.838249427423201e-16],
+            b: &[1.0, -0.002192843051112099],
+            max_abs_error: 1.497657380847202,
+            t_min: 200.0,
+            t_max: 450.6,
+        }),
         surface_tension: None,
         melting_line: None,
     },

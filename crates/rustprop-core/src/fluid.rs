@@ -784,10 +784,41 @@ pub struct Ancillaries {
     pub rho_l: SaturationAncillary,
     /// `ANCILLARIES.rhoV`
     pub rho_v: SaturationAncillary,
+    /// `ANCILLARIES.hL` — saturated-liquid enthalpy curve [J/mol].
+    /// The four caloric slots are `Some` for pseudo-pure fluids only:
+    /// upstream reads them solely on the pseudo-pure (H,P)/(P,S)/(P,U)
+    /// phase-determination path, while for superancillary pure fluids the
+    /// blocks in the JSON documents are dead data (the superancillary
+    /// branch returns first), so they are not emitted.
+    pub h_l: Option<RationalPolyAncillary>,
+    /// `ANCILLARIES.hLV` — enthalpy of vaporization curve [J/mol]
+    pub h_lv: Option<RationalPolyAncillary>,
+    /// `ANCILLARIES.sL` — saturated-liquid entropy curve [J/mol/K]
+    pub s_l: Option<RationalPolyAncillary>,
+    /// `ANCILLARIES.sLV` — entropy of vaporization curve [J/mol/K]
+    pub s_lv: Option<RationalPolyAncillary>,
     /// `ANCILLARIES.surface_tension` — absent for fluids without a curve
     pub surface_tension: Option<SurfaceTension>,
     /// `ANCILLARIES.melting_line` — absent for fluids without a curve
     pub melting_line: Option<MeltingLine>,
+}
+
+/// A `"rational_polynomial"` saturation ancillary (upstream
+/// `SaturationAncillaryFunction` with `TYPE_RATIONAL_POLYNOMIAL`, parsed in
+/// `src/Backends/Helmholtz/Fluids/FluidLibraryFactories.h:44-56`):
+/// `y = poly(A, T) / poly(B, T)` with coefficients ordered degree-ascending.
+pub struct RationalPolyAncillary {
+    /// `.A` — numerator coefficients (`num_coeffs`), `a[i]` scales `T^i`
+    pub a: &'static [f64],
+    /// `.B` — denominator coefficients (`den_coeffs`)
+    pub b: &'static [f64],
+    /// `.max_abs_error` — the fit's maximum absolute error (J/mol or
+    /// J/mol/K)
+    pub max_abs_error: f64,
+    /// `.Tmin` [K] (upstream defaults to `_HUGE` when the key is absent)
+    pub t_min: f64,
+    /// `.Tmax` [K]
+    pub t_max: f64,
 }
 
 /// `ANCILLARIES.melting_line` (upstream `MeltingLineVariables`): the

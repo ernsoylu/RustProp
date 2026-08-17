@@ -312,6 +312,10 @@ pub static HEAVYWATER: FluidData = FluidData {
             t_min: 276.969,
             t_max: 643.837,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.238, -0.152082], n: &[1.25, 2.25], tc: 643.847 }),
         melting_line: Some(MeltingLine {
             t_m: -1.0,

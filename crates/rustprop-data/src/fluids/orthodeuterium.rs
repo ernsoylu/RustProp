@@ -273,6 +273,10 @@ pub static ORTHODEUTERIUM: FluidData = FluidData {
             t_min: 18.72400000000001,
             t_max: 38.33999999999991,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: None,
         melting_line: Some(MeltingLine {
             t_m: 18.724,

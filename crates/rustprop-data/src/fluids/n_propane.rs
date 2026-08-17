@@ -321,6 +321,10 @@ pub static N_PROPANE: FluidData = FluidData {
             t_min: 85.52500000000002,
             t_max: 369.8899999999991,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.05334, -0.01748], n: &[1.235, 4.404], tc: 369.89 }),
         melting_line: Some(MeltingLine {
             t_m: 85.39999999999998,

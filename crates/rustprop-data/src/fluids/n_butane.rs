@@ -304,6 +304,10 @@ pub static N_BUTANE: FluidData = FluidData {
             t_min: 134.895,
             t_max: 425.124999999999,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.05138], n: &[1.209], tc: 425.125 }),
         melting_line: Some(MeltingLine {
             t_m: 135.23,

@@ -285,6 +285,10 @@ pub static CARBONMONOXIDE: FluidData = FluidData {
             t_min: 68.16000000000001,
             t_max: 132.8599999999997,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.02843], n: &[1.148], tc: 132.86 }),
         melting_line: Some(MeltingLine {
             t_m: 68.3,

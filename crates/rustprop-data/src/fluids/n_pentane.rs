@@ -312,6 +312,10 @@ pub static N_PENTANE: FluidData = FluidData {
             t_min: 143.47,
             t_max: 469.7,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.08015, 0.004384, -0.03437], n: &[1.408, 1.031, 1.818], tc: 469.7 }),
         melting_line: Some(MeltingLine {
             t_m: 143.26,

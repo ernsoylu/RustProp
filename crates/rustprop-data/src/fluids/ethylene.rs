@@ -304,6 +304,10 @@ pub static ETHYLENE: FluidData = FluidData {
             t_min: 103.98900000000002,
             t_max: 282.3499999999994,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.0477], n: &[1.17], tc: 282.35 }),
         melting_line: Some(MeltingLine {
             t_m: 169.0,

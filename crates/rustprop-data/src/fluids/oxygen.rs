@@ -297,6 +297,10 @@ pub static OXYGEN: FluidData = FluidData {
             t_min: 54.361000000000004,
             t_max: 154.58099999999973,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.03843], n: &[1.225], tc: 154.581 }),
         melting_line: Some(MeltingLine {
             t_m: 54.75,

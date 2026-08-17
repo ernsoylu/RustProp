@@ -311,6 +311,17 @@ struct AncJson {
     rho_l: SatAncJson,
     #[serde(rename = "rhoV")]
     rho_v: SatAncJson,
+    /// Rational-polynomial caloric curves. 110 pure-fluid documents carry
+    /// them too, but upstream only reads them on the pseudo-pure
+    /// phase-determination path — emission is pseudo-pure-only.
+    #[serde(rename = "hL")]
+    h_l: Option<RatPolyJson>,
+    #[serde(rename = "hLV")]
+    h_lv: Option<RatPolyJson>,
+    #[serde(rename = "sL")]
+    s_l: Option<RatPolyJson>,
+    #[serde(rename = "sLV")]
+    s_lv: Option<RatPolyJson>,
     surface_tension: Option<SurfTensJson>,
     melting_line: Option<MeltJson>,
 }
@@ -363,6 +374,24 @@ struct SatAncJson {
     t_min: f64,
     #[serde(rename = "Tmax")]
     t_max: f64,
+}
+
+/// One `rational_polynomial` block (upstream parse:
+/// `FluidLibraryFactories.h:44-56` — A, B, max_abs_error, and Tmin/Tmax
+/// with an `_HUGE` fallback when absent).
+#[derive(Deserialize)]
+struct RatPolyJson {
+    #[serde(rename = "type")]
+    anc_type: String,
+    #[serde(rename = "A")]
+    a: Vec<f64>,
+    #[serde(rename = "B")]
+    b: Vec<f64>,
+    max_abs_error: f64,
+    #[serde(rename = "Tmin")]
+    t_min: Option<f64>,
+    #[serde(rename = "Tmax")]
+    t_max: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -440,6 +469,24 @@ fn sat_anc(a: &SatAncJson, indent: &str) -> String {
         a.using_tau_r,
         f(a.t_min),
         f(a.t_max),
+    )
+}
+
+fn rat_poly_anc(a: &RatPolyJson, indent: &str) -> String {
+    assert_eq!(
+        a.anc_type, "rational_polynomial",
+        "unexpected caloric ancillary type {:?}",
+        a.anc_type
+    );
+    format!(
+        "RationalPolyAncillary {{\n{indent}    a: {},\n{indent}    b: {},\n{indent}    max_abs_error: {},\n{indent}    t_min: {},\n{indent}    t_max: {},\n{indent}}}",
+        slice(&a.a),
+        slice(&a.b),
+        f(a.max_abs_error),
+        // Upstream's parse falls back to _HUGE when Tmin/Tmax are absent
+        // (FluidLibraryFactories.h:49-55); all six documents carry both.
+        f(a.t_min.unwrap_or(f64::INFINITY)),
+        f(a.t_max.unwrap_or(f64::INFINITY)),
     )
 }
 
@@ -616,6 +663,11 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
         Some(_) => ", MeltingLine, MeltingLineKind, PolyMeltPart",
         None => "",
     };
+    let ratpoly = if eos.pseudo_pure {
+        ", RationalPolyAncillary"
+    } else {
+        ""
+    };
     let transport_rendered = emit_transport(doc.transport.as_ref());
     let mut timp = String::new();
     for ty in [
@@ -641,7 +693,7 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
     }
     writeln!(
         w,
-        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States{sa}{surf}{melt}{timp}}};"
+        "use rustprop_core::fluid::{{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States{sa}{surf}{melt}{ratpoly}{timp}}};"
     )
     .unwrap();
     writeln!(w).unwrap();
@@ -855,6 +907,35 @@ fn emit(doc: &Doc, eos: &EosJson, source_file: &str) -> String {
         sat_anc(&doc.ancillaries.rho_v, "        ")
     )
     .unwrap();
+    // hL/hLV/sL/sLV caloric curves: PSEUDO-PURE ONLY. Upstream reads them
+    // solely in the pseudo-pure (H,P)/(P,S)/(P,U) phase determination; for
+    // the superancillary pure fluids they are dead data (that branch
+    // returns first), so emitting them would only grow the wasm binaries.
+    for (field, block) in [
+        ("h_l", &doc.ancillaries.h_l),
+        ("h_lv", &doc.ancillaries.h_lv),
+        ("s_l", &doc.ancillaries.s_l),
+        ("s_lv", &doc.ancillaries.s_lv),
+    ] {
+        match block {
+            Some(rp) if eos.pseudo_pure => {
+                writeln!(
+                    w,
+                    "        {field}: Some({}),",
+                    rat_poly_anc(rp, "        ")
+                )
+                .unwrap();
+            }
+            _ => {
+                assert!(
+                    !eos.pseudo_pure,
+                    "pseudo-pure fluid {} missing caloric ancillary {field}",
+                    doc.info.name
+                );
+                writeln!(w, "        {field}: None,").unwrap();
+            }
+        }
+    }
     match &doc.ancillaries.surface_tension {
         Some(st) => writeln!(
             w,
