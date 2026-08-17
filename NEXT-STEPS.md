@@ -18,7 +18,7 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | ~39,100 committed, generated from the CoolProp 8.0.0 wheel |
+| Oracle records | ~39,400 committed, generated from the CoolProp 8.0.0 wheel |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
@@ -80,8 +80,10 @@ heal. Do not "fix" one without checking the assertion that pins it.
 | `HAPropsSI` errors return `Result` instead of upstream's `+inf`-with-a-global | humid-air suite | A global error slot is not a thing a WASM library should have |
 | PC-SAFT `WATER` PT/DT errors loudly | PC-SAFT suite, error parity asserted | Upstream computes on children whose sigma is still the −1 sentinel and returns garbage densities |
 | Tabular msgpack+zlib disk cache under `~/.CoolProp/Tabular` not ported | documented in `PLAN.md` | No home directory in WASM. Cost: a LogPH table build runs ~100 s per process (40k HP flashes) — exactly the cost upstream's cache exists to avoid |
-| Pseudo-pure fluids serve PT/PQ/QT plus the classic-ancillary (H,P)/(P,S)/(P,U)/(D,P) flashes (Wave-2 R6); the remaining pairs (DmolarT, HS, DQ, HSU_D, ...) are loud `NotImplemented` | pseudo-pure suite, verbatim error parity | Upstream routes the rest through legacy solvers that are dead code for the 130 superancillary fluids |
+| Pseudo-pure fluids serve PT/PQ/QT plus the classic-ancillary (H,P)/(P,S)/(P,U)/(D,P) flashes (Wave-2 R6, goldened over six regions by R7); the remaining pairs (DmolarT, HS, DQ, HSU_D, ...) are loud `NotImplemented` | pseudo-pure suite (665 records: 654 value at 1e-8, 11 error-parity), verbatim error parity | Upstream routes the rest through legacy solvers that are dead code for the 130 superancillary fluids |
 | R507A gas-classified caloric (P,X) states at p = 0.995·max_sat_p error loudly where the wheel converges | PLAN.md 2026-08-17 R6 entry | Both implementations fire the same gas stability retry from 1e-6 at the Tmin probe (TVanc−0.01, 0.24 K below Tcrit); the retry trajectory is chaotic through the vdW loop and only bitwise alphar arithmetic would reproduce the wheel's lucky convergence (EOS sums agree at 1e-13). A needle: 0.9925·pmax and 0.9975·pmax both agree at ≤2e-9 |
+| Pseudo-pure PY-flash refusal MESSAGES are the port's own bracket diagnostic, not upstream's "unable to solve 1phase PY flash with Tmin=…, Tmax=… due to error: …" wrapper | `pseudo_pure_error_parity_matches_upstream` (refusal-vs-answer asserted for all 11 error records; oracle text carried in each record's `error` field) | The wrapper quotes `HSU_P_flash_singlephase_Brent`'s own range guards, which the established 30-bit bisection stand-in has none of. `post_update` and `solver_rho_Tp` refusals in the same suite ARE verbatim |
+| Upstream's `post_update` validity gate is ported for the HEOS pure/pseudo-pure arm only, not for `mixture_update` | `props_api.rs::post_update` | No reachable NaN mixture state has been observed, and the 10f divergence pins would need re-validating; a gate without evidence is an invented guard |
 | SVDSBTL evaluator agrees to a few ulp, not bitwise (700 of 745 records bitwise, worst 1.8e-15) | `tests/golden/tests/svdsbtl.rs` | GCC compiles the reference build with `-ffp-contract=fast`. Fusing the obvious candidate makes agreement *worse*, so the contraction sits elsewhere; chasing it would match a compiler flag, not port an algorithm |
 
 **Wheel-vs-tag discoveries** (not divergences — the port follows the SHIPPED

@@ -166,6 +166,83 @@ pub fn bounded_secant<F: FnMut(f64) -> f64>(
     Ok(x2)
 }
 
+/// Upstream `ExtrapolatingSecant` (`src/Solvers.cpp:429-506`, omega = 1).
+///
+/// Identical to [`secant`] except in what an INVALID residual means: `Secant`
+/// throws ("Residual function in secant returned invalid number",
+/// Solvers.cpp:332), while `ExtrapolatingSecant` EXTRAPOLATES through it
+/// (Solvers.cpp:472-478) — returning `x0` if the very first call is invalid and
+/// otherwise the secant step built from the last two VALID residuals,
+/// `x2 - omega*y1/(y1 - y0)*(x2 - x1)`. That is the whole point of the routine
+/// and its only upstream caller, `SaturationAncillaryFunction::invert`
+/// (`Ancillaries.cpp:111`), relies on it: the pseudo-pure pL/pV curves get
+/// inverted at pressures ABOVE their value at `Tmax`, where `evaluate`
+/// deliberately returns NaN past the reducing temperature (#1611), and the
+/// extrapolated temperature is what the phase determination then uses.
+pub fn extrapolating_secant<F: FnMut(f64) -> f64>(
+    mut call: F,
+    x0: f64,
+    dx: f64,
+    tol: f64,
+    maxiter: i32,
+) -> Result<f64> {
+    let mut x1 = 0.0;
+    let mut x2 = 0.0;
+    let mut x3 = 0.0;
+    let mut y0 = 0.0;
+    let mut y1 = 0.0;
+    let mut x;
+    let mut fval: f64 = 999.0;
+    let mut iter = 1;
+    if dx.abs() == 0.0 {
+        return Err(Error::Value("dx cannot be zero".into()));
+    }
+    while iter <= 2 || fval.abs() > tol {
+        if iter == 1 {
+            x1 = x0;
+            x = x1;
+        } else if iter == 2 {
+            x2 = x0 + dx;
+            x = x2;
+        } else {
+            x = x2;
+        }
+        fval = call(x);
+        if !fval.is_finite() {
+            if iter == 1 {
+                return Ok(x);
+            }
+            return Ok(x2 - y1 / (y1 - y0) * (x2 - x1));
+        }
+        if iter == 1 {
+            y1 = fval;
+        }
+        if iter > 1 {
+            let deltax = x2 - x1;
+            if deltax.abs() < 1e-14 {
+                return Ok(x);
+            }
+            let y2 = fval;
+            let deltay = y2 - y1;
+            if iter > 2 && deltay.abs() < 1e-14 {
+                return Ok(x);
+            }
+            x3 = x2 - y2 / (y2 - y1) * (x2 - x1);
+            y0 = y1;
+            y1 = y2;
+            x1 = x2;
+            x2 = x3;
+        }
+        if iter > maxiter {
+            return Err(Error::Solution(
+                "Secant reached maximum number of iterations".into(),
+            ));
+        }
+        iter += 1;
+    }
+    Ok(x3)
+}
+
 /// Upstream `Secant` (omega = 1; the `input_not_in_range` hook is unused by
 /// the ported callers).
 pub fn secant<F: FnMut(f64) -> f64>(

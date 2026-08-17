@@ -34,14 +34,19 @@ pub fn evaluate(anc: &SaturationAncillary, t: f64) -> f64 {
 
 /// Upstream `SurfaceTensionCorrelation::evaluate`:
 /// `sigma = sum a_i * (1 - T/Tc)^n_i` [N/m]; `T > Tc` errors.
-/// Upstream `SaturationAncillaryFunction::invert`: T for a given output
-/// value — Brent on [Tmin - 0.01, Tmax], secant-from-Tmax fallback
-/// (upstream `ExtrapolatingSecant`).
+/// Upstream `SaturationAncillaryFunction::invert` (Ancillaries.cpp:82-113): T
+/// for a given output value — Brent on [Tmin - 0.01, Tmax], then
+/// `ExtrapolatingSecant` from Tmax with a -0.01 step. The fallback must be the
+/// EXTRAPOLATING secant, not plain `Secant`: inverting the pseudo-pure pL/pV
+/// curves at a pressure above their value at Tmax (the pcrit..max_sat_p band,
+/// where Brent cannot bracket) walks the residual past the reducing
+/// temperature, where `evaluate` returns NaN by design, and upstream
+/// extrapolates through that instead of failing.
 pub fn invert(anc: &SaturationAncillary, value: f64) -> Result<f64> {
     let f = |t: f64| evaluate(anc, t) - value;
     match crate::solvers::brent(f, anc.t_min - 0.01, anc.t_max, f64::EPSILON, 1e-10, 100) {
         Ok(t) => Ok(t),
-        Err(_) => crate::solvers::secant(f, anc.t_max, -0.01, 1e-12, 100),
+        Err(_) => crate::solvers::extrapolating_secant(f, anc.t_max, -0.01, 1e-12, 100),
     }
 }
 

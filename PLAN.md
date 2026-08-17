@@ -2065,6 +2065,65 @@ Append-only; newest last. Seeded entries:
   and 0.9975 of max_sat_p both agree at <=2e-9; matching it would require bitwise alphar
   arithmetic (same ruling as the SVDSBTL ulp row). Facade guard narrowed to exactly
   these pairs; every other pseudo-pure pair keeps its verbatim NotImplemented.
+- 2026-08-17 — pseudo-pure (H,P)/(P,S)/(P,U)/(D,P) goldens + error parity (Wave-2 R7):
+  `gen_pseudo_pure` grew a six-region sweep of the four caloric/density pairs for all six
+  pseudo-pure fluids — subcooled liquid (2*pL at T_mid), superheated gas (0.5*pV),
+  supercritical (1.2*Tc, 1.5*pc), mid-glide two-phase (PQ at Q=0.5 on pL), the
+  pcrit..max_sat_p band, and sub-triple-PRESSURE gas (0.5*ptriple at Tt + 0.05*(Tc−Tt)).
+  Each region's state is built FORWARD through an already-golden pair (PT or PQ) and its
+  own H/S/U/D coordinates fed back in, which is the only way to golden the hL/hLV/sL/sLV
+  rational-polynomial ancillaries: they have no PropsSI surface of their own upstream.
+  330 -> 665 records (654 value + 11 error-parity), tolerance unchanged at the pseudo-pure
+  1e-8 policy — worst observed 4.6e-9 (Air, Smolar off the (H,P) liquid state), the
+  DmolarP column at 9.4e-16..1.8e-11. The band point is `0.5*(pcrit + max_sat_p)` where
+  `max_sat_p.p > pcrit` (Air, R404A, R407C, R410A — the pL/pV maximum genuinely sits above
+  the critical pressure, so those pressures still resolve through the ancillary branch) and
+  `0.999*max_sat_p` where it does not (R507A, SES36); `max_sat_p` is read from
+  `EOS[0].STATES.pressure_max_sat.p` in the oracle's own fluid JSON. Deliberately NOT at
+  0.995*max_sat_p, which is the R6-pinned R507A needle.
+  PORT BUG FOUND AND FIXED (pre-existing, Phase 4.3, exposed by the band):
+  `ancillary::invert` used the port of upstream's `Secant` where
+  `SaturationAncillaryFunction::invert` (Ancillaries.cpp:111) calls
+  `ExtrapolatingSecant` (Solvers.cpp:429). The two differ in exactly one thing and it is
+  the whole point of the routine: on a non-finite residual `Secant` THROWS
+  ("Residual function in secant returned invalid number", Solvers.cpp:332) while
+  `ExtrapolatingSecant` EXTRAPOLATES through it (Solvers.cpp:472-478), returning `x0` on
+  the first call and `x2 - omega*y1/(y1 - y0)*(x2 - x1)` afterwards. Inverting pL/pV at a
+  pressure above their value at Tmax — exactly the pcrit..max_sat_p band, where Brent
+  cannot bracket — walks the residual past the reducing temperature, where `evaluate`
+  returns NaN by design (#1611), so every band state failed: 24 of the new records. With
+  `solvers::extrapolating_secant` ported verbatim (and used ONLY there, as upstream uses
+  it only there) all 24 agree, Air/R404A/R407C at <=4.6e-9.
+  SECOND FIX, upstream `post_update(optional_checks = true)`
+  (HelmholtzEOSMixtureBackend.cpp:1647-1671): the HEOS pure/pseudo-pure `update()` had no
+  validity gate, so SES36's (P,Smolar) in the band returned NaN where the wheel raises
+  "T is not a valid number". Ported at the single `update()` choke point in upstream's
+  order (p, T, rhomolar<0, rhomolar, Q, phase-unknown), with the `_p < 0` / `_T < 0`
+  checks left commented out as upstream leaves them; the message is now VERBATIM. Scoped
+  to the pure/pseudo-pure arm — the mixture route (`mixture_update`) has no observed
+  reachable NaN state and its 10f divergence pins would need re-validating, so its gate is
+  left for a task with evidence.
+  ERROR PARITY, 11 records, all newly reachable through these pairs. (1) Upstream's own
+  Air-at-1-bar low-quality (Hmolar,P) window: below hmolar ~ 206.32334974236 J/mol
+  (Q ~ 0.0358467) the caloric band classifies the two-phase state as single-phase and the
+  bracketed PY solve walks out of [Tmin, SatL->T()] and throws (FlashRoutines.cpp:3435);
+  from 206.5 J/mol up the same inputs converge two-phase. Pinned from BOTH sides — 5
+  refusals at {−1500, 0, 100, 200, 206} and 7 converging values (x2 outputs) at
+  {−1000, 206.5, 207, 210, 250, 1000, 3000} — so the boundary cannot drift in either
+  direction; hmolar = −1500 pins the other, liquid-side refusal (below the minimum the
+  bracket can reach). The port's window is IDENTICAL. (2) Three band refusals: Air's
+  (Hmolar,P) at the very state whose (P,S)/(P,U)/(D,P) it answers; SES36's (P,Smolar)
+  post_update refusal; R410A's forward PQ at 0.5*(pc+pmax_sat), where `solver_rho_Tp`
+  fails in both with the same T (344.48352272992565 vs the wheel's printed 344.484) and
+  the same density guess (6218.883447874871 vs 6218.88). Refusal-vs-answer is asserted for
+  all 11; message text is asserted only where it already matches (`post_update`,
+  `solver_rho_Tp`) — the PY-flash wrapper quotes `HSU_P_flash_singlephase_Brent`'s guards,
+  which the established 30-bit bisection stand-in does not have, so those texts stay the
+  port's own bracket diagnostic (R6's handoff item, now pinned rather than fixed).
+  Harness: `GoldenRecord` gained an optional `error` field (the oracle's verbatim message;
+  `expected` is then a placeholder 0.0, JSON Lines having no NaN literal), and the
+  generator's `error_record` RAISES if the oracle in fact answers, so a stale pin fails
+  regeneration loudly instead of silently becoming a value record.
 
 ---
 

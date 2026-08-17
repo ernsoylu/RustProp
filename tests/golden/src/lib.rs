@@ -64,6 +64,12 @@ pub struct GoldenRecord {
     /// Per-record override of the suite's default relative tolerance.
     #[serde(default)]
     pub rtol: Option<f64>,
+    /// Present only on ERROR-PARITY records: the oracle REFUSES this state and
+    /// carries its verbatim message here, `expected` being a placeholder 0.0
+    /// (JSON Lines has no NaN literal). A suite that reads this field must
+    /// require the port to refuse the state too.
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 impl GoldenRecord {
@@ -129,6 +135,7 @@ mod tests {
             val3: 0.0,
             expected,
             rtol,
+            error: None,
         }
     }
 
