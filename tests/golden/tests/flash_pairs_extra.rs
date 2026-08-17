@@ -38,7 +38,11 @@ fn extra_flash_pairs_match_upstream() {
         // caloric pairs: the density is Halley-solved to a 1e-8 residual and
         // the liquid's stiff dp/drho amplifies that into P (absolute error
         // stays ~1e-4 Pa) — the established solver-dependent 1e-8 tier.
-        let rtol = if rec.name1 == "P" || rec.out == "P" {
+        // P sits SECOND in the (Hmolar, P) records, so the pair test has to
+        // look at both input names; keying on `name1` alone silently held
+        // those 11 records to the tighter 1e-9 tier the comment does not
+        // claim for them.
+        let rtol = if rec.name1 == "P" || rec.name2 == "P" || rec.out == "P" {
             1e-8
         } else {
             1e-9

@@ -7,8 +7,11 @@
 //! Numerical notes, logged in PLAN.md:
 //! - upstream resolves the single-phase (P,X) temperature with TOMS748 at a
 //!   deliberate 30-bit (~1e-9 relative) tolerance, then re-evaluates at the
-//!   bracket midpoint; we bisect to the same relative tolerance — golden
-//!   agreement is bounded by that shared tolerance, hence the 1e-8 policy;
+//!   bracket midpoint; the ported `solvers::toms748_solve` runs at the same
+//!   30 bits with the same midpoint re-evaluation, and the inner density
+//!   solve carries the previous probe's density warm exactly as upstream
+//!   does — golden agreement is bounded by that shared tolerance, hence the
+//!   1e-8 policy;
 //! - the no-bracket derivative path and the 2-D Newton fallback are unported
 //!   (loud error) until a state needs them;
 //! - two-phase mixing is upstream's exact `Q*V + (1-Q)*L` with the
@@ -103,6 +106,86 @@ impl Resid1D for CaloricTResid<'_> {
     }
     fn third_deriv(&mut self, _rhomolar: f64) -> f64 {
         unreachable!("Halley does not use the third derivative")
+    }
+}
+
+/// Upstream `HSU_P_flash_singlephase_Brent::solver_resid` — the single-phase
+/// (p, X) temperature residual `keyed_output(other) - value`.
+///
+/// The functor carries the last three converged densities so a probe can seed
+/// its inner (T, p) density solve from the previous probe's answer
+/// (`update_TP_guessrho` -> `solver_rho_Tp(T, p, guess)`) instead of re-running
+/// the cold SRK-seeded `update(PT_INPUTS, p, T)`. Upstream's literal gate:
+///
+/// ```text
+/// if (iter < 2 || std::abs(rhomolar1/rhomolar0 - 1) > 0.05 || force_robust_density)
+///     HEOS->update(PT_INPUTS, p, T);        // cold
+/// else
+///     HEOS->update_TP_guessrho(T, p, rhomolar);  // warm
+/// ```
+///
+/// `force_robust_density = (p > p_crit)`: above the critical pressure the
+/// carried-rho Newton can hop branches inside the van der Waals loop (below
+/// T_crit) or blow up where dp/drho -> 0 (just above it), which makes the outer
+/// residual non-monotone; upstream forces every supercritical-pressure probe
+/// cold. Upstream's `eos0`/`eos1` companions are not carried: their only
+/// consumer is the "above/below the maximum value" diagnostic of the unported
+/// derivative-path tail, whose message is a documented deviation.
+///
+/// NOT ported: upstream's `PXFLASH_DIRECT_EOS` cache-bypass (default ON, but
+/// gated on `is_pure()`, so pseudo-pure fluids never see it), which runs a warm
+/// probe's density solve as a Householder3 straight off
+/// `residual_helmholtz->all` at a 1e-12 relative pressure residual. Upstream
+/// calls it "bit-equivalent within ULP" to the cached path and wraps it in a
+/// `catch (...)` that falls through to exactly the `update_TP_guessrho` branch
+/// ported here — so this is upstream's own fallback, not an invented one. It is
+/// a cache-avoidance trick aimed at a cache this port does not have (each
+/// residual owns a `DerivsMemo` instead); the price is ULP-scale disagreement
+/// on warm probes, measured at a 2.0e-16 median over the (P, caloric) goldens.
+struct PxResid<'a> {
+    flash: &'a PtFlash,
+    p: f64,
+    value: f64,
+    key: CaloricKey,
+    /// The bracket's working phase — upstream's `specify_phase(iphase_liquid |
+    /// iphase_gas)` in the functor's constructor.
+    phase: Phase,
+    /// The phase the state is actually holding (upstream `_phase`), which the
+    /// guessed density solve consults where nothing is imposed.
+    live_phase: Phase,
+    iter: u32,
+    rhomolar: f64,
+    rhomolar0: f64,
+    rhomolar1: f64,
+    force_robust_density: bool,
+}
+
+impl PxResid<'_> {
+    fn call(&mut self, t: f64) -> Result<f64> {
+        let rho = if self.iter < 2
+            || (self.rhomolar1 / self.rhomolar0 - 1.0).abs() > 0.05
+            || self.force_robust_density
+        {
+            let (rho, live) = self.flash.px_probe_rho(t, self.p, self.phase)?;
+            self.live_phase = live;
+            rho
+        } else {
+            self.flash
+                .solver_rho_tp_guessed(t, self.p, self.rhomolar, self.live_phase)?
+        };
+        let eos = self.flash.px_value(self.key, t, rho);
+        self.rhomolar = rho;
+        let r = eos - self.value;
+        if self.iter == 0 {
+            self.rhomolar0 = rho;
+        } else if self.iter == 1 {
+            self.rhomolar1 = rho;
+        } else {
+            self.rhomolar0 = self.rhomolar1;
+            self.rhomolar1 = rho;
+        }
+        self.iter += 1;
+        Ok(r)
     }
 }
 
@@ -1024,8 +1107,13 @@ impl PtFlash {
 
     /// The single-phase (p, X) temperature solve shared by the pure and
     /// pseudo-pure `HSU_P_flash` arms (upstream
-    /// `HSU_P_flash_singlephase_Brent`, stood in by 30-bit bisection as
-    /// established), plus the flash tail.
+    /// `HSU_P_flash_singlephase_Brent`), plus the flash tail.
+    ///
+    /// Upstream evaluates the residual at both bracket ends, hands the pair to
+    /// `boost::math::tools::toms748_solve` with `eps_tolerance<double>(30)` and
+    /// `max_iter = 100`, then RE-EVALUATES at the midpoint of the final bracket
+    /// with the probe's iteration counter reset — so the state served is that
+    /// midpoint evaluation's, taken on the cold density path.
     fn px_solve_single_phase(
         &self,
         p: f64,
@@ -1035,45 +1123,51 @@ impl PtFlash {
         t_min: f64,
         t_max: f64,
     ) -> Result<HeosState> {
-        // Residual: keyed value at the (p,T) state minus the target. For
-        // liquid/gas the phase is imposed on the inner density solve
-        // (upstream `specify_phase`); supercritical probes re-determine.
-        let probe = |t: f64| -> Result<f64> {
-            let rho = self.px_probe_rho(t, p, phase)?;
-            Ok(self.px_value(key, t, rho))
+        let mut resid = PxResid {
+            flash: self,
+            p,
+            value,
+            key,
+            phase,
+            live_phase: phase,
+            iter: 0,
+            rhomolar: f64::INFINITY,
+            rhomolar0: f64::INFINITY,
+            rhomolar1: f64::INFINITY,
+            // Upstream `solver_resid::p_crit`, read at construction.
+            force_robust_density: p > self.p_critical(),
         };
-        let r_min = probe(t_min)? - value;
-        let r_max = probe(t_max)? - value;
+        let r_min = resid.call(t_min)?;
+        let r_max = resid.call(t_max)?;
         if r_min * r_max >= 0.0 {
             return Err(Error::Solution(format!(
                 "unable to bracket the (p,X) solution in [{t_min}, {t_max}] (residuals {r_min:e}, {r_max:e}); the derivative path is not ported"
             )));
         }
-        // Bisection at upstream's 30-bit relative tolerance, then the bracket
-        // midpoint (upstream re-evaluates the state there).
-        let tol = (2.0f64).powi(1 - 30);
-        let (mut a, mut b) = (t_min, t_max);
-        let mut fa = r_min;
-        for _ in 0..200 {
-            if (b - a) <= tol * a.abs().max(b.abs()) {
-                break;
-            }
-            let m = 0.5 * (a + b);
-            let fm = probe(m)? - value;
-            if fm == 0.0 {
-                a = m;
-                b = m;
-                break;
-            }
-            if (fa < 0.0) == (fm < 0.0) {
-                a = m;
-                fa = fm;
-            } else {
-                b = m;
-            }
+        resid.iter = 0;
+        let t = crate::solvers::toms748_solve(
+            &mut |t: f64| resid.call(t),
+            t_min,
+            t_max,
+            r_min,
+            r_max,
+            30,
+            100,
+        )?;
+        // Upstream re-evaluates at `0.5 * (l + r)` after the solve — the
+        // returned midpoint — with `iter` reset, i.e. on the cold density
+        // path, and serves THAT state.
+        resid.iter = 0;
+        resid.call(t)?;
+        let rho = resid.rhomolar;
+        // Upstream's post-solve range guard. `toms748_solve` returns the
+        // midpoint of a bracket that never leaves `[t_min, t_max]`, so this
+        // arm is unreachable here; it is carried because it is upstream's.
+        if !(t_min..=t_max).contains(&t) {
+            return Err(Error::Value(format!(
+                "TOMS748 method yielded out of bound T of {t}"
+            )));
         }
-        let t = 0.5 * (a + b);
-        let rho = self.px_probe_rho(t, p, phase)?;
         // Upstream `HSU_P_flash` tail: `recalculate_singlephase_phase` runs
         // after the solve, so the bracket's working label gives way to the
         // final (T, p, rho) quadrant (wheel: PS steam at 1568 K -> 2).
@@ -1343,16 +1437,16 @@ impl PtFlash {
         }
     }
 
-    /// Inner density for a (p,T) probe: imposed phase for liquid/gas,
-    /// full determination for the supercritical classifications (which can
-    /// legitimately flip along the bracket).
-    fn px_probe_rho(&self, t: f64, p: f64, phase: Phase) -> Result<f64> {
+    /// Inner density for a COLD (p,T) probe — upstream `update(PT_INPUTS, p,
+    /// T)`: imposed phase for liquid/gas, full determination for the
+    /// supercritical classifications (which can legitimately flip along the
+    /// bracket). Returns the density AND the phase the state is left holding
+    /// (upstream `_phase`, which `solver_rho_Tp`'s guessed form consults when
+    /// no phase is imposed — `clear()` does not reset it).
+    fn px_probe_rho(&self, t: f64, p: f64, phase: Phase) -> Result<(f64, Phase)> {
         match phase {
-            Phase::Liquid | Phase::Gas => self.solver_rho_tp(t, p, phase),
-            _ => {
-                let (rho, _phase) = self.pt_flash(t, p)?;
-                Ok(rho)
-            }
+            Phase::Liquid | Phase::Gas => Ok((self.solver_rho_tp(t, p, phase)?, phase)),
+            _ => self.pt_flash(t, p),
         }
     }
 
