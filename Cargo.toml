@@ -10,9 +10,15 @@ exclude = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+# let-chains (e.g. rustprop-heos flash_hs) stabilized in 1.88; CI checks it.
+rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/ernsoylu/RustProp"
+# Cargo adjusts the workspace-relative path per inheriting crate, so every
+# published crate ships the root README.
+readme = "README.md"
+keywords = ["thermodynamics", "coolprop", "properties", "wasm", "eos"]
+categories = ["science", "mathematics", "wasm"]
 
 [workspace.dependencies]
 rustprop-core = { path = "crates/rustprop-core", version = "0.1.0" }
@@ -32,6 +38,12 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Declaring MSRV 1.88 makes clippy propose collapsing nested `if let` + `if`
+# into let-chains at 18 sites; the nested shape deliberately mirrors upstream
+# C++ control flow (a fidelity/review aid), so the suggestion is refused.
+collapsible_if = "allow"
 
 # Size/perf profile for release artifacts (native CLI and wasm alike).
 # opt-level stays 3: property calculations are compute-heavy; use wasm-opt -Oz

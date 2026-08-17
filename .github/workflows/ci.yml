@@ -16,7 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # rustup auto-installs the toolchain pinned in rust-toolchain.toml,
+      # rustup auto-installs the toolchain from rust-toolchain.toml (which
+      # floats on the stable channel — it is not pinned to a version),
       # including the wasm32-unknown-unknown target and clippy/rustfmt.
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
@@ -55,6 +56,17 @@ jobs:
             printf '%-14s %10s bytes\n' "${feats:-minimal}" \
               "$(stat -c %s target/wasm32-unknown-unknown/release/rustprop_wasm_size_probe.wasm)"
           done
+
+  # The declared rust-version must actually build the shipped crates —
+  # rust-toolchain.toml floats on stable, so nothing else exercises it.
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install 1.88 --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +1.88 check -p rustprop --features all-backends
+      - run: cargo +1.88 check -p rustprop-wasm --features all-backends
 
   # All-fluids sweep: the #[ignore]d 130-fluid smoke suite (~1,900 oracle
   # records). Runs on manual dispatch and weekly — not on every push.

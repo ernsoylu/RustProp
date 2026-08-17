@@ -6,6 +6,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -57,3 +60,7 @@ wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
 
 [package.metadata.wasm-pack.profile.dev]
 wasm-opt = false
+
+# docs.rs builds with every engine visible; default features are empty.
+[package.metadata.docs.rs]
+features = ["all-backends"]
