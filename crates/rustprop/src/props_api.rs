@@ -280,11 +280,63 @@ fn fluid_flash(data: &'static FluidData) -> &'static PtFlash {
         .or_insert_with(|| Box::leak(Box::new(PtFlash::new(data))))
 }
 
+/// Upstream `HelmholtzEOSMixtureBackend::post_update(optional_checks = true)`
+/// (`HelmholtzEOSMixtureBackend.cpp:1647-1671`), which closes EVERY `update()`
+/// — same order, and with the `_p < 0` / `_T < 0` checks left commented out as
+/// upstream leaves them. Its job is to refuse a state the flash left invalid
+/// rather than serve NaN; the pseudo-pure pcrit..max_sat_p band reaches it
+/// (SES36's (P,Smolar) there is upstream's "T is not a valid number"). The
+/// phase-unknown arm is carried for fidelity but is unreachable as things
+/// stand — no ported flash labels a `HeosState` `Phase::Unknown`.
+#[cfg(feature = "heos")]
+fn post_update(state: &HeosState) -> Result<()> {
+    let (t, p, rhomolar, q) = match *state {
+        HeosState::SinglePhase {
+            t, p, rhomolar, q, ..
+        } => (t, p, rhomolar, q),
+        HeosState::TwoPhase {
+            t, p, rhomolar, q, ..
+        } => (t, p, rhomolar, q),
+    };
+    if !p.is_finite() {
+        return Err(Error::Value("p is not a valid number".into()));
+    }
+    if !t.is_finite() {
+        return Err(Error::Value("T is not a valid number".into()));
+    }
+    if rhomolar < 0.0 {
+        return Err(Error::Value("rhomolar is less than zero".into()));
+    }
+    if !rhomolar.is_finite() {
+        return Err(Error::Value("rhomolar is not a valid number".into()));
+    }
+    if !q.is_finite() {
+        return Err(Error::Value("Q is not a valid number".into()));
+    }
+    if matches!(
+        state,
+        HeosState::SinglePhase {
+            phase: rustprop_core::params::Phase::Unknown,
+            ..
+        }
+    ) {
+        return Err(Error::Value("_phase is unknown".into()));
+    }
+    Ok(())
+}
+
 /// Upstream `HelmholtzEOSMixtureBackend::update`: mass-to-molar conversion,
-/// Q-range validation, then the pair dispatch. Pairs whose flashes are not
-/// ported yet error loudly.
+/// Q-range validation, then the pair dispatch, then `post_update`. Pairs whose
+/// flashes are not ported yet error loudly.
 #[cfg(feature = "heos")]
 fn update(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosState> {
+    let state = update_dispatch(flash, pair, v1, v2)?;
+    post_update(&state)?;
+    Ok(state)
+}
+
+#[cfg(feature = "heos")]
+fn update_dispatch(flash: &PtFlash, pair: InputPair, v1: f64, v2: f64) -> Result<HeosState> {
     // Upstream `AbstractState::mass_to_molar_inputs`.
     let mm = flash.eos.molar_mass;
     let (pair, v1, v2) = match pair {

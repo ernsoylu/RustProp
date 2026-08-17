@@ -96,6 +96,26 @@ def try_record(out, n1, v1, n2, v2, backend, fluid):
         return None
 
 
+def error_record(out, n1, v1, n2, v2, backend, fluid):
+    """An ERROR-PARITY observation: the oracle REFUSES this state, so the port
+    must refuse it too. `expected` carries a placeholder 0.0 (JSON Lines has no
+    NaN literal) and `error` the oracle's verbatim message; the Rust side keys
+    only off `error` being present. Raises if the oracle in fact answers — a
+    stale error pin must fail regeneration loudly, not silently become a
+    value record."""
+    try:
+        value = PropsSI(out, n1, v1, n2, v2, f"{backend}::{fluid}")
+    except Exception as e:
+        return {
+            "backend": backend, "fluid": fluid, "out": out,
+            "name1": n1, "val1": v1, "name2": n2, "val2": v2,
+            "expected": 0.0, "error": str(e),
+        }
+    raise AssertionError(
+        f"error_record: the oracle answered {out}({n1}={v1},{n2}={v2},"
+        f"{backend}::{fluid}) = {value!r}; it was expected to refuse")
+
+
 def gen_if97_water():
     """IF97::Water goldens over every input pair the Phase-2 facade supports
     (PLAN 2.3). Points span regions 1, 2, 3 (incl. near-critical), the
@@ -2647,16 +2667,30 @@ def gen_humid_air():
 PSEUDO_PURE = ["Air", "R404A", "R407C", "R410A", "R507A", "SES36"]
 
 
+def pseudo_pure_max_sat_p(fluid):
+    """`EOS[0].STATES.pressure_max_sat.p` — upstream's `max_sat_p`, the top of
+    the pseudo-pure pL/pV glide. It is the pressure the classic-ancillary phase
+    determination splits supercritical on, and for four of the six fluids it
+    sits ABOVE the critical pressure, so pcrit..max_sat_p is a real band that
+    still resolves through the ancillary branch."""
+    d = json.loads(CP.get_fluid_param_string(fluid, "JSON"))[0]
+    return d["EOS"][0]["STATES"]["pressure_max_sat"]["p"]
+
+
 def gen_pseudo_pure():
     """Pseudo-pure flash goldens: PT (liquid/gas/supercritical), QT at the
-    only defined qualities (0/1), and PQ across the glide, for all six
-    pseudo-pure fluids."""
+    only defined qualities (0/1), PQ across the glide, and the caloric/density
+    pairs (H,P)/(P,S)/(P,U)/(D,P) over six regions — liquid, gas,
+    supercritical, mid-glide two-phase, the pcrit..max_sat_p band and
+    sub-triple-pressure gas — for all six pseudo-pure fluids, plus upstream's
+    own (Hmolar,P) failure window for Air at 1 bar as error-parity records."""
     rows, skipped = [], 0
     for fluid in PSEUDO_PURE:
         hf = f"HEOS::{fluid}"
         Tc = PropsSI("Tcrit", "", 0, "", 0, hf)
         Tt = PropsSI("Ttriple", "", 0, "", 0, hf)
         pc = PropsSI("pcrit", "", 0, "", 0, hf)
+        pt = PropsSI("ptriple", "", 0, "", 0, hf)
 
         def TL(x):
             return Tt + x * (Tc - Tt)
@@ -2686,6 +2720,66 @@ def gen_pseudo_pure():
                         (TL(0.4), 1.5 * pc)]:
             for out in ["Dmolar", "Hmolar", "Smolar"]:
                 rec(out, "T", T, "P", p_)
+
+        # (H,P)/(P,S)/(P,U)/(D,P) over six regions. Each region's state is
+        # built FORWARD through an already-golden pair (PT or PQ) and its own
+        # caloric/density coordinates are then fed back in, so the records
+        # exercise the classic-ancillary phase determination and the bracketed
+        # single-phase temperature solve rather than the forward flash again.
+        # The hL/hLV/sL/sLV ancillary curves have no PropsSI surface of their
+        # own upstream — these pairs are the only way to golden them.
+        def rec_pin(out, n1, v1, n2, v2):
+            """A value record where the oracle answers, an ERROR-PARITY record
+            where it refuses. The pcrit..max_sat_p band holds states the oracle
+            serves on one pair and throws on another — Air answers (P,S)/(P,U)/
+            (D,P) at the very state whose (H,P) it refuses — and both halves are
+            fidelity requirements, so neither is silently dropped."""
+            r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+            rows.append(r if r else error_record(out, n1, v1, n2, v2, "HEOS", fluid))
+
+        pms = pseudo_pure_max_sat_p(fluid)
+        p_band = 0.5 * (pc + pms) if pms > pc else 0.999 * pms
+        for (n1, v1, n2, v2) in [
+            ("T", T_mid, "P", 2.0 * pL),                  # subcooled liquid
+            ("T", T_mid, "P", 0.5 * pV),                   # superheated gas
+            ("T", 1.2 * Tc, "P", 1.5 * pc),                # supercritical
+            ("P", pL, "Q", 0.5),                           # mid-glide 2-phase
+            ("P", p_band, "Q", 0.5),                       # pcrit..max_sat_p
+            ("T", TL(0.05), "P", 0.5 * pt),                # sub-triple-p gas
+        ]:
+            try:
+                st = {k: PropsSI(k, n1, v1, n2, v2, hf)
+                      for k in ("P", "Dmolar", "Hmolar", "Smolar", "Umolar")}
+            except Exception:
+                # The oracle cannot even reach the state — R410A's PQ at the
+                # top of its glide, where solver_rho_Tp fails. There is nothing
+                # to invert, so pin the refusal of the forward flash itself.
+                rows.append(error_record("T", n1, v1, n2, v2, "HEOS", fluid))
+                continue
+            for out in ["T", "Dmolar", "Smolar"]:
+                rec_pin(out, "Hmolar", st["Hmolar"], "P", st["P"])
+            for out in ["T", "Dmolar"]:
+                rec_pin(out, "P", st["P"], "Smolar", st["Smolar"])
+                rec_pin(out, "P", st["P"], "Umolar", st["Umolar"])
+            for out in ["T", "Hmolar"]:
+                rec_pin(out, "Dmolar", st["Dmolar"], "P", st["P"])
+
+    # Upstream's OWN (Hmolar,P) failure window, Air at 1 bar: the
+    # rational-polynomial caloric band classifies the low-quality two-phase
+    # states below hmolar ~ 206.32 J/mol as single-phase, and the bracketed PY
+    # solve then walks out of [Tmin, SatL->T()] and throws. Pinned from BOTH
+    # sides — error records where the oracle raises, value records where it
+    # converges — so the port's window boundary cannot drift in either
+    # direction. (hmolar = -1500 pins the other, liquid-side refusal: below
+    # the minimum enthalpy the bracket can reach.)
+    for h in [-1500.0, -1000.0, 0.0, 100.0, 200.0, 206.0, 206.5, 207.0,
+              210.0, 250.0, 1000.0, 3000.0]:
+        r = try_record("T", "Hmolar", h, "P", 1e5, "HEOS", "Air")
+        if r is None:
+            rows.append(error_record("T", "Hmolar", h, "P", 1e5, "HEOS", "Air"))
+        else:
+            rows.append(r)
+            rows.append(try_record("Q", "Hmolar", h, "P", 1e5, "HEOS", "Air"))
     print(f"pseudo-pure: {len(rows)} records, {skipped} rejected")
     return rows
 
