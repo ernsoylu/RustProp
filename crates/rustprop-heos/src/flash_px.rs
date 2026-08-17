@@ -277,12 +277,12 @@ impl PtFlash {
         let (p, rho) = if q.abs() < f64::EPSILON {
             let p = crate::ancillary::evaluate(&anc.p_s, t);
             let rho_anc = crate::ancillary::evaluate(&anc.rho_l, t);
-            (p, self.solver_rho_tp_guessed(t, p, rho_anc)?)
+            (p, self.solver_rho_tp_guessed(t, p, rho_anc, Phase::Liquid)?)
         } else if (q - 1.0).abs() < f64::EPSILON {
             let pv = anc.p_v_split.as_ref().unwrap_or(&anc.p_s);
             let p = crate::ancillary::evaluate(pv, t);
             let rho_anc = crate::ancillary::evaluate(&anc.rho_v, t);
-            (p, self.solver_rho_tp_guessed(t, p, rho_anc)?)
+            (p, self.solver_rho_tp_guessed(t, p, rho_anc, Phase::Gas)?)
         } else {
             return Err(Error::Value(
                 "For pseudo-pure fluid, quality must be equal to 0 or 1.  Two-phase quality is not defined"
@@ -337,8 +337,8 @@ impl PtFlash {
         let t_v = crate::ancillary::invert(pv_anc, p)?;
         let rho_l_anc = crate::ancillary::evaluate(&anc.rho_l, t_l);
         let rho_v_anc = crate::ancillary::evaluate(&anc.rho_v, t_v);
-        let rho_l = self.solver_rho_tp_guessed(t_l, p, rho_l_anc)?;
-        let rho_v = self.solver_rho_tp_guessed(t_v, p, rho_v_anc)?;
+        let rho_l = self.solver_rho_tp_guessed(t_l, p, rho_l_anc, Phase::Liquid)?;
+        let rho_v = self.solver_rho_tp_guessed(t_v, p, rho_v_anc, Phase::Gas)?;
         Ok(HeosState::TwoPhase {
             t: q * t_v + (1.0 - q) * t_l,
             p,
@@ -947,6 +947,9 @@ impl PtFlash {
     }
 
     fn px_state(&self, p: f64, value: f64, key: CaloricKey) -> Result<HeosState> {
+        if self.fluid().eos.pseudo_pure {
+            return self.px_state_pseudo_pure(p, value, key);
+        }
         let pc = self.p_critical();
         let tc = self.t_critical();
         let rhoc = self.rhomolar_critical();
@@ -1016,6 +1019,22 @@ impl PtFlash {
             _ => return Err(Error::Value("Not a valid homogeneous state".into())),
         };
 
+        self.px_solve_single_phase(p, value, key, phase, t_min, t_max)
+    }
+
+    /// The single-phase (p, X) temperature solve shared by the pure and
+    /// pseudo-pure `HSU_P_flash` arms (upstream
+    /// `HSU_P_flash_singlephase_Brent`, stood in by 30-bit bisection as
+    /// established), plus the flash tail.
+    fn px_solve_single_phase(
+        &self,
+        p: f64,
+        value: f64,
+        key: CaloricKey,
+        phase: Phase,
+        t_min: f64,
+        t_max: f64,
+    ) -> Result<HeosState> {
         // Residual: keyed value at the (p,T) state minus the target. For
         // liquid/gas the phase is imposed on the inner density solve
         // (upstream `specify_phase`); supercritical probes re-determine.
@@ -1067,6 +1086,243 @@ impl PtFlash {
         })
     }
 
+    /// Pseudo-pure `HSU_P_flash` (upstream's classic-ancillary arm): the
+    /// pseudo-pure phase determination, then the same bracketed single-phase
+    /// temperature solve the pure-fluid path uses, with upstream's bracket
+    /// selection — `SatV->T()`/`SatL->T()` when the slow VLE ran,
+    /// `_TVanc - 0.01`/`_TLanc + 0.01` when the ancillary bands classified.
+    fn px_state_pseudo_pure(&self, p: f64, value: f64, key: CaloricKey) -> Result<HeosState> {
+        let det = self.p_phase_determination_pseudo_pure(PpOther::Caloric(key), value, p)?;
+        let (phase, t_sat, t_anc) = match det {
+            PpPhaseDet::TwoPhase(state) => return Ok(state),
+            PpPhaseDet::Single {
+                phase,
+                t_sat,
+                t_anc,
+            } => (phase, t_sat, t_anc),
+        };
+        let eos = &self.fluid().eos;
+        let p_triple = eos.sat_min_liquid.p;
+        let (t_min, t_max) = match phase {
+            Phase::Gas => {
+                let t_max = 1.5 * eos.t_max;
+                let t_min = if p < p_triple {
+                    // Upstream `max(Tmin(), Ttriple())` — both resolve to
+                    // `sat_min_liquid.T`.
+                    self.t_triple()
+                } else if let Some((_, t_v_sat)) = t_sat {
+                    t_v_sat
+                } else {
+                    t_anc
+                        .expect("subcritical gas classification carries TVanc")
+                        .1
+                        - 0.01
+                };
+                (t_min, t_max)
+            }
+            Phase::Liquid => {
+                let t_max = if let Some((t_l_sat, _)) = t_sat {
+                    t_l_sat
+                } else {
+                    t_anc
+                        .expect("subcritical liquid classification carries TLanc")
+                        .0
+                        + 0.01
+                };
+                (self.px_t_floor(p)?, t_max)
+            }
+            Phase::SupercriticalLiquid | Phase::SupercriticalGas | Phase::Supercritical => {
+                (self.px_t_floor(p)?, 1.5 * eos.t_max)
+            }
+            _ => return Err(Error::Value("Not a valid homogeneous state".into())),
+        };
+        self.px_solve_single_phase(p, value, key, phase, t_min, t_max)
+    }
+
+    /// Upstream `p_phase_determination_pure_or_pseudopure` for a PSEUDO-PURE
+    /// fluid (the classic-ancillary arm; pure fluids take the superancillary
+    /// paths inlined in `px_state`/`dmolar_p_state`):
+    /// - `p > max_sat_p.p`: supercritical split on the STATES.critical
+    ///   calorics (H/S/U) or density (D);
+    /// - triple..max_sat_p: invert pL/pV for `_TLanc`/`_TVanc`, then the
+    ///   rational-polynomial caloric bands (H/S at their fit error, U at
+    ///   1.5x) or the 0.95/1.05 density bands (D), and the slow VLE
+    ///   (pseudo-pure PQ at Q=0) with the lever rule when inconclusive;
+    /// - below triple: gas outright (`other != iT` asks no questions).
+    fn p_phase_determination_pseudo_pure(
+        &self,
+        other: PpOther,
+        value: f64,
+        p: f64,
+    ) -> Result<PpPhaseDet> {
+        let eos = &self.fluid().eos;
+        // Upstream `calc_pmax_sat`: `max_sat_p.p` for a pseudo-pure fluid.
+        let psat_max = eos
+            .max_sat_p
+            .as_ref()
+            .expect("pseudo-pure fluids carry max_sat_p")
+            .p;
+        let p_triple = eos.sat_min_liquid.p;
+        if p > psat_max {
+            let phase = match other {
+                PpOther::Dmolar => {
+                    if value < self.rhomolar_critical() {
+                        Phase::SupercriticalGas
+                    } else {
+                        Phase::SupercriticalLiquid
+                    }
+                }
+                PpOther::Caloric(key) => {
+                    // `calc_{s,h,u}molar_nocache(T_critical, rhomolar_critical)`
+                    // — the STATES.critical point for a pseudo-pure fluid.
+                    let crit_value =
+                        self.px_value(key, self.t_critical(), self.rhomolar_critical());
+                    if value > crit_value {
+                        Phase::SupercriticalGas
+                    } else {
+                        Phase::SupercriticalLiquid
+                    }
+                }
+            };
+            return Ok(PpPhaseDet::Single {
+                phase,
+                t_sat: None,
+                t_anc: None,
+            });
+        }
+        if p >= p_triple * 0.9999 {
+            let anc = &self.fluid().ancillaries;
+            let tl_anc = crate::ancillary::invert(&anc.p_s, p)?;
+            let tv_anc = crate::ancillary::invert(anc.p_v_split.as_ref().unwrap_or(&anc.p_s), p)?;
+            let t_anc = Some((tl_anc, tv_anc));
+            let single = |phase: Phase, t_sat: Option<(f64, f64)>| PpPhaseDet::Single {
+                phase,
+                t_sat,
+                t_anc,
+            };
+            let mut definitely_two_phase = false;
+            if let PpOther::Caloric(key) = other {
+                // (x_liq, x_liq_error_band, x_vap, x_vap_error_band), None
+                // when the gating ancillary is absent (upstream `enabled()`;
+                // all six pseudo-pure fluids carry all four curves).
+                let bands = match key {
+                    CaloricKey::Hmolar => anc.h_l.as_ref().map(|h_l| {
+                        let h_lv = anc.h_lv.as_ref().expect("hLV accompanies hL");
+                        // Ancillaries are h - h_anchor, so add back h_anchor.
+                        let h_liq = crate::ancillary::evaluate_rational_poly(h_l, tl_anc)
+                            + eos.hs_anchor.hmolar;
+                        let h_liq_band = h_l.max_abs_error;
+                        let h_vap = h_liq + crate::ancillary::evaluate_rational_poly(h_lv, tl_anc);
+                        (h_liq, h_liq_band, h_vap, h_liq_band + h_lv.max_abs_error)
+                    }),
+                    CaloricKey::Smolar => anc.s_l.as_ref().map(|s_l| {
+                        let s_lv = anc.s_lv.as_ref().expect("sLV accompanies sL");
+                        let s_liq = crate::ancillary::evaluate_rational_poly(s_l, tl_anc)
+                            + eos.hs_anchor.smolar;
+                        let s_liq_band = s_l.max_abs_error;
+                        // Upstream evaluates sLV at `_TVanc` (hLV is at
+                        // `_TLanc`) — the asymmetry is reproduced verbatim.
+                        let s_vap = s_liq + crate::ancillary::evaluate_rational_poly(s_lv, tv_anc);
+                        (s_liq, s_liq_band, s_vap, s_liq_band + s_lv.max_abs_error)
+                    }),
+                    CaloricKey::Umolar => anc.h_l.as_ref().map(|h_l| {
+                        // u = h - p/rho off the enthalpy + density
+                        // ancillaries; "most of error is in enthalpy", so
+                        // the bands are 1.5x the enthalpy bands.
+                        let h_lv = anc.h_lv.as_ref().expect("hLV accompanies hL");
+                        let h_liq = crate::ancillary::evaluate_rational_poly(h_l, tl_anc)
+                            + eos.hs_anchor.hmolar;
+                        let h_liq_band = h_l.max_abs_error;
+                        let h_vap = h_liq + crate::ancillary::evaluate_rational_poly(h_lv, tl_anc);
+                        let h_vap_band = h_liq_band + h_lv.max_abs_error;
+                        let rho_vap = crate::ancillary::evaluate(&anc.rho_v, tv_anc);
+                        let rho_liq = crate::ancillary::evaluate(&anc.rho_l, tl_anc);
+                        (
+                            h_liq - p / rho_liq,
+                            1.5 * h_liq_band,
+                            h_vap - p / rho_vap,
+                            1.5 * h_vap_band,
+                        )
+                    }),
+                };
+                if let Some((x_liq, x_liq_band, x_vap, x_vap_band)) = bands {
+                    if value > x_vap + x_vap_band {
+                        return Ok(single(Phase::Gas, None));
+                    } else if value < x_liq - x_liq_band {
+                        return Ok(single(Phase::Liquid, None));
+                    } else if value > x_liq + x_liq_band && value < x_vap - x_vap_band {
+                        definitely_two_phase = true;
+                    }
+                }
+            }
+            // Upstream's !definitely_two_phase block always evaluates the
+            // rhoV/rhoL ancillaries but only the iDmolar case decides —
+            // Dmolar never sets the flag, so the guard is kept for shape.
+            if !definitely_two_phase {
+                if let PpOther::Dmolar = other {
+                    let rho_vap = 0.95 * crate::ancillary::evaluate(&anc.rho_v, tv_anc);
+                    let rho_liq = 1.05 * crate::ancillary::evaluate(&anc.rho_l, tl_anc);
+                    if value < rho_vap {
+                        return Ok(single(Phase::Gas, None));
+                    } else if value > rho_liq {
+                        return Ok(single(Phase::Liquid, None));
+                    }
+                }
+            }
+            // The slow full VLE calculation is required (upstream: a fresh
+            // backend through `PQ_flash` at Q=0 — the pseudo-pure branch,
+            // whose SatL/SatV sit at the bubble/dew temperatures).
+            let HeosState::TwoPhase {
+                rho_l,
+                rho_v,
+                t_l,
+                t_v,
+                ..
+            } = self.pq_state_pseudo_pure(p, 0.0)?
+            else {
+                unreachable!("pseudo-pure PQ always returns a two-phase state")
+            };
+            let q = match other {
+                PpOther::Dmolar => (1.0 / value - 1.0 / rho_l) / (1.0 / rho_v - 1.0 / rho_l),
+                PpOther::Caloric(key) => {
+                    let y_l = self.px_value(key, t_l, rho_l);
+                    let y_v = self.px_value(key, t_v, rho_v);
+                    (value - y_l) / (y_v - y_l)
+                }
+            };
+            let t_sat = Some((t_l, t_v));
+            if q < -1e-9 {
+                return Ok(single(Phase::Liquid, t_sat));
+            } else if q > 1.0 + 1e-9 {
+                return Ok(single(Phase::Gas, t_sat));
+            }
+            // Two-phase: upstream loads T/rho straight off the lever rule
+            // (raw mixes, no endpoint shortcuts here).
+            return Ok(PpPhaseDet::TwoPhase(HeosState::TwoPhase {
+                t: q * t_v + (1.0 - q) * t_l,
+                p,
+                rhomolar: 1.0 / (q / rho_v + (1.0 - q) / rho_l),
+                q,
+                rho_l,
+                rho_v,
+                t_l,
+                t_v,
+            }));
+        }
+        if p < p_triple * 0.9999 {
+            // `other != iT` asks no further questions below the triple point.
+            return Ok(PpPhaseDet::Single {
+                phase: Phase::Gas,
+                t_sat: None,
+                t_anc: None,
+            });
+        }
+        // Only reachable for a NaN pressure (all three range tests false).
+        Err(Error::Value(format!(
+            "The pressure [{p} Pa] cannot be used in p_phase_determination"
+        )))
+    }
+
     /// Liquid/supercritical lower T-bound of the (p,X) bracket (upstream
     /// `HSU_P_flash`): the melting temperature at this pressure when a
     /// melting line covers it, else Tmin — both minus 1e-3.
@@ -1105,6 +1361,9 @@ impl PtFlash {
     /// (Peng-Robinson seed for gas-like phases, saturation/1.1*Tc seeds
     /// otherwise), with the 30-bit bracketed fallback.
     pub fn dmolar_p_state(&self, rhomolar: f64, p: f64) -> Result<HeosState> {
+        if self.fluid().eos.pseudo_pure {
+            return self.dmolar_p_state_pseudo_pure(rhomolar, p);
+        }
         let pc = self.p_critical();
         let tc = self.t_critical();
         let rhoc = self.rhomolar_critical();
@@ -1166,6 +1425,54 @@ impl PtFlash {
         // Upstream `DP_flash` tail: `_Q = -1` then
         // `recalculate_singlephase_phase` — the seed label is only the
         // solver's working hypothesis.
+        Ok(HeosState::SinglePhase {
+            t,
+            p,
+            rhomolar,
+            phase: self.recalculated_singlephase_phase(t, p, rhomolar),
+            q: -1.0,
+        })
+    }
+
+    /// Pseudo-pure `DP_flash` (upstream's classic-ancillary arm): the
+    /// pseudo-pure phase determination, then upstream's T0 seed per phase —
+    /// `SatL->T()`/`_TLanc` for liquid, `1.1*T_critical` for supercritical
+    /// liquid, Peng-Robinson for the gas-like labels — into the shared
+    /// Halley/bracket temperature solve.
+    fn dmolar_p_state_pseudo_pure(&self, rhomolar: f64, p: f64) -> Result<HeosState> {
+        let det = self.p_phase_determination_pseudo_pure(PpOther::Dmolar, rhomolar, p)?;
+        let (phase, t_sat, t_anc) = match det {
+            PpPhaseDet::TwoPhase(state) => return Ok(state),
+            PpPhaseDet::Single {
+                phase,
+                t_sat,
+                t_anc,
+            } => (phase, t_sat, t_anc),
+        };
+        let t0 = match phase {
+            Phase::Liquid => {
+                if let Some((t_l_sat, _)) = t_sat {
+                    t_l_sat
+                } else {
+                    t_anc
+                        .expect("subcritical liquid classification carries TLanc")
+                        .0
+                }
+            }
+            Phase::SupercriticalLiquid => 1.1 * self.t_critical(),
+            Phase::Gas | Phase::SupercriticalGas | Phase::Supercritical => {
+                self.t_dp_peng_robinson(rhomolar, p)
+            }
+            _ => return Err(Error::Value("I should never get here".into())),
+        };
+        if !t0.is_finite() {
+            return Err(Error::Value(
+                "Starting value of T0 is not valid in DP_flash".into(),
+            ));
+        }
+        let t = self.solve_t_dp(rhomolar, p, t0)?;
+        // Upstream `DP_flash` tail: `_Q = -1` then
+        // `recalculate_singlephase_phase`.
         Ok(HeosState::SinglePhase {
             t,
             p,
@@ -1276,4 +1583,31 @@ enum CaloricKey {
     Hmolar,
     Smolar,
     Umolar,
+}
+
+/// The `other` parameter of the pseudo-pure
+/// `p_phase_determination_pure_or_pseudopure` arm (H/S/U come from
+/// `HSU_P_flash`, D from `DP_flash`; T is the already-ported PT path).
+#[derive(Clone, Copy)]
+enum PpOther {
+    Caloric(CaloricKey),
+    Dmolar,
+}
+
+/// Outcome of the pseudo-pure phase determination.
+enum PpPhaseDet {
+    /// The determination itself loaded the full two-phase state.
+    TwoPhase(HeosState),
+    /// Homogeneous phase, plus what the flash's bracket/seed selection
+    /// needs (upstream's `saturation_called` + `SatL`/`SatV` or the cached
+    /// `_TLanc`/`_TVanc` members).
+    Single {
+        phase: Phase,
+        /// `(SatL->T(), SatV->T())` when the slow VLE ran
+        /// (`saturation_called` true).
+        t_sat: Option<(f64, f64)>,
+        /// `(_TLanc, _TVanc)` when the subcritical band inverted the
+        /// pressure ancillaries.
+        t_anc: Option<(f64, f64)>,
+    },
 }

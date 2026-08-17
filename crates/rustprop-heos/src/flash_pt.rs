@@ -354,12 +354,22 @@ impl PtFlash {
         }
     }
 
-    /// Upstream `solver_rho_Tp` (no caller-provided guess; pure fluid).
     /// Upstream `solver_rho_Tp(T, p, rhomolar_guess)` with a PROVIDED guess
-    /// (the `update_TP_guessrho` path): Householder4 from the guess with the
-    /// supercritical Brent fallbacks; no phase-specific stability retries
-    /// (the caller's phase is not imposed on this path).
-    pub fn solver_rho_tp_guessed(&self, t: f64, p: f64, rho_guess: f64) -> Result<f64> {
+    /// (the `update_TP_guessrho` path): Householder4 from the guess, THEN the
+    /// phase-imposed stability retries — the callers stand in for upstream's
+    /// `SatL`/`SatV` sub-backends, whose constructors impose liquid/gas
+    /// (`HelmholtzEOSMixtureBackend` ctor `specify_phase`), so the shared
+    /// tail's liquid retry (from `3*rho_reducing` when `dp/drho < 0` or
+    /// `d2p/drho2 < 0`) and gas retry (from `1e-6` when `dp/drho < 0` or
+    /// `d2p/drho2 > 0`) DO run here. A retry's result returns unchecked; a
+    /// retry's failure falls to the catch fallbacks exactly as upstream.
+    pub fn solver_rho_tp_guessed(
+        &self,
+        t: f64,
+        p: f64,
+        rho_guess: f64,
+        phase: Phase,
+    ) -> Result<f64> {
         let mut resid = SolverTpResid {
             eos: &self.eos,
             t,
@@ -368,9 +378,50 @@ impl PtFlash {
             delta: f64::NAN,
             memo: DerivsMemo::default(),
         };
-        match householder4(&mut resid, rho_guess, 1e-8, 20) {
-            Ok(rho) if rho.is_finite() && rho >= 0.0 => Ok(rho),
-            _ => {
+        let attempt = householder4(&mut resid, rho_guess, 1e-8, 20).and_then(|rho| {
+            if !rho.is_finite() || rho < 0.0 {
+                return Err(Error::Value("invalid density".into()));
+            }
+            match phase {
+                Phase::Liquid => {
+                    let (dpdrho, d2pdrho2) = self.dpdrho_d2pdrho2_t(t, rho);
+                    if dpdrho < 0.0 || d2pdrho2 < 0.0 {
+                        // Try again with a larger density in order to end up
+                        // at the right (liquid) solution
+                        return householder4(
+                            &mut resid,
+                            3.0 * self.eos.rhomolar_reducing,
+                            1e-8,
+                            100,
+                        );
+                    }
+                    Ok(rho)
+                }
+                Phase::Gas => {
+                    let (dpdrho, d2pdrho2) = self.dpdrho_d2pdrho2_t(t, rho);
+                    if dpdrho < 0.0 || d2pdrho2 > 0.0 {
+                        // Try again with a tiny density in order to end up at
+                        // the right (gas) solution
+                        return householder4(&mut resid, 1e-6, 1e-8, 100);
+                    }
+                    Ok(rho)
+                }
+                _ => Ok(rho),
+            }
+        });
+        match attempt {
+            Ok(rho) => Ok(rho),
+            Err(_) => {
+                if matches!(phase, Phase::Supercritical | Phase::SupercriticalGas) {
+                    return brent(
+                        |x| (self.eos.pressure(t, x) - p) / p,
+                        1e-10,
+                        3.0 * self.eos.rhomolar_reducing,
+                        f64::EPSILON,
+                        1e-8,
+                        100,
+                    );
+                }
                 if t > self.t_critical() {
                     let f = |rho: f64| (self.eos.pressure(t, rho) - p) / p;
                     if let Ok(rho) = brent(
