@@ -1,0 +1,29 @@
+[package]
+name = "perf-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Standalone on purpose: workspace membership would drag the bench profile
+# and its feature unification into every `cargo test --workspace` run.
+[workspace]
+
+[dependencies]
+rustprop = { path = "../../crates/rustprop", features = [
+    "heos",
+    "heos-mixtures",
+    "tabular",
+] }
+rustprop-heos = { path = "../../crates/rustprop-heos" }
+rustprop-tabular = { path = "../../crates/rustprop-tabular" }
+rustprop-core = { path = "../../crates/rustprop-core" }
+rustprop-data = { path = "../../crates/rustprop-data", features = [
+    "water",
+    "methane",
+    "ethane",
+    "mixture-data",
+] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
