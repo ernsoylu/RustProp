@@ -12,9 +12,9 @@
 use rustprop_core::fluid::ChebyshevInterval;
 use rustprop_core::fluid::{
     Alpha0Term, AlpharTerm, Conductivity, ConductivityCritical, ConductivityDilute,
-    ConductivityModel, ConductivityResidual, FluidData, SaturationAncillary, StatePoint,
-    SuperAncillaryData, TransportModel, Viscosity, ViscosityDilute, ViscosityHigherOrder,
-    ViscosityInitialDensity, ViscosityModel,
+    ConductivityModel, ConductivityResidual, FluidData, RationalPolyAncillary, SaturationAncillary,
+    StatePoint, SuperAncillaryData, TransportModel, Viscosity, ViscosityDilute,
+    ViscosityHigherOrder, ViscosityInitialDensity, ViscosityModel,
 };
 use serde_json::Value;
 use std::path::Path;
@@ -152,6 +152,32 @@ impl Walker {
             rust.using_tau_r,
             &json["using_tau_r"],
             &format!("{path}.using_tau_r"),
+        );
+        self.num(rust.t_min, &json["Tmin"], &format!("{path}.Tmin"));
+        self.num(rust.t_max, &json["Tmax"], &format!("{path}.Tmax"));
+    }
+    /// One `rational_polynomial` caloric block (hL/hLV/sL/sLV). Upstream
+    /// parses Tmin/Tmax with an `_HUGE` fallback (FluidLibraryFactories.h:
+    /// 49-55); all six pseudo-pure documents carry both, so they are walked
+    /// as required keys here.
+    fn rational_poly_ancillary(&mut self, rust: &RationalPolyAncillary, json: &Value, path: &str) {
+        self.keys(
+            json,
+            path,
+            &["type", "A", "B", "max_abs_error", "Tmin", "Tmax"],
+            &[],
+        );
+        self.string(
+            "rational_polynomial",
+            &json["type"],
+            &format!("{path}.type"),
+        );
+        self.nums(rust.a, &json["A"], &format!("{path}.A"));
+        self.nums(rust.b, &json["B"], &format!("{path}.B"));
+        self.num(
+            rust.max_abs_error,
+            &json["max_abs_error"],
+            &format!("{path}.max_abs_error"),
         );
         self.num(rust.t_min, &json["Tmin"], &format!("{path}.Tmin"));
         self.num(rust.t_max, &json["Tmax"], &format!("{path}.Tmax"));
@@ -594,28 +620,54 @@ fn check_fluid(fluid: &FluidData, json_file: &str) {
 
     // ANCILLARIES
     let anc = &doc["ANCILLARIES"];
-    let informational = &["hL", "hLV", "sL", "sLV", "melting_line", "surface_tension"];
     check_melting_line(&mut w, fluid, anc.get("melting_line"));
     // Upstream parse: pL+pV present (pseudo-pure) fill the two pressure
     // slots; else a single pS fills both (our `p_v_split: None` alias).
     match &fluid.ancillaries.p_v_split {
         Some(pv) => {
+            // Pseudo-pure: the hL/hLV/sL/sLV caloric curves are ported (the
+            // (H,P)/(P,S)/(P,U) phase determination reads them).
             w.keys(
                 anc,
                 "ANCILLARIES",
-                &["pL", "pV", "rhoL", "rhoV"],
-                informational,
+                &["pL", "pV", "rhoL", "rhoV", "hL", "hLV", "sL", "sLV"],
+                &["melting_line", "surface_tension"],
             );
             w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pL"], "ANCILLARIES.pL");
             w.sat_ancillary(pv, &anc["pV"], "ANCILLARIES.pV");
         }
         None => {
+            // Pure fluids: the caloric blocks many documents carry are dead
+            // data upstream (the superancillary branch returns first) and
+            // deliberately not ported — informational only.
+            let informational = &["hL", "hLV", "sL", "sLV", "melting_line", "surface_tension"];
             w.keys(anc, "ANCILLARIES", &["pS", "rhoL", "rhoV"], informational);
             w.sat_ancillary(&fluid.ancillaries.p_s, &anc["pS"], "ANCILLARIES.pS");
         }
     }
     w.sat_ancillary(&fluid.ancillaries.rho_l, &anc["rhoL"], "ANCILLARIES.rhoL");
     w.sat_ancillary(&fluid.ancillaries.rho_v, &anc["rhoV"], "ANCILLARIES.rhoV");
+    // hL/hLV/sL/sLV: `Some` exactly for pseudo-pure fluids, bitwise-walked
+    // against the JSON; `None` (unported dead data) for the rest.
+    for (rust, key) in [
+        (&fluid.ancillaries.h_l, "hL"),
+        (&fluid.ancillaries.h_lv, "hLV"),
+        (&fluid.ancillaries.s_l, "sL"),
+        (&fluid.ancillaries.s_lv, "sLV"),
+    ] {
+        match (rust, anc.get(key)) {
+            (Some(rp), Some(json)) if fluid.eos.pseudo_pure => {
+                w.rational_poly_ancillary(rp, json, &format!("ANCILLARIES.{key}"));
+            }
+            (None, _) if !fluid.eos.pseudo_pure => {}
+            (rust, json) => w.mismatches.push(format!(
+                "ANCILLARIES.{key}: pseudo_pure={} rust present={} json present={}",
+                fluid.eos.pseudo_pure,
+                rust.is_some(),
+                json.is_some()
+            )),
+        }
+    }
     // surface_tension (Phase 6.2): ported when present.
     match (
         &fluid.ancillaries.surface_tension,

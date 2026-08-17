@@ -273,6 +273,10 @@ pub static DEUTERIUM: FluidData = FluidData {
             t_min: 18.72400000000001,
             t_max: 38.33999999999991,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.009376], n: &[1.258], tc: 38.34 }),
         melting_line: Some(MeltingLine {
             t_m: 18.724,

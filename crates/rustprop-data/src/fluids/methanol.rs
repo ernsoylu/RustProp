@@ -374,6 +374,10 @@ pub static METHANOL: FluidData = FluidData {
             t_min: 175.61,
             t_max: 512.49,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.22421, -0.21408, 0.083233], n: &[1.3355, 1.677, 4.4402], tc: 513.38 }),
         melting_line: Some(MeltingLine {
             t_m: 337.8,

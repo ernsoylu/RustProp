@@ -289,6 +289,10 @@ pub static METHANE: FluidData = FluidData {
             t_min: 90.69410000000002,
             t_max: 190.56399999999954,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.03825, -0.006024, -0.0007065], n: &[1.191, 5.422, 0.6161], tc: 190.564 }),
         melting_line: Some(MeltingLine {
             t_m: 90.7,

@@ -310,6 +310,10 @@ pub static WATER: FluidData = FluidData {
             t_min: 273.16,
             t_max: 647.0959999999985,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[-0.1306, 0.2151], n: &[2.471, 1.233], tc: 647.096 }),
         melting_line: Some(MeltingLine {
             t_m: -1.0,

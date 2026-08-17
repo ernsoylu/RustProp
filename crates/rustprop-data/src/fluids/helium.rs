@@ -279,6 +279,10 @@ pub static HELIUM: FluidData = FluidData {
             t_min: 2.1768000000000103,
             t_max: 5.195299999999987,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.0004656, 0.001889, -0.002006], n: &[1.04, 2.468, 2.661], tc: 5.1953 }),
         melting_line: Some(MeltingLine {
             t_m: 1.15,

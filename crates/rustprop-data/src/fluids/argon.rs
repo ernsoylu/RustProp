@@ -282,6 +282,10 @@ pub static ARGON: FluidData = FluidData {
             t_min: 83.80600000000001,
             t_max: 150.68699999999976,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.037], n: &[1.25], tc: 150.687 }),
         melting_line: Some(MeltingLine {
             t_m: 87.28,

@@ -299,6 +299,10 @@ pub static FLUORINE: FluidData = FluidData {
             t_min: 53.481100000000005,
             t_max: 144.41399999999967,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.03978], n: &[1.218], tc: 144.414 }),
         melting_line: Some(MeltingLine {
             t_m: 53.15,

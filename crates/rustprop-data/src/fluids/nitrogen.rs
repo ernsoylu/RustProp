@@ -289,6 +289,10 @@ pub static NITROGEN: FluidData = FluidData {
             t_min: 63.15100000000001,
             t_max: 126.19199999999978,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.02898], n: &[1.246], tc: 126.192 }),
         melting_line: Some(MeltingLine {
             t_m: 77.34,

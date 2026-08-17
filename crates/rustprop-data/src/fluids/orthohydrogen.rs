@@ -280,6 +280,10 @@ pub static ORTHOHYDROGEN: FluidData = FluidData {
             t_min: 14.00800000000001,
             t_max: 33.219999999999914,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: None,
         melting_line: Some(MeltingLine {
             t_m: 14.009985,

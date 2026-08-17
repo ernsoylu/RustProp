@@ -279,6 +279,10 @@ pub static PARAHYDROGEN: FluidData = FluidData {
             t_min: 13.80330000000001,
             t_max: 32.93799999999992,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.005314], n: &[1.06], tc: 32.938 }),
         melting_line: Some(MeltingLine {
             t_m: 18.9,

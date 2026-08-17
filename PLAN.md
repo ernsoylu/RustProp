@@ -1931,6 +1931,26 @@ Append-only; newest last. Seeded entries:
   single-phase root at ~6 grid points; the wheel's own PQ flash at the port's Q returns the
   port's T bitwise) — same excused family as the acceptance ledger, no committed record
   reaches them.
+- 2026-08-17 — Rational-polynomial caloric ancillaries (hL/hLV/sL/sLV) data plumbing, in
+  preparation for the pseudo-pure (H,P)/(P,S)/(P,U) phase determination that reads them:
+  `RationalPolyAncillary` in rustprop-core (A/B coefficient slices, max_abs_error,
+  Tmin/Tmax — the exact key set upstream parses in `FluidLibraryFactories.h:44-56`,
+  including its Tmin/Tmax->_HUGE fallback, mirrored in datagen), four `Option` slots on
+  `Ancillaries`, and `rustprop_heos::ancillary::evaluate_rational_poly` =
+  `poly(A,T)/poly(B,T)` (`Ancillaries.cpp:46-48`). The polynomial evaluation replicates
+  `Polynomial2D::evaluate` (`PolyMath.cpp:159-163`) = `Eigen::poly_eval` (Eigen 5.0.1,
+  pinned by upstream's `cmake/dependencies.cmake`) EXACTLY — for kelvin inputs that is
+  NOT plain Horner but Eigen's stabilized branch (fold 1/x upward from c[0], rescale by
+  `powf(x, n-1)`); unit tests pin 12 Air/R410A evaluations bitwise against a CPython
+  replica of the same arithmetic (the wheel exposes no direct hL/sL route —
+  `calc_saturation_ancillary` serves only pL/pV/rhoL/rhoV/sigma). RULING: emission is
+  PSEUDO-PURE-ONLY (the six: Air, R404A, R407C, R410A, R507A, SES36). 110 pure-fluid
+  documents carry the same blocks, but upstream never reads them there — the
+  superancillary branch returns first — so emitting them would only grow the 130-fluid
+  wasm build; datagen writes `None` for every non-pseudo-pure fluid (each such generated
+  file gains exactly those four `None` lines) and the fidelity walker bitwise-walks the
+  four blocks for pseudo-pure fluids while keeping them informational-only for pure
+  fluids, asserting the Some/None split matches `pseudo_pure` exactly.
 
 ---
 

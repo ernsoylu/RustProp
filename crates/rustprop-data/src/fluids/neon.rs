@@ -275,6 +275,10 @@ pub static NEON: FluidData = FluidData {
             t_min: 24.56000000000001,
             t_max: 44.49179999999988,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[0.012254, 0.02728, -0.025715], n: &[1.4136, 1.4517, 1.6567], tc: 44.4918 }),
         melting_line: Some(MeltingLine {
             t_m: -1.0,

@@ -4,7 +4,7 @@
 #![cfg_attr(rustfmt, rustfmt::skip)]
 #![allow(clippy::approx_constant)]
 
-use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, SurfaceTension, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
+use rustprop_core::fluid::{Alpha0Term, AlpharTerm, Ancillaries, Environmental, Eos, FluidData, SaturationAncillary, StatePoint, States, SurfaceTension, RationalPolyAncillary, Transport, TransportModel, ViscosityModel, ConductivityModel, Viscosity, ViscosityDilute, ViscosityHigherOrder, Conductivity, ConductivityDilute, ConductivityResidual, ConductivityCritical};
 
 pub static R407C: FluidData = FluidData {
     name: "R407C",
@@ -121,6 +121,34 @@ pub static R407C: FluidData = FluidData {
             t_min: 200.0,
             t_max: 359.3449999999991,
         },
+        h_l: Some(RationalPolyAncillary {
+            a: &[-1070570.5191417593, 25907.567090170265, -275.15709868315196, 1.6252589335612626, -0.005730311178904859, 1.204831839389311e-5, -1.3987377188184986e-8, 6.915428173148368e-12],
+            b: &[1.0, -0.0027576035775260335],
+            max_abs_error: 238.8222550763312,
+            t_min: 200.0,
+            t_max: 359.245,
+        }),
+        h_lv: Some(RationalPolyAncillary {
+            a: &[935255.1572731101, -22549.561374709687, 236.91038080468286, -1.3794966005515843, 0.0047855546838100884, -9.882537871773784e-6, 1.1242381623004637e-8, -5.4290624936263005e-12],
+            b: &[1.0, -0.0027571965285988612],
+            max_abs_error: 418.3188204094961,
+            t_min: 200.0,
+            t_max: 359.245,
+        }),
+        s_l: Some(RationalPolyAncillary {
+            a: &[1614.9680623492773, -43.5045785952362, 0.4613017426407228, -0.0026316248780378125, 8.865157831614015e-6, -1.7719639966555808e-8, 1.949180187526807e-11, -9.115308336852045e-15],
+            b: &[1.0, -0.0027598682045475954],
+            max_abs_error: 0.6327256844894222,
+            t_min: 200.0,
+            t_max: 359.245,
+        }),
+        s_lv: Some(RationalPolyAncillary {
+            a: &[-1398.4723882884834, 43.012268142555, -0.49172278715001644, 0.002967196500867001, -1.0489955356062242e-5, 2.1945138482218732e-8, -2.5278125706984082e-11, 1.2411142647362428e-14],
+            b: &[1.0, -0.0027585057662981053],
+            max_abs_error: 1.1362542557756523,
+            t_min: 200.0,
+            t_max: 359.245,
+        }),
         surface_tension: Some(SurfaceTension { a: &[0.05877], n: &[1.229], tc: 359.23 }),
         melting_line: None,
     },

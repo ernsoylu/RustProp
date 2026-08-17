@@ -313,6 +313,10 @@ pub static ISOBUTANE: FluidData = FluidData {
             t_min: 113.73000000000002,
             t_max: 407.81699999999915,
         },
+        h_l: None,
+        h_lv: None,
+        s_l: None,
+        s_lv: None,
         surface_tension: Some(SurfaceTension { a: &[-0.01639, 0.06121], n: &[2.102, 1.304], tc: 407.81 }),
         melting_line: Some(MeltingLine {
             t_m: 113.55,
