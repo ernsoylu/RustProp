@@ -10,7 +10,7 @@
 #![allow(non_snake_case)]
 #![allow(clippy::needless_range_loop)]
 
-use crate::alpha::HelmholtzDerivs;
+use crate::alpha::{DerivsMemo, HelmholtzDerivs};
 use crate::mixture::MixtureModel;
 use crate::mixture::XnFlag;
 use crate::solvers::{Resid1D, brent, householder4, secant};
@@ -115,40 +115,47 @@ impl<'m> SatState<'m> {
             p: f64,
             rhor: f64,
             delta: f64,
+            memo: DerivsMemo,
+        }
+        impl GuessResid<'_, '_> {
+            /// The mixture alphar matrix at (tr(x)/t, delta), computed once
+            /// per point.
+            fn ar(&mut self, delta: f64) -> HelmholtzDerivs {
+                let model = self.state.model;
+                let x = &self.state.x;
+                let tau = model.reducing.tr(x) / self.t;
+                self.memo
+                    .get_or_compute(tau, delta, |tau, delta| model.alphar_all(x, tau, delta))
+            }
         }
         impl Resid1D for GuessResid<'_, '_> {
             fn call(&mut self, rhomolar: f64) -> f64 {
                 self.delta = rhomolar / self.rhor;
-                let peos = self.state.model.pressure(&self.state.x, self.t, rhomolar);
+                // `calc_pressure` off the shared matrix — `self.rhor` is the
+                // same `reducing.rhormolar(x)` value `pressure` recomputes,
+                // so tau/delta and the arithmetic are identical.
+                let d = self.ar(self.delta);
+                let peos = rhomolar
+                    * self.state.model.gas_constant()
+                    * self.t
+                    * (1.0 + self.delta * d.d10);
                 (peos - self.p) / self.p
             }
             fn deriv(&mut self, _rhomolar: f64) -> f64 {
-                let d = self.state.model.alphar_all(
-                    &self.state.x,
-                    self.state.model.reducing.tr(&self.state.x) / self.t,
-                    self.delta,
-                );
+                let d = self.ar(self.delta);
                 self.state.model.gas_constant()
                     * self.t
                     * (1.0 + 2.0 * self.delta * d.d10 + self.delta * self.delta * d.d20)
                     / self.p
             }
             fn second_deriv(&mut self, _rhomolar: f64) -> f64 {
-                let d = self.state.model.alphar_all(
-                    &self.state.x,
-                    self.state.model.reducing.tr(&self.state.x) / self.t,
-                    self.delta,
-                );
+                let d = self.ar(self.delta);
                 self.state.model.gas_constant() * self.t / self.rhor
                     * (2.0 * d.d10 + 4.0 * self.delta * d.d20 + self.delta * self.delta * d.d30)
                     / self.p
             }
             fn third_deriv(&mut self, _rhomolar: f64) -> f64 {
-                let d = self.state.model.alphar_all(
-                    &self.state.x,
-                    self.state.model.reducing.tr(&self.state.x) / self.t,
-                    self.delta,
-                );
+                let d = self.ar(self.delta);
                 self.state.model.gas_constant() * self.t / (self.rhor * self.rhor)
                     * (6.0 * d.d20 + 6.0 * self.delta * d.d30 + self.delta * self.delta * d.d40)
                     / self.p
@@ -161,6 +168,7 @@ impl<'m> SatState<'m> {
             p,
             rhor,
             delta: f64::NAN,
+            memo: DerivsMemo::default(),
         };
         let attempt = householder4(&mut resid, rho_guess, 1e-8, 20).and_then(|rho| {
             if !rho.is_finite() || rho < 0.0 {
@@ -177,6 +185,7 @@ impl<'m> SatState<'m> {
                             p,
                             rhor,
                             delta: f64::NAN,
+                            memo: DerivsMemo::default(),
                         };
                         return householder4(&mut resid, 3.0 * rhor, 1e-8, 100);
                     }
@@ -192,6 +201,7 @@ impl<'m> SatState<'m> {
                             p,
                             rhor,
                             delta: f64::NAN,
+                            memo: DerivsMemo::default(),
                         };
                         return householder4(&mut resid, 1e-6, 1e-8, 100);
                     }
@@ -210,6 +220,7 @@ impl<'m> SatState<'m> {
                         p,
                         rhor,
                         delta: f64::NAN,
+                        memo: DerivsMemo::default(),
                     };
                     return brent(
                         |v| resid.call(v),

@@ -14,7 +14,7 @@
 //! - two-phase mixing is upstream's exact `Q*V + (1-Q)*L` with the
 //!   DBL_EPSILON endpoint shortcuts.
 
-use crate::alpha::HelmholtzEos;
+use crate::alpha::{DerivsMemo, HelmholtzDerivs, HelmholtzEos};
 use crate::flash_pt::PtFlash;
 use crate::solvers::Resid1D;
 use rustprop_core::params::Phase;
@@ -34,14 +34,35 @@ struct CaloricTResid<'a> {
     t: f64,
     target: f64,
     key: CaloricKey,
+    memo: DerivsMemo,
+}
+
+impl CaloricTResid<'_> {
+    /// The alphar matrix at (tau, delta), computed once per point.
+    fn ar(&mut self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        let eos = self.eos;
+        self.memo
+            .get_or_compute(tau, delta, |tau, delta| eos.alphar_all(tau, delta))
+    }
 }
 
 impl Resid1D for CaloricTResid<'_> {
     fn call(&mut self, rhomolar: f64) -> f64 {
+        // `calc_smolar/hmolar/umolar_nocache` off the shared alphar matrix —
+        // same tau/delta expressions and arithmetic as the `HelmholtzEos`
+        // methods; alpha0 has no second same-point consumer, so it is
+        // computed here exactly as before.
+        let tau = self.eos.t_reducing / self.t;
+        let delta = rhomolar / self.eos.rhomolar_reducing;
+        let residual = self.ar(tau, delta);
+        let ideal = self.eos.alpha0_all(tau, delta);
+        let r = self.eos.gas_constant;
         let v = match self.key {
-            CaloricKey::Smolar => self.eos.smolar(self.t, rhomolar),
-            CaloricKey::Hmolar => self.eos.hmolar(self.t, rhomolar),
-            CaloricKey::Umolar => self.eos.umolar(self.t, rhomolar),
+            CaloricKey::Smolar => r * (tau * (ideal.d01 + residual.d01) - ideal.d00 - residual.d00),
+            CaloricKey::Hmolar => {
+                r * self.t * (1.0 + tau * (ideal.d01 + residual.d01) + delta * residual.d10)
+            }
+            CaloricKey::Umolar => r * self.t * tau * (ideal.d01 + residual.d01),
         };
         v - self.target
     }
@@ -52,7 +73,7 @@ impl Resid1D for CaloricTResid<'_> {
     fn deriv(&mut self, rhomolar: f64) -> f64 {
         let tau = self.eos.t_reducing / self.t;
         let delta = rhomolar / self.eos.rhomolar_reducing;
-        let d = self.eos.alphar_all(tau, delta);
+        let d = self.ar(tau, delta);
         let r = self.eos.gas_constant;
         match self.key {
             CaloricKey::Smolar => {
@@ -71,7 +92,7 @@ impl Resid1D for CaloricTResid<'_> {
     fn second_deriv(&mut self, rhomolar: f64) -> f64 {
         let tau = self.eos.t_reducing / self.t;
         let delta = rhomolar / self.eos.rhomolar_reducing;
-        let d = self.eos.alphar_all(tau, delta);
+        let d = self.ar(tau, delta);
         let r = self.eos.gas_constant;
         let rho_r2 = self.eos.rhomolar_reducing * self.eos.rhomolar_reducing;
         match self.key {
@@ -481,6 +502,7 @@ impl PtFlash {
             t,
             target: value,
             key,
+            memo: DerivsMemo::default(),
         };
         let rho = match phase {
             Phase::Liquid => {

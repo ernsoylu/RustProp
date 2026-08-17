@@ -4,6 +4,7 @@ members = ["crates/*", "apps/*", "tests/*", "tools/*"]
 exclude = [
     "tools/golden-gen",
     "tools/if97-extract", # Python tooling, not crates
+    "tools/perf-bench",   # standalone timing harness, not shipped
     "tests/wasm-smoke",   # Node smoke test for the wasm-pack output
 ]
 

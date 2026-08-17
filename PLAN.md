@@ -2008,6 +2008,25 @@ Append-only; newest last. Seeded entries:
   release adds); no downstream exhaustive match existed, so nothing changed shape.
   RULING, so the question is closed: `Param`/`InputPair`/`Phase` stay DELIBERATELY
   exhaustive — compiler-forced match exhaustiveness is a port-completeness tool.
+- 2026-08-17 — PERF: last-evaluation memo for the Helmholtz derivative matrix in the five
+  `Resid1D` residuals (`SolverTpResid`, `CaloricTResid`, `MixSolverTpResid`, `DpdrhoResid`,
+  `GuessResid`). Each recomputed the full `alphar_all(tau, delta)` matrix in
+  `call`/`deriv`/`second_deriv`/`third_deriv` at the SAME point every iteration
+  (Householder4 = 4 same-point calls, Halley = 3, solvers.rs); each now owns a `DerivsMemo`
+  (alpha.rs) — a single-slot memo keyed on the EXACT bit patterns
+  `(tau.to_bits(), delta.to_bits())` — so a point computes once. flash_pt.rs's post-solve
+  stability pair `dpdrho_t` + `d2pdrho2_t` (two full matrices at one point) merged into
+  `dpdrho_d2pdrho2_t` off one matrix. NOT upstream's shape (upstream lets each
+  `first_partial_deriv` recompute), but bit-identity is provable, not a tolerance claim:
+  `alphar_all` is a deterministic pure function of `(tau, delta)`, the key is the exact
+  input bits, and the residuals' inlined `pressure`/`smolar`/`hmolar`/`umolar` bodies are
+  copied operation-for-operation from props.rs / mixture_flash.rs — so every downstream f64
+  is bit-identical by construction. Witness (tools/perf-bench `--dump-grids`, every f64 of
+  the LogPT 200x200 + LogPH 60x60 grid builds as `to_bits()` hex): BASELINE (memo stashed)
+  vs AFTER dumps are byte-identical (`cmp` clean, sha256 match, 27 MB of dumps), LogPH
+  200x200 checksum also unchanged. Measured (i7-1185G7 powersave, PERF.md): single-phase HP
+  963/839 us -> 380/305 us, warm PT 17.7 -> 7.1 us, mixture PT 16.9 -> 6.8 ms, LogPH 200x200
+  build 36.2 -> 12.4 s; memo-untouched raw-kernel rows moved <=14% (the noise band).
 
 ---
 
