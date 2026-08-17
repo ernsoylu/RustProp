@@ -2176,6 +2176,28 @@ Append-only; newest last. Seeded entries:
   `rec.name1 == "P" || rec.out == "P"`, but P sits SECOND in the 11 `(Hmolar, P)`
   records, so those rode the 1e-9 tier the comment never claimed for them; the rule now
   tests both input names, as it plainly intended.
+- 2026-08-18 — Wave-2 integration: R6/R7/R8 merged to main (three `--no-ff` merges, zero
+  conflicts — the branches were stacked and main had not moved; the merge trees are
+  identical to the branch tips, verified by `rev-parse ^{tree}`). Full gate green plus all
+  six `#[ignore]`d weekly suites: `heos_all_smoke` 130 fluids, `mixture_sweep`,
+  `tabular_pairs` 1 632 records worst 5.948e-9, `acceptance` 6 020 records with the 3
+  pinned mixture divergences, `acceptance_tabular` 1 950 records worst 3.681e-7,
+  `acceptance_svdsbtl` 995/1000 bitwise worst 8.227e-16 — zero failures anywhere.
+  **PERF.md section 2 was re-measured on a quiet box and corrected.** R8's numbers were
+  taken with 8 concurrent `cargo`/`rustc` processes live and its entry above records them
+  as measured; this entry records what the same A/B shows at load average 1.3 (4
+  alternating passes each, warmup pass discarded, BASELINE built from the `Merge Wave-2 R7`
+  tree). The RATIO holds — HP liquid 3.54x, HP gas 3.75x against the 3.1x/3.7x reported —
+  but the absolute scale does not: HP liquid 283.6 -> 80.2 us/op and HP gas 257.1 -> 68.5
+  us/op, against 403 -> 128 and 392 -> 106 recorded under load. R8's stated "~6-8%
+  contention penalty" was wrong by about an order of magnitude — the same BASELINE bench
+  runs 276.7-288.7 us quiet against 399.7-409.4 us loaded, ~40-48%. One claim was withdrawn
+  outright: `HS gas Water (T)` read as a ~1.1x gain under load (61.6 -> 57.2 us) is flat
+  quiet (38.5 -> 40.9 us, AFTER spread 37.9-46.2), which is what an untouched path should
+  do — `(H,S)` reaches the (P,X) solve only through its single-phase cascade. Lesson
+  recorded in PERF.md: absolute us/op on this box is load- and frequency-dependent and is
+  never comparable across sections measured in different sessions; only the within-session
+  A/B ratio is.
 
 ---
 

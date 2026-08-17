@@ -76,47 +76,65 @@ documented 30-bit bisection stand-in in `px_solve_single_phase` in favour of
 upstream's own TOMS748 plus the warm-density carry across probes. The speedup
 is a side effect of running upstream's ~9 probes instead of bisection's ~34.
 
-BASELINE = this tree with `crates/rustprop-heos/src/flash_px.rs` stashed.
-AFTER = the same tree with the swap applied (this commit). The two binaries
-were run **back to back**, alternating, four times each.
+BASELINE = the pre-R8 tree (the `Merge Wave-2 R7` commit). AFTER = the same
+tree with the swap applied. The two binaries were run **back to back**,
+alternating, four times each, after a discarded warmup pass of each.
 
-**Load conditions: NOT a quiet box.** Other agents were building concurrently
-(load average 6.7, 8 live `cargo`/`rustc` processes). The section-1 quiet-box
-figure for `HP liquid Water (T)` is 379 570 ns, and BASELINE here measures
-399 682-409 442 ns on the stable passes, so the contention penalty on this
-bench is ~6-8% — small enough that the 3x movement is unambiguous, large
-enough that these absolute numbers should not be compared to section 1's
-without that caveat.
+**These numbers were re-measured on a QUIET box at Wave-2 integration**
+(load average 1.3-1.4, one `cargo`/`rustc` process, nothing else building).
+They supersede the figures taken during R8's own run, when 8 concurrent
+`cargo`/`rustc` processes from parallel agents were live (load average 6.7).
+The ratio survived that re-measurement essentially unchanged, but the
+absolute numbers did not, and the correction is large enough to record:
+R8's run estimated the contention penalty at ~6-8% by comparing against
+section 1's quiet-box figure, and that estimate was WRONG by roughly an
+order of magnitude. The same BASELINE bench measures 276.7-288.7 μs quiet
+against the 399.7-409.4 μs recorded under load — a ~40-48% inflation, not
+6-8%. Absolute μs/op on this box is strongly load- and frequency-dependent
+and should never be compared across sections measured in different sessions;
+only the within-session A/B ratio is meaningful.
 
 | bench | BASELINE (median of 4) | AFTER (median of 4) | ratio |
 |---|---:|---:|---:|
-| HP liquid Water (T) | 403 μs/op | 128 μs/op | 3.1x |
-| HP gas Water (T) | 392 μs/op | 106 μs/op | 3.7x |
-| HS gas Water (T) | 61.6 μs/op | 57.2 μs/op | ~1.1x (in the noise) |
-| warm PT Water (Dmolar) | 9.5 μs/op | 8.5 μs/op | flat (untouched path) |
-| QT Water (P) | 317 ns/op | 316 ns/op | flat (untouched path) |
+| HP liquid Water (T) | 283.6 μs/op | 80.2 μs/op | 3.54x |
+| HP gas Water (T) | 257.1 μs/op | 68.5 μs/op | 3.75x |
+| HS gas Water (T) | 38.5 μs/op | 40.9 μs/op | flat (in the noise) |
+| warm PT Water (Dmolar) | 6.2 μs/op | 6.1 μs/op | flat (untouched path) |
+| QT Water (P) | 217 ns/op | 210 ns/op | flat (untouched path) |
+| alphar_all Water | 1.7 μs/op | 1.6 μs/op | flat (untouched path) |
+| mixture PT CH4/C2H6 (Dmolar) | 4942 μs/op | 5136 μs/op | flat (untouched path) |
 
 Per-pass ranges, so the noise is visible: HP liquid BASELINE
-386.8 / 399.7 / 406.2 / 409.4 μs against AFTER 110.9 / 128.0 / 128.7 / 165.9 μs;
-HP gas BASELINE 359.9 / 392.3 / 404.2 / 583.5 μs against AFTER
-94.0 / 106.3 / 110.9 / 116.4 μs. The best-matched pair (both passes at the
-quietest moment) is 386.8 -> 110.9 μs, 3.5x. Every AFTER pass is well under the
-150 μs target.
+276.7 / 280.0 / 287.2 / 288.7 μs against AFTER 75.6 / 77.4 / 83.0 / 88.1 μs;
+HP gas BASELINE 244.9 / 249.5 / 264.7 / 273.0 μs against AFTER
+67.2 / 67.9 / 69.2 / 69.4 μs. Every AFTER pass is well under the 150 μs target,
+and the two distributions do not overlap on either bench.
 
-Two more benches were left flat on purpose — `warm PT` and `QT` do not touch
-the (P,X) solve at all, so they are the control rows: their movement is this
-box's variance band.
+One correction of substance beyond the scale: `HS gas Water (T)` was recorded
+under load as 61.6 -> 57.2 μs and read as a ~1.1x gain. Quiet, it is
+38.5 -> 40.9 μs with the AFTER passes spread 37.9-46.2 μs — i.e. flat, inside
+the variance band, with no gain to claim. `(H,S)` reaches the (P,X) solve only
+through its single-phase cascade, so flat is the expected result.
+
+The remaining rows were left flat on purpose — `warm PT`, `QT`, `alphar_all`
+and `mixture PT` do not touch the (P,X) solve at all, so they are the control
+rows: their movement is this box's variance band.
 
 ### Downstream wall-clock
 
 Everything that builds a LogPH table rides on HP flashes, so the tabular
 suites fall with the solve (same `cargo test --release` invocations, same box):
 
-| suite | before | after |
-|---|---:|---:|
-| `acceptance` (6 020 records) | 64.6 s | 19.7 s |
-| `acceptance_tabular` (1 950 records) | 204.0 s | 17.7 s |
-| `tabular_state` (1 632 records) | 183.5 s | 20.8 s |
+| suite | before | after (under load) | after (quiet box) |
+|---|---:|---:|---:|
+| `acceptance` (6 020 records) | 64.6 s | 19.7 s | 9.7 s |
+| `acceptance_tabular` (1 950 records) | 204.0 s | 17.7 s | 12.6 s |
+| `tabular_state` (1 632 records) | 183.5 s | 20.8 s | 8.4 s |
+
+The `before` column was measured under load and has no quiet-box counterpart —
+re-measuring it would mean rebuilding the pre-R8 tree for a number the ratio
+does not need. Read the third column as the wall-clock a CI runner actually
+sees, and the first two only against each other.
 
 ### Where the time went
 
