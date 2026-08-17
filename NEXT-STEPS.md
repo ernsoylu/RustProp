@@ -188,6 +188,16 @@ draws are unchanged.
   index, and `--no-verify` does not help because packaging resolves too.
   `--workspace` works: it verifies against the local crates in dependency
   order.
+- The `--workspace` dry-run's overlay registry is IMMUTABLE at name+version,
+  like any registry: the first dry-run caches each `rustprop-*-0.1.0`
+  tarball into `~/.cargo/registry/{cache,src}` and its compiled rlib into
+  `target/`, and no later dry-run re-reads changed sources. A cross-crate
+  API added AFTER the first dry-run fails verification with a baffling
+  E0432 while every local file and freshly packaged tarball is correct.
+  Purge all three layers before re-running after cross-crate API changes:
+  `rm -rf target/package ~/.cargo/registry/{src,cache}/*/rustprop-*` plus
+  `cargo clean -p` on the touched crates. (Three stacked cache layers of
+  debugging, 2026-08-17.)
 - wasm-pack's bundled wasm-opt 117 rejects the bulk-memory instructions rustc
   now emits. The flags are already in `crates/rustprop-wasm/Cargo.toml`
   metadata; do not remove them.
