@@ -114,6 +114,8 @@ heal. Do not "fix" one without checking the assertion that pins it.
 | R507A gas-classified caloric (P,X) states at p = 0.995·max_sat_p error loudly where the wheel converges | PLAN.md 2026-08-17 R6 entry | Both implementations fire the same gas stability retry from 1e-6 at the Tmin probe (TVanc−0.01, 0.24 K below Tcrit); the retry trajectory is chaotic through the vdW loop and only bitwise alphar arithmetic would reproduce the wheel's lucky convergence (EOS sums agree at 1e-13). A needle: 0.9925·pmax and 0.9975·pmax both agree at ≤2e-9 |
 | Pseudo-pure PY-flash refusal MESSAGES are the port's own bracket diagnostic, not upstream's "unable to solve 1phase PY flash with Tmin=…, Tmax=… due to error: …" wrapper | `pseudo_pure_error_parity_matches_upstream` (refusal-vs-answer asserted for all 11 error records; oracle text carried in each record's `error` field) | The wrapper is `HSU_P_flash`'s catch around the single-phase solve and what it quotes is the INNER diagnostic. R8 closed the bisection stand-in (the inner solve is upstream's own TOMS748 now), but the no-bracket derivative path and the 2-D Newton fallback a refusal falls through to are still unported, so the text a refusal carries is still the port's bracket diagnostic. `post_update` and `solver_rho_Tp` refusals in the same suite ARE verbatim |
 | Upstream's `post_update` validity gate is ported for the HEOS pure/pseudo-pure arm only, not for `mixture_update` | `props_api.rs::post_update` | No reachable NaN mixture state has been observed, and the 10f divergence pins would need re-validating; a gate without evidence is an invented guard |
+| `post_update`'s refusal TEXT at `PropsSI("Hmass","T",0,"Smass",101325,"Water")`: rustprop "rhomolar is not a valid number", the wheel "rhomolar is less than zero" | `post_update_refusal_text_divergence_pinned` in `tests/golden/tests/validity.rs` | Both arms are carried, in upstream's order, and refusal-vs-answer agrees; the two trip DIFFERENT arms because the port's `(Smass,T)` flash leaves `rhomolar` NaN where upstream's leaves it negative. Matching the text would mean reproducing a divergent iteration's garbage bit for bit, on a path where neither implementation has an answer |
+| At inputs far outside the fluid's range, refusal-vs-answer agrees but the alpha0 message's `tau`/`delta` can differ (9 rows in the R11 scan, all sub-triple `(P,Q)` or negative-`T` `(Q,T)`) | `tests/golden/tests/validity.rs` asserts the 216 records where the states agree; the 9 are described in the 2026-08-18 Decisions entry | Same cause as the row above: the `nTau`/`nDelta` always match — it is the garbage state underneath that differs |
 | SVDSBTL evaluator agrees to a few ulp, not bitwise (700 of 745 records bitwise, worst 1.8e-15) | `tests/golden/tests/svdsbtl.rs` | GCC compiles the reference build with `-ffp-contract=fast`. Fusing the obvious candidate makes agreement *worse*, so the contraction sits elsewhere; chasing it would match a compiler flag, not port an algorithm |
 | Upstream's `PXFLASH_DIRECT_EOS` cache-bypass for warm (P,X) probes is not ported (R8); the port takes upstream's own `catch (...)` fallback, the cached `update_TP_guessrho` path | `PxResid` doc comment in `flash_px.rs`; the (P,X) golden suites at their 1e-8 policy | It exists to dodge a `CachedElement` layer this port does not have (each residual owns a `DerivsMemo`), and upstream calls it "bit-equivalent within ULP" to the path we do run. Measured cost: 2.0e-16 median displacement over 1 433 (P, caloric) goldens, 608 of them bitwise |
 
@@ -265,43 +267,41 @@ left no headroom. All 58 gate-band flashes now converge, the nine formerly
 erroring records match the wheel to ≤2 ulp, and the acceptance allowance is
 deleted. See the Decisions log.)*
 
-### 1. Close the `Ok(non-finite)` validity gap (small-to-medium, evidence in hand)
+*(2026-08-18: the previous #1 — the `Ok(non-finite)` validity gap — is CLOSED,
+and #2 — the `post_update` refusal text — is PINNED as a divergence rather
+than chased. See the 2026-08-18 R11 entry in PLAN.md's Decisions log. Two
+upstream gates were ported at their own sites (`calc_alpha0_deriv_nocache`'s
+`ValidNumber` throw and the scalar-binding `_raise_if_invalid`), a
+58,926-combination abuse grid took the "port non-finite, wheel raises" column
+from 2,898 to 0 with the "port raises, wheel answers" column set-identical at
+314, and `tests/golden/tests/validity.rs` + `fixtures/validity.jsonl` (1,296
+records) pin the refusals, their verbatim messages, AND the answers. The
+sweep question that entry raised is answered there too: NO, the abuse
+dimension does not belong in the seeded acceptance sweep, because
+`sweep_propssi` skips every state the wheel rejects by design and so is
+structurally blind to this class.)*
 
-**rustprop returns `Ok(NaN)` in places where the wheel raises.** A ~1.8-million
-combination scan over (output, pair, value, fluid), run during the Wave-2
-integration, found **1,754 such calls**. Witness, re-confirmed against the
-wheel while writing this:
+### 1. Close the answer-vs-refuse residue at unphysical inputs (medium)
 
-```
-PropsSI("L","T",1e30,"P",101325,"Water")
-  rustprop -> Ok(NaN)
-  wheel    -> raises "calc_alpha0_deriv_nocache returned invalid number
-              with inputs nTau: 2, nDelta: 0, tau: 6.47096e-28"
-```
+The R11 abuse scan left 136 rows where the port answers and the wheel raises,
+and 314 where the port raises and the wheel answers. None is a validity-gate
+question, all are pre-existing, and none is reachable at physical inputs. By
+count:
 
-It looks like a missing `ValidNumber` check on the ideal-gas derivative — the
-same *class* of defect as the invented guards the 2026-08-16 audit removed,
-but inverted: a guard upstream HAS that the port does not. Note this is
-exactly what the sweep is for, and the sweep did not draw it — the scan that
-found it varied *inputs* far outside the fluid's range, which the seeded
-acceptance sweep deliberately does not do. Worth deciding whether that
-input-abuse dimension belongs in the sweep permanently.
+| n | class | what happens |
+|---|---|---|
+| 148 | `(Dmolar,P)` below the triple-point pressure | port: loud `NotImplemented`; wheel: answers |
+| 130 | pseudo-pure `DmolarT` / `SmolarT` / `HmolarSmolar` | port: loud `NotImplemented` (by design — see the divergence table); wheel: answers |
+| 103 | sub-triple `(P,Q)`, e.g. Water at 1e-30 Pa | upstream's ancillary extrapolation yields a NEGATIVE density and `post_update` refuses; the port converges to a positive one (8.4e204 mol/m³) and answers garbage |
+| 36 | `d(Hmolar)/d(T)\|P` and the other derivative OUTPUT strings | `Param::parse` does not accept them, so `props_si` rejects outright while the wheel answers. The machinery exists (`rustprop_heos::derivs`, 207 goldens) — only the string parser is missing, which makes this the cheapest item here and the only one that is a real missing feature |
+| 22 | `(T,Dmolar)` at T ≤ 0 | the port's flash reports a TWO-PHASE state and serves the ancillary pressure; upstream's pressure is NaN and `post_update` refuses |
+| 10 | `solver_rho_Tp` supercritical-liquid failures at T = 1e-30 | upstream gives up, the port finds a root |
 
-Not urgent for the frees integration (that repo's backend rejects non-finite
-values on both sides of every call, so this cannot reach its engine), but it
-is a real divergence and currently pinned nowhere on this side.
+Everything except the derivative-string row means reproducing a divergent
+iteration's garbage bit for bit, which is only worth doing if a real caller
+lands there.
 
-### 2. Decide the `post_update` refusal text (small)
-
-R7's `post_update` port turned `PropsSI("Hmass","T",0,"Smass",101325,"Water")`
-from `Ok(NaN)` into a refusal, matching the wheel — but the message differs:
-rustprop says *"rhomolar is not a valid number"*, the wheel *"rhomolar is less
-than zero"*, because rustprop's density is NaN there where upstream's is
-negative. The `< 0` arm IS carried, in upstream's order, so this is a
-value-level difference rather than a missing branch. Either pin it as a
-divergence row or chase the density difference; do not leave it unrecorded.
-
-### 3. Performance (measured; the obvious targets are gone)
+### 2. Performance (measured; the obvious targets are gone)
 
 This is no longer unprofiled ground — `tools/perf-bench` and `PERF.md` exist,
 and the two biggest costs have been paid: the derivative-matrix memoization

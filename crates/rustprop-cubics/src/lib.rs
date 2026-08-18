@@ -276,6 +276,29 @@ impl CubicEos {
         (d.d00, tau_star * d.d01, tau_star * tau_star * d.d02)
     }
 
+    /// Upstream `calc_alpha0_deriv_nocache`'s closing `ValidNumber` gate at
+    /// the state `(t, rhomolar)`. `AbstractCubicBackend` overrides only the
+    /// RESIDUAL `calc_alphar_deriv_nocache`, so it inherits the ideal-gas
+    /// function and its throw whole; the message quotes the HEOS-convention
+    /// `tau = _reducing.T/_T` and `delta = _rhomolar/_reducing.rhomolar`,
+    /// which for a cubic are `1/T` and `rhomolar` (Tr = rhor = 1).
+    pub fn check_alpha0_deriv(
+        &self,
+        n_tau: u32,
+        n_delta: u32,
+        t: f64,
+        rhomolar: f64,
+    ) -> Result<()> {
+        let (tau, delta) = (1.0 / t, rhomolar);
+        rustprop_heos::derivs::check_alpha0(
+            &self.alpha0_all(tau, delta),
+            n_tau,
+            n_delta,
+            tau,
+            delta,
+        )
+    }
+
     /// The full alpha0 derivative matrix in the CUBIC (tau = 1/T,
     /// delta = rho) convention — upstream `calc_alpha0_deriv_nocache`
     /// (HelmholtzEOSMixtureBackend.cpp:3580): the fabricated fluid's alpha0

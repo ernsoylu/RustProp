@@ -2198,6 +2198,96 @@ Append-only; newest last. Seeded entries:
   recorded in PERF.md: absolute us/op on this box is load- and frequency-dependent and is
   never comparable across sections measured in different sessions; only the within-session
   A/B ratio is.
+- 2026-08-18 — **Wave-3 R11: the `Ok(non-finite)` validity gap is closed.** The 2026-08-17
+  handoff's candidate #1 was one witness (`PropsSI("L","T",1e30,"P",101325,"Water")` ->
+  `Ok(NaN)` here, a raise there) and a count from an integration-side scan (1 754 such
+  calls). Reading upstream outward rather than from the symptom in turned up TWO gates,
+  not one, and the distinction is observable in the wheel's own message text:
+  * `HelmholtzEOSMixtureBackend::calc_alpha0_deriv_nocache` closes with
+    `if (!ValidNumber(val)) throw ValueError(format("... nTau: %d, nDelta: %d, tau: %Lg,
+    delta: %Lg"))` (`HelmholtzEOSMixtureBackend.cpp:3621-3626`, pure/pseudo-pure branch).
+    EVERY ideal-gas derivative upstream fetches — `alpha0()`, `dalpha0_dTau()`,
+    `d2alpha0_dTau2()`, the keyed alpha0 strings, `get_dT_drho`'s caloric branches —
+    routes through that one function. Its bulk sibling `calc_all_alpha0_derivs_nocache`
+    has NO gate, which is why `calc_smolar` (the only caller of the bulk form) behaves
+    differently from `calc_hmolar`.
+  * `_raise_if_invalid` (`src/nanobind_interface.cxx:104-111`), which closes the scalar
+    `PropsSI`/`HAPropsSI` bindings: `!ValidNumber(x)` becomes a `ValueError` carrying
+    `get_global_param_string("errstring")`. The C++ layer signals failure by returning
+    `_HUGE` and setting that string, so "threw" and "computed a NaN" are indistinguishable
+    to a caller BY DESIGN — and when nothing threw the string is empty, which is why the
+    wheel answers `PropsSI("Smolar","T",1e30,...)` with `ValueError('')`.
+  WHAT WAS PORTED, at those sites and no others: `derivs::check_alpha0` (the gate proper,
+  generic over `DerivEos` so `AbstractCubicBackend`, which overrides only the RESIDUAL
+  `calc_alphar_deriv_nocache`, inherits it as upstream does), called from
+  `StateDerivs::get_dt_drho` (Hmolar/Smolar/Umolar -> nTau 2; Gmolar -> nTau 1, then 0,
+  then nDelta 1) and `get_dt_drho_second` (nTau 3 then 2); a `keyed_output` table naming
+  the derivative each direct calculator fetches; three transport sites
+  (`conductivity_critical_olchowy_sengers` and the IAPWS-2011 water model reach it through
+  `cpmolar()`/`cvmolar()`, the Friend hardcoded Methane and Ethane dilute terms reach
+  `d2alpha0_dTau2()` directly — `conductivity_methane_hardcoded` became fallible for it);
+  and the boundary gate on `props_si` and `ha_props_si`, whose empty message is the same
+  `Err(Error::Value(String::new()))` the environmental-trivial arms already used for this
+  exact wheel behaviour. `rustprop_core::cformat::fmt_g` (C's `%g`, moved up from
+  `rustprop-tabular` where it already existed) formats the tau/delta the message quotes.
+  A SECOND STAGE of the same scan over the non-HEOS backends (19 124 combinations across
+  IF97, SRK, PR, PC-SAFT and INCOMP) then found the cubic route missing BOTH gates:
+  `AbstractCubicBackend::update` closes with the inherited `post_update()`
+  (`CubicBackend.cpp:387`) and the port had none, so
+  `PropsSI("Dmolar","T",1000,"P",-1,"SRK::Propane")` served a NEGATIVE density (-1.2e-4
+  mol/m3) where the wheel refuses "rhomolar is less than zero"; and the same alpha0 table
+  applies because cubics inherit every calculator. Both ported
+  (`CubicEos::check_alpha0_deriv`, and the four+two `post_update` arms in upstream's
+  order). That stage now classifies at 0 / 0 / 0 across all three columns, from
+  114 / 0 / 0 before. The humid-air arm was measured too — a 21 424-call `HAPropsSI` abuse
+  grid: 800 rows of `Ok(non-finite)` against a wheel raise, all of them with a NON-FINITE
+  INPUT (which JSON Lines cannot carry, hence a literal test rather than a fixture), and
+  zero rows the other way.
+  MEASURED, by a 58 926-combination abuse grid over 8 fluids x 10 input pairs x up to 20
+  outputs x ladders including 0, negative, 1e-30, 1e30, +inf and NaN, run on both sides
+  and classified: (a) port non-finite / wheel raises **2 898 -> 0**; (a2) port answers /
+  wheel raises **168 -> 136**; (b) port raises / wheel answers **314 -> 314, set-identical,
+  zero new**. Exactly 2 939 rows changed and not one of them is a row the wheel answers:
+  2 898 NONFIN->ERR, 32 ANS->ERR (all speed of sound — the one output where the arithmetic
+  hid the defect, because the non-finite `d2alpha0_dTau2` sits in a DENOMINATOR and
+  `sqrt(... - x/inf)` returns a plausible 2.1e16 m/s), 9 ERR->ERR (message only). Of the
+  745 rows where the wheel quotes the alpha0 message, 217 now match the port's text
+  verbatim and the rest are rows where the port refuses EARLIER for an unrelated reason
+  (a pseudo-pure unported pair, an ancillary range check).
+  WHERE THE TEXT CANNOT MATCH, per case: 9 rows quote the same nTau/nDelta but different
+  tau/delta, because the sub-triple `(P,Q)` and negative-temperature `(Q,T)` flashes
+  underneath converge somewhere else — the port would have to reproduce a divergent
+  iteration's garbage bit for bit. The same reasoning retires the handoff's candidate #2
+  (`post_update` saying "rhomolar is not a valid number" where the wheel says "rhomolar is
+  less than zero"): both arms are carried in upstream's order and refusal-vs-answer agrees;
+  the port's density is NaN there where upstream's is negative. Pinned, not chased, by
+  `post_update_refusal_text_divergence_pinned`.
+  PINNED by a new generator (`gen_validity`) and suite (`tests/golden/tests/validity.rs`):
+  1 626 records — 6 HEOS fluids x 6 (T, P) states x 36 outputs plus SRK/PR Propane x 5
+  states x 33 — of which 1 176 are answers (the anti-regression half: category (b) must
+  stay zero), 264 are alpha0 refusals asserted VERBATIM, 25 are empty-message boundary
+  refusals and 161 are other refusals. The verbatim assertion is what makes the gate
+  per-derivative rather than "any non-finite alpha0 entry": a coarser port passes the
+  refusal test and fails this one. Value tolerance 1e-8 rather than the usual 1e-9,
+  because four of the answers are cancellation-dominated at these states (Water `Z` at
+  300 K is `1 + delta*dalphar_ddelta` with the bracket ~ -0.99927, so a 1.4e-12 absolute
+  wobble reads as 1.9e-9 relative).
+  DECISION on whether the input-abuse dimension belongs in the seeded acceptance sweep:
+  NO, and the sweep's own contract says why — `sweep_propssi` SKIPS every state the wheel
+  rejects, because it exists to check VALUES where upstream has an answer. An abuse
+  dimension is ~95% rejections, so it would add runtime and almost no records to the very
+  suite that structurally cannot see this defect class. The dedicated `validity` suite
+  above is the right home: it checks CLASSIFICATION, it is cheap (0.02 s), and it runs in
+  the ordinary `cargo test`, not the weekly job.
+  NOT IN SCOPE, found by the same scan and left for a later round (all pre-existing, all
+  "the port converges where upstream does not", none reachable at physical inputs): 103
+  sub-triple `(P,Q)` rows where upstream's ancillary extrapolation yields a negative
+  density and `post_update` refuses while the port returns a positive one (Water at
+  1e-30 Pa: 8.4e204 mol/m3); 22 `(T,Dmolar)` rows at T <= 0 where the port's flash reports
+  a TWO-PHASE state and serves the ancillary pressure; 10 `solver_rho_Tp` rows; and 36
+  `d(Hmolar)/d(T)|P` rows, which are not a validity question at all — `Param::parse` does
+  not accept derivative OUTPUT STRINGS, so `props_si` rejects them outright while the
+  wheel answers.
 
 ---
 
