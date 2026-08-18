@@ -2906,6 +2906,107 @@ def gen_conductivity():
 WRITTEN = []
 
 
+def parity_record(out, n1, v1, n2, v2, spec):
+    """Whatever the oracle DOES with this call, recorded as-is.
+
+    A value record when the wheel answers, an error-parity record (verbatim
+    message, `expected` a 0.0 placeholder) when it refuses. Unlike
+    `error_record` this makes no prior claim about which it will be — the
+    point of the validity suite is the CLASSIFICATION, and a call that flips
+    side shows up as a diff in the committed fixture."""
+    base = {"backend": spec.split("::")[0], "fluid": spec.split("::")[-1],
+            "out": out, "name1": n1, "val1": v1, "name2": n2, "val2": v2}
+    try:
+        base["expected"] = PropsSI(out, n1, float(v1), n2, float(v2), spec)
+    except Exception as e:
+        base["expected"] = 0.0
+        base["error"] = str(e)
+    return base
+
+
+# Outputs whose upstream calculators reach for an ideal-gas derivative
+# through the CHECKED accessor, plus the neighbours that do not — the two
+# halves of the validity question (see gen_validity).
+VALIDITY_OUTS = [
+    "Dmolar", "Hmolar", "Smolar", "Umolar", "T", "P", "Q", "Cpmolar", "Cvmolar",
+    "A", "L", "V", "Gmolar", "Helmholtzmolar", "Z", "Phase", "PIP", "Cp0molar",
+    "isothermal_compressibility", "isobaric_expansion_coefficient",
+    "isentropic_expansion_coefficient", "fundamental_derivative_of_gas_dynamics",
+    "alpha0", "alphar", "dalpha0_dtau_constdelta", "dalpha0_ddelta_consttau",
+    "d2alpha0_ddelta2_consttau", "d3alpha0_ddelta3_consttau",
+    "Hmolar_idealgas", "Smolar_idealgas", "Umolar_idealgas", "Prandtl",
+    "Bvirial", "Tau", "Delta", "Gmolar_residual",
+]
+
+# (T, P) states chosen from the R11 abuse scan: 1e30 K underflows tau far
+# enough that Water's PlanckEinstein alpha0 terms evaluate log(1-exp(-0))
+# and every tau-derivative goes non-finite, while delta-derivatives and the
+# whole residual side stay finite. The physical rows are the control group.
+VALIDITY_STATES = [
+    ("T", 1e30, "P", 101325.0),
+    ("T", 1e30, "P", 1e9),
+    ("T", 1e20, "P", 101325.0),
+    ("T", 1e10, "P", 101325.0),
+    ("T", 5000.0, "P", 101325.0),
+    ("T", 300.0, "P", 101325.0),
+]
+
+
+def gen_validity():
+    """R11: refusal-vs-answer parity over inputs far outside the fluid's
+    range — the dimension the seeded acceptance sweep deliberately does not
+    draw, and where the port used to hand back `Ok(NaN)` for calls the wheel
+    refuses.
+
+    Two upstream gates are at stake and the records pin both:
+
+    * `calc_alpha0_deriv_nocache`'s closing `ValidNumber`
+      (`HelmholtzEOSMixtureBackend.cpp:3621`), whose verbatim message names
+      `nTau`/`nDelta` — so the record text identifies WHICH derivative
+      upstream fetched, and the port must fetch the same one;
+    * `_raise_if_invalid` (`nanobind_interface.cxx:104`), the scalar
+      PropsSI/HAPropsSI boundary check, which refuses a non-finite result
+      with an EMPTY message when nothing threw underneath — that is what
+      `Smolar` does here, because `calc_smolar` reads the UNCHECKED bulk
+      `calc_all_alpha0_derivs_nocache`.
+
+    Pure fluids and (T, P) only: the pseudo-pure unported pairs and the
+    sub-triple (D, P) flash are loud `NotImplemented` in the port by design,
+    and re-drawing them here would only re-test those decisions."""
+    # Methane and Ethane are in the list for their conductivity models: both
+    # reach `d2alpha0_dTau2()` DIRECTLY (the Friend hardcoded lambda_dilute),
+    # where Water reaches it through cp/cv in the IAPWS-2011 critical term
+    # and Nitrogen's structured model skips the critical term entirely and so
+    # lands on the empty-message boundary gate instead. Three different
+    # routes to the same upstream accessor.
+    rows = []
+    for fluid in ["Water", "Nitrogen", "CarbonDioxide", "R134a", "Methane", "Ethane"]:
+        for n1, v1, n2, v2 in VALIDITY_STATES:
+            for out in VALIDITY_OUTS:
+                rows.append(parity_record(out, n1, v1, n2, v2, f"HEOS::{fluid}"))
+    # The cubic route runs the same two gates: `AbstractCubicBackend::update`
+    # closes with the inherited `post_update()` (CubicBackend.cpp:387), and
+    # `AbstractCubicBackend` overrides only the RESIDUAL
+    # `calc_alphar_deriv_nocache`, so `calc_alpha0_deriv_nocache` and its
+    # throw come along whole. `T=1000, p=-1` is the post_update witness (the
+    # wheel refuses "rhomolar is less than zero"; the port used to serve a
+    # NEGATIVE density) and `T=1e30` the alpha0 one. L/V/Prandtl are dropped:
+    # the fabricated cubic fluid has no transport model, which is a different
+    # refusal already pinned by the cubic suite.
+    cubic_outs = [o for o in VALIDITY_OUTS if o not in ("Prandtl", "L", "V")]
+    for backend in ["SRK", "PR"]:
+        for n1, v1, n2, v2 in [
+            ("T", 1e30, "P", 101325.0),
+            ("T", 1e20, "P", 101325.0),
+            ("T", 1000.0, "P", -1.0),
+            ("T", 300.0, "P", 101325.0),
+            ("T", 500.0, "P", 5e6),
+        ]:
+            for out in cubic_outs:
+                rows.append(parity_record(out, n1, v1, n2, v2, f"{backend}::Propane"))
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     WRITTEN.append(name)
@@ -2991,6 +3092,7 @@ def main():
     write_jsonl("acceptance_tabular.jsonl", gen_acceptance_tabular())
     write_jsonl("acceptance_svdsbtl.jsonl", gen_acceptance_svdsbtl())
     write_jsonl("conductivity.jsonl", gen_conductivity())
+    write_jsonl("validity.jsonl", gen_validity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

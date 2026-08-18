@@ -51,7 +51,30 @@ fn extract_backend(fluid_string: &str) -> (&str, &str) {
 }
 
 /// `PropsSI(Output, Name1, Prop1, Name2, Prop2, FluidName)`.
+///
+/// A non-finite result is an error, never a value: upstream's scalar
+/// `PropsSI` binding closes with `_raise_if_invalid`
+/// (`src/nanobind_interface.cxx:104-111`), which turns `!ValidNumber(x)` into
+/// a `ValueError` carrying the global error string. The C++ layer beneath it
+/// signals failure by returning `_HUGE`, so the two states — "threw" and
+/// "computed a NaN" — are indistinguishable to a caller by design; this port
+/// carries both as `Err`, with the message empty exactly where upstream's
+/// error string is (see the environmental-trivial arms, which already did).
 pub fn props_si(
+    output: &str,
+    name1: &str,
+    prop1: f64,
+    name2: &str,
+    prop2: f64,
+    fluid_name: &str,
+) -> Result<f64> {
+    match props_si_inner(output, name1, prop1, name2, prop2, fluid_name) {
+        Ok(v) if !v.is_finite() => Err(Error::Value(String::new())),
+        other => other,
+    }
+}
+
+fn props_si_inner(
     output: &str,
     name1: &str,
     prop1: f64,
@@ -505,6 +528,63 @@ fn state_helmholtzmolar(flash: &PtFlash, state: &HeosState) -> f64 {
     }
 }
 
+/// Which ideal-gas derivatives upstream fetches through the CHECKED accessor
+/// (`calc_alpha0_deriv_nocache`, whose closing `ValidNumber` gate throws
+/// rather than serving a non-finite number) while producing each output, as
+/// `(nTau, nDelta)` in upstream's own evaluation order.
+///
+/// The mapping is read off the upstream calculators and confirmed against the
+/// wheel, which quotes `nTau`/`nDelta` in the message text: at
+/// `PropsSI(x,"T",1e30,"P",101325,"Water")` the wheel reports nTau 1 for
+/// `Hmolar`/`Umolar`, nTau 2 for `Cpmolar`/`Cvmolar`/`Cp0molar`/`A`, and
+/// nTau 0 for `Gmolar`/`Helmholtzmolar`.
+///
+/// Outputs absent from this table are absent upstream too, and the difference
+/// is observable: `Smolar` takes `calc_smolar`'s UNCHECKED bulk path
+/// (`calc_all_alpha0_derivs_nocache`), and the wheel duly refuses it with an
+/// EMPTY message — the `_raise_if_invalid` boundary gate, not a throw.
+///
+/// Shared with the cubic route: `AbstractCubicBackend` overrides only the
+/// RESIDUAL `calc_alphar_deriv_nocache` and inherits every calculator below.
+#[cfg(any(feature = "heos", feature = "cubics"))]
+fn alpha0_validity_gate(out: Param) -> &'static [(u32, u32)] {
+    match out {
+        // `calc_hmolar` / `calc_umolar` / `AbstractState::hmolar_idealgas` /
+        // `umolar_idealgas`: `dalpha0_dTau()`.
+        Param::Hmolar
+        | Param::Hmass
+        | Param::Umolar
+        | Param::Umass
+        | Param::HmolarIdealgas
+        | Param::HmassIdealgas
+        | Param::UmolarIdealgas
+        | Param::UmassIdealgas
+        | Param::Dalpha0DtauConstdelta => &[(1, 0)],
+        // `AbstractState::smolar_idealgas`: `tau()*dalpha0_dTau() - alpha0()`.
+        Param::SmolarIdealgas | Param::SmassIdealgas => &[(1, 0), (0, 0)],
+        // `calc_cvmolar` / `calc_cpmolar` / `calc_cpmolar_idealgas` /
+        // `calc_speed_sound`: `d2alpha0_dTau2()`. `calc_fundamental_
+        // derivative_of_gas_dynamics` reaches it through `speed_sound()`.
+        Param::Cpmolar
+        | Param::Cpmass
+        | Param::Cvmolar
+        | Param::Cvmass
+        | Param::Cp0molar
+        | Param::Cp0mass
+        | Param::SpeedSound
+        | Param::FundamentalDerivativeOfGasDynamics => &[(2, 0)],
+        // `calc_gibbsmolar` / `calc_helmholtzmolar`: `alpha0()`.
+        Param::Gmolar | Param::Gmass | Param::Helmholtzmolar | Param::Helmholtzmass => &[(0, 0)],
+        // The keyed alpha0 strings (`AbstractState::keyed_output`) fetch the
+        // derivative they name.
+        Param::Alpha0 => &[(0, 0)],
+        Param::Dalpha0DdeltaConsttau => &[(0, 1)],
+        Param::D2alpha0Ddelta2Consttau => &[(0, 2)],
+        Param::D3alpha0Ddelta3Consttau => &[(0, 3)],
+        _ => &[],
+    }
+}
+
 /// Upstream `AbstractState::keyed_output` for the ported outputs, including
 /// the mass-basis conversions and the two-phase error conditions.
 #[cfg(feature = "heos")]
@@ -516,6 +596,15 @@ fn keyed_output(
 ) -> Result<f64> {
     if out.is_trivial() {
         return trivial_output(flash, data, out);
+    }
+    // The ideal-gas validity gate, at the state's own (T, rho) — the point
+    // every calculator below evaluates at. In the dome upstream instead
+    // checks on SatL/SatV, whose tau and delta are equally physical, so the
+    // gate is a no-op there either way.
+    for &(n_tau, n_delta) in alpha0_validity_gate(out) {
+        flash
+            .eos
+            .check_alpha0_deriv(n_tau, n_delta, state.t(), state.rhomolar())?;
     }
     let mm = flash.eos.molar_mass;
     Ok(match out {
@@ -1129,6 +1218,36 @@ fn cubic_route(
             (s.t, s.p, s.rhomolar, s.q, Phase::Twophase)
         }
     };
+    // `AbstractCubicBackend::update` closes with `post_update()`
+    // (CubicBackend.cpp:387) — the inherited
+    // `HelmholtzEOSMixtureBackend::post_update`, same arms in the same order
+    // as the HEOS route's. Without it the cubic route served a NEGATIVE
+    // density for e.g. `PropsSI("Dmolar","T",1000,"P",-1,"SRK::Propane")`
+    // where the wheel refuses.
+    if !p.is_finite() {
+        return Err(Error::Value("p is not a valid number".into()));
+    }
+    if !t.is_finite() {
+        return Err(Error::Value("T is not a valid number".into()));
+    }
+    if rho < 0.0 {
+        return Err(Error::Value("rhomolar is less than zero".into()));
+    }
+    if !rho.is_finite() {
+        return Err(Error::Value("rhomolar is not a valid number".into()));
+    }
+    if !q.is_finite() {
+        return Err(Error::Value("Q is not a valid number".into()));
+    }
+    if phase == Phase::Unknown {
+        return Err(Error::Value("_phase is unknown".into()));
+    }
+    // The ideal-gas validity gate, same table as the HEOS route: cubics
+    // inherit `calc_alpha0_deriv_nocache` unchanged, and every calculator
+    // below is the same `HelmholtzEOSMixtureBackend` one.
+    for &(n_tau, n_delta) in alpha0_validity_gate(out) {
+        eos.check_alpha0_deriv(n_tau, n_delta, t, rho)?;
+    }
     // Two-phase caloric outputs mix the saturated branches by quality; the
     // (D,T) dome states reproduce upstream's broken-sub-state throw instead.
     let mix = |f: &dyn Fn(f64, f64) -> f64| -> Result<f64> {

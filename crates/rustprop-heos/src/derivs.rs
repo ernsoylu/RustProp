@@ -61,6 +61,51 @@ impl DerivEos for HelmholtzEos {
     }
 }
 
+/// Upstream `HelmholtzEOSMixtureBackend::calc_alpha0_deriv_nocache`'s closing
+/// `ValidNumber` gate (`HelmholtzEOSMixtureBackend.cpp:3621-3626`): every
+/// ideal-gas derivative reached through `AbstractState::alpha0()`,
+/// `dalpha0_dTau()`, `d2alpha0_dTau2()` and friends passes through that
+/// function, and a non-finite result is a `ValueError` rather than an answer.
+/// `AbstractCubicBackend` inherits it (it overrides only the *residual*
+/// `calc_alphar_deriv_nocache`), so the gate is generic here too.
+///
+/// The check is per-derivative because upstream's is: the bulk sibling
+/// `calc_all_alpha0_derivs_nocache` has no gate at all, which is why
+/// `PropsSI("Smolar", ...)` refuses with an EMPTY message where
+/// `PropsSI("Hmolar", ...)` quotes this text.
+pub fn check_alpha0(
+    a0: &HelmholtzDerivs,
+    n_tau: u32,
+    n_delta: u32,
+    tau: f64,
+    delta: f64,
+) -> Result<()> {
+    use rustprop_core::cformat::fmt_g;
+    let val = match (n_tau, n_delta) {
+        (0, 0) => a0.d00,
+        (0, 1) => a0.d10,
+        (1, 0) => a0.d01,
+        (0, 2) => a0.d20,
+        (1, 1) => a0.d11,
+        (2, 0) => a0.d02,
+        (0, 3) => a0.d30,
+        (1, 2) => a0.d21,
+        (2, 1) => a0.d12,
+        (3, 0) => a0.d03,
+        // Upstream's bare `throw ValueError()` for an unsupported order.
+        _ => return Err(Error::Value(String::new())),
+    };
+    if val.is_finite() {
+        Ok(())
+    } else {
+        Err(Error::Value(format!(
+            "calc_alpha0_deriv_nocache returned invalid number with inputs nTau: {n_tau}, nDelta: {n_delta}, tau: {}, delta: {}",
+            fmt_g(tau),
+            fmt_g(delta)
+        )))
+    }
+}
+
 /// One state's Helmholtz derivatives, reused across parameter queries.
 pub struct StateDerivs<'a, E: DerivEos = HelmholtzEos> {
     eos: &'a E,
@@ -109,6 +154,7 @@ impl<'a, E: DerivEos> StateDerivs<'a, E> {
                 (dt, drho)
             }
             Param::Hmolar | Param::Hmass => {
+                check_alpha0(a0, 2, 0, tau, delta)?;
                 let dt = r
                     * (-tau.powi(2) * (a0.d02 + ar.d02)
                         + (1.0 + delta * ar.d10 - tau * delta * ar.d11));
@@ -117,16 +163,21 @@ impl<'a, E: DerivEos> StateDerivs<'a, E> {
                 (dt, drho)
             }
             Param::Smolar | Param::Smass => {
+                check_alpha0(a0, 2, 0, tau, delta)?;
                 let dt = r / t * (-tau.powi(2) * (a0.d02 + ar.d02));
                 let drho = r / rhomolar * (-(1.0 + delta * ar.d10 - tau * delta * ar.d11));
                 (dt, drho)
             }
             Param::Umolar | Param::Umass => {
+                check_alpha0(a0, 2, 0, tau, delta)?;
                 let dt = r * (-tau.powi(2) * (a0.d02 + ar.d02));
                 let drho = t * r / rhomolar * (tau * delta * ar.d11);
                 (dt, drho)
             }
             Param::Gmolar | Param::Gmass => {
+                check_alpha0(a0, 1, 0, tau, delta)?;
+                check_alpha0(a0, 0, 0, tau, delta)?;
+                check_alpha0(a0, 0, 1, tau, delta)?;
                 let dtau_dt = 1.0 / dt_dtau;
                 let dt = r * t * (a0.d01 + ar.d01 + delta * ar.d11) * dtau_dt
                     + r * (1.0 + a0.d00 + ar.d00 + delta * ar.d10);
@@ -182,6 +233,8 @@ impl<'a, E: DerivEos> StateDerivs<'a, E> {
                 (dt2, drho_dt, drho2)
             }
             Param::Hmolar | Param::Hmass => {
+                check_alpha0(a0, 3, 0, tau, delta)?;
+                check_alpha0(a0, 2, 0, tau, delta)?;
                 let drho2 = r
                     * t
                     * (delta / rhomolar).powi(2)
@@ -197,6 +250,8 @@ impl<'a, E: DerivEos> StateDerivs<'a, E> {
                 (dt2, drho_dt, drho2)
             }
             Param::Smolar | Param::Smass => {
+                check_alpha0(a0, 3, 0, tau, delta)?;
+                check_alpha0(a0, 2, 0, tau, delta)?;
                 let drho2 = r / rhomolar.powi(2)
                     * (1.0 - delta.powi(2) * ar.d20 + tau * delta.powi(2) * ar.d21);
                 let dt2 =
@@ -205,6 +260,8 @@ impl<'a, E: DerivEos> StateDerivs<'a, E> {
                 (dt2, drho_dt, drho2)
             }
             Param::Umolar | Param::Umass => {
+                check_alpha0(a0, 3, 0, tau, delta)?;
+                check_alpha0(a0, 2, 0, tau, delta)?;
                 let drho2 = r * t * tau * (delta / rhomolar).powi(2) * ar.d21;
                 let dt2 = r / t * tau.powi(2) * (tau * (a0.d03 + ar.d03) + 2.0 * (a0.d02 + ar.d02));
                 let drho_dt = r / rhomolar * (-tau.powi(2) * delta * ar.d12);

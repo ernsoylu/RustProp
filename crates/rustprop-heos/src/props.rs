@@ -10,10 +10,31 @@
 //! against the wheel (Water: 8.314371357587 J/mol/K).
 
 use crate::alpha::HelmholtzEos;
+use rustprop_core::Result;
 
 impl HelmholtzEos {
     fn tau_delta(&self, t: f64, rhomolar: f64) -> (f64, f64) {
         (self.t_reducing / t, rhomolar / self.rhomolar_reducing)
+    }
+
+    /// Upstream `HelmholtzEOSMixtureBackend::calc_alpha0_deriv_nocache`'s
+    /// closing validity gate at the state `(t, rhomolar)` — see
+    /// [`crate::derivs::check_alpha0`] for the mechanism. Callers name the
+    /// derivative upstream fetches for the output they are about to serve.
+    ///
+    /// The `pow(rhor/rhomolarc, nDelta)` / `pow(Tr/Tc, nTau)` rescale upstream
+    /// applies before the check is identically 1 for a multiparameter EOS
+    /// (upstream's own comment: it exists for cubics, whose `tau*`/`delta*`
+    /// are shifted).
+    pub fn check_alpha0_deriv(
+        &self,
+        n_tau: u32,
+        n_delta: u32,
+        t: f64,
+        rhomolar: f64,
+    ) -> Result<()> {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        crate::derivs::check_alpha0(&self.alpha0_all(tau, delta), n_tau, n_delta, tau, delta)
     }
 
     /// Pressure [Pa] (upstream `calc_pressure`).

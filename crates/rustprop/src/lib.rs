@@ -52,6 +52,11 @@ pub use props_api::props_si;
 
 /// Upstream `HAPropsSI` (humid air). See `rustprop_humid_air` for the
 /// deliberate-reproduction notes.
+///
+/// Like [`props_si`], a non-finite result is an error rather than a value:
+/// upstream's scalar `HAPropsSI` binding closes with the same
+/// `_raise_if_invalid` (`src/nanobind_interface.cxx:1104`), and the C++
+/// `HAPropsSI` beneath it signals failure by returning `_HUGE`.
 #[cfg(feature = "humid-air")]
 #[allow(clippy::too_many_arguments)]
 pub fn ha_props_si(
@@ -71,7 +76,10 @@ pub fn ha_props_si(
             &rustprop_data::fluids::air::AIR,
         )
     });
-    ha.ha_props_si(output, n1, v1, n2, v2, n3, v3)
+    match ha.ha_props_si(output, n1, v1, n2, v2, n3, v3) {
+        Ok(v) if !v.is_finite() => Err(rustprop_core::Error::Value(String::new())),
+        other => other,
+    }
 }
 #[cfg(feature = "if97")]
 pub use rustprop_if97 as if97;

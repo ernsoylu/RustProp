@@ -766,7 +766,7 @@ pub fn conductivity(
                 conductivity_helium_hardcoded(eos, fluid, viscosity_model, t, rhomolar, p, ecs)
             }
             "R23" => Ok(conductivity_r23_hardcoded(t, rhomolar)),
-            "Methane" => Ok(conductivity_methane_hardcoded(eos, fluid, t, rhomolar)),
+            "Methane" => conductivity_methane_hardcoded(eos, fluid, t, rhomolar),
             other => Err(Error::NotImplemented(format!(
                 "hardcoded conductivity [{other}] is not ported yet"
             ))),
@@ -969,6 +969,8 @@ fn conductivity_structured(
                 let tstar = t / e_k;
                 let fint = 1.7104147 - 0.6936482 / tstar;
                 let eta0_upas = fluid_dilute_viscosity(eos, viscosity_model, t)? * 1e6;
+                // `HEOS.d2alpha0_dTau2()` upstream — the checked accessor.
+                eos.check_alpha0_deriv(2, 0, t, rhomolar)?;
                 let a0 = eos.alpha0_all(eos.t_reducing / t, rhomolar / eos.rhomolar_reducing);
                 0.276505e-3 * eta0_upas * (3.75 - fint * (tau * tau * a0.d02 + 1.5))
             }
@@ -1131,6 +1133,10 @@ fn olchowy_sengers(
         )
     })?;
     let zeta = zeta0 * (num / big_gamma).powf(nu / gamma);
+    // `HEOS.cpmolar()`/`cvmolar()` upstream, both of which fetch
+    // `d2alpha0_dTau2()` through the checked accessor. The gate sits AFTER
+    // the `num` early return, exactly like the calls it guards.
+    eos.check_alpha0_deriv(2, 0, t, rhomolar)?;
     let cp = eos.cpmolar(t, rhomolar);
     let cv = eos.cvmolar(t, rhomolar);
     let mu = viscosity(eos, fluid, v, t, rhomolar, p, ecs)?;
@@ -1797,6 +1803,10 @@ fn conductivity_water_hardcoded(
     let drhodp_trbar =
         1.0 / (r * tr_bar * tstar * (1.0 + 2.0 * rhobar * dref.d10 + delta * delta * dref.d20));
     let drhobar_dpbar_trbar = pstar / rhostar * drhodp_trbar;
+    // `HEOS.cpmolar()`/`cvmolar()` upstream: both fetch `d2alpha0_dTau2()`
+    // through the checked accessor, so IAPWS-2011's critical term inherits
+    // the ideal-gas validity gate.
+    eos.check_alpha0_deriv(2, 0, t, rhomolar)?;
     let cp = eos.cpmolar(t, rhomolar) / eos.molar_mass; // [J/kg/K]
     let cv = eos.cvmolar(t, rhomolar) / eos.molar_mass;
     let cpbar = cp / r;
@@ -1965,7 +1975,7 @@ fn conductivity_methane_hardcoded(
     fluid: &FluidData,
     t: f64,
     rhomolar: f64,
-) -> f64 {
+) -> Result<f64> {
     let delta = rhomolar / 10139.0;
     let tau = 190.55 / t;
 
@@ -2019,6 +2029,8 @@ fn conductivity_methane_hardcoded(
     let f_int = 1.458850 - 0.4377162 / tt;
     let state_tau = eos.t_reducing / t;
     let state_delta = rhomolar / eos.rhomolar_reducing;
+    // `HEOS.d2alpha0_dTau2()` upstream — the checked accessor.
+    eos.check_alpha0_deriv(2, 0, t, rhomolar)?;
     let a0 = eos.alpha0_all(state_tau, state_delta);
     let lambda_dilute =
         0.51828 * eta_dilute * (3.75 - f_int * (state_tau * state_tau * a0.d02 + 1.5));
@@ -2084,7 +2096,7 @@ fn conductivity_methane_hardcoded(
         * pow2(1.0 + delta * d.d10 - delta * tau * d.d11)
         * chi_t_star.powf(0.4681)
         * f;
-    (lambda_dilute + lambda_residual + lambda_critical) * 0.001
+    Ok((lambda_dilute + lambda_residual + lambda_critical) * 0.001)
 }
 
 /// Tufeu (1984) ammonia critical conductivity enhancement.
