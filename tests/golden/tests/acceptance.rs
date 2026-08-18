@@ -60,8 +60,9 @@ fn acceptance_sweep_matches_oracle() {
     // blends, 620 wide outputs, 140 IF97 flash pairs, 40 PC-SAFT Z, 100
     // pseudo-pure transport; plus 535 from the output-tail seed (20260817):
     // 330 HEOS output tail, 55 environmental trivials, 150 cubics output
-    // tail.
-    assert_eq!(recs.len(), 6020);
+    // tail; plus 360 from the pseudo-pure-pairs seed (20260818): 60 draws of
+    // (H,P)/(P,S)/(P,U)/(D,P) for each of the six pseudo-pure fluids.
+    assert_eq!(recs.len(), 6380);
 
     // Three mixture records where the WHEEL's recorded answer is demonstrably
     // not its own equilibrium, each triaged to a specific upstream mechanism

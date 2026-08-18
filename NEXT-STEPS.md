@@ -4,8 +4,9 @@ Read this first when picking the work back up. `PLAN.md` is the phase-by-phase
 roadmap and its Decisions log is the authoritative record of *why* things are
 the way they are; this file is the short version plus the open ends.
 
-Last updated: 2026-08-17, after the output-tail + latents round (see the
-2026-08-16/17 blocks in PLAN.md's Decisions log for the full record).
+Last updated: 2026-08-18, after Wave-3 R9 (sweep extension, the six unread
+fixture batteries, docs sweep). See the dated blocks in PLAN.md's Decisions log
+for the full record of each round.
 
 ---
 
@@ -18,7 +19,7 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | 39,468 committed, generated from the CoolProp 8.0.0 wheel |
+| Oracle records | 41,454 in 122 committed fixtures, read by 34 suites — every fixture is now consumed by a test (Wave-3 R9) |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
@@ -43,8 +44,7 @@ swallowed density-solve failure that let a degenerate Wilson split through.
 
 **Since 2026-08-17 the work has had an external driver**: integrating rustprop
 into the sibling `frees-wasm` project as its property backend (that repo's
-decision D8). Two waves have landed, both merged to `main` with the full gate
-green:
+decision D8). Three waves have landed, each with the full gate green:
 
 - **Wave 1** — the Helmholtz derivative-matrix memoization (bit-identical by
   construction; HP flash 963/839 → 380/305 µs, LogPH build 36.2 → 12.4 s),
@@ -61,15 +61,27 @@ green:
   1.77e-10 to 2.04e-16, bitwise-exact records went 262 → 608 of 1,433, no
   fixture moved, and HP liquid Water dropped 283.6 → 80.2 µs (3.54x, quiet
   box), taking `acceptance_tabular` from 204 s to 12.6 s with it.
-
-Wave 2 also turned up three port bugs the goldens had never reached, all
-fixed to bitwise agreement: `solver_rho_tp_guessed` was missing the
-phase-imposed stability retries (R410A's PQ liquid branch had been converging
-to the wrong root), `ancillary::invert` used upstream's `Secant` where
-`SaturationAncillaryFunction::invert` calls `ExtrapolatingSecant` (the two
-differ precisely in the non-finite-residual handling the band states need),
-and `update()` had no `post_update` validity gate, so some states answered
-NaN where the wheel refuses.
+  Wave 2 also turned up three port bugs the goldens had never reached, all
+  fixed to bitwise agreement: `solver_rho_tp_guessed` was missing the
+  phase-imposed stability retries (R410A's PQ liquid branch had been converging
+  to the wrong root), `ancillary::invert` used upstream's `Secant` where
+  `SaturationAncillaryFunction::invert` calls `ExtrapolatingSecant` (the two
+  differ precisely in the non-finite-residual handling the band states need),
+  and `update()` had no `post_update` validity gate, so some states answered
+  NaN where the wheel refuses.
+- **Wave 3** — the `Ok(non-finite)` validity gap, closed by porting upstream's
+  two real gates (`calc_alpha0_deriv_nocache`'s `ValidNumber` throw and the
+  scalar bindings' `_raise_if_invalid`) at their own sites and pinning them
+  with `tests/golden/tests/validity.rs` (1,626 records); a 58,926-combination
+  abuse grid took "port non-finite / wheel raises" from 2,898 to 0 with "port
+  raises / wheel answers" set-identical at 314. Then R9: the seeded acceptance
+  sweep widened 6,020 → 6,380 with pseudo-pure `(H,P)`/`(P,S)`/`(P,U)`/`(D,P)`
+  draws (clean on first run — the first widening that found nothing, which is
+  the honest verdict on Wave 2's pseudo-pure work), and the **six Phase-4.8
+  fixture batteries that no test had ever read** were wired into
+  `heos_fluids()`. Those 4,662 records exposed an upstream quirk the six
+  original fluids had only grazed: `PT_flash` serves properties off the density
+  solver's LAST TRIAL (see the divergence table).
 
 ---
 
@@ -106,6 +118,7 @@ heal. Do not "fix" one without checking the assertion that pins it.
 | Divergence | Where | Why it stands |
 |---|---|---|
 | THREE pinned mixture records where the port answers and the wheel's recorded value is provably not the wheel's own equilibrium (mixture HSU_P shared-state corruption ×2; shallow-TPD metastable root ×1) | `acceptance.rs` `mixture_divergences`, each pinned to the PORT's value with heal detection | Upstream's HSU_P residual mutates the shared backend (a Tmax-endpoint PT evaluation corrupts SatL/SatV and disables the two-phase split for the rest of the solve); a fresh wheel PT flash at the port's converged T reproduces the port BITWISE. The corruption is history-dependence the port's stateless flashes deliberately cannot express |
+| Upstream's `PT_flash` serves every property off the density solver's LAST TRIAL, not the root it returns; the port evaluates at the root, so its density matches BITWISE while h/s/cp/w differ by up to 5.0e-8 near the critical point | `heos_pt.rs::stale_cache_allowance` — a per-record bound, `\|dX/dln ρ\| · ftol/\|dln p/dln ρ\|`, replacing the old blanket 1e-8 tier for Cp/A; the 218 density records are asserted BITWISE, since that is the premise the bound is derived from | `FlashRoutines.cpp:336` assigns `_rhomolar` and nothing else, while `SolverTPResid::call` (`HelmholtzEOSMixtureBackend.cpp:2803`) mutated the same backend at every trial; the calculators then recompute `_delta` fresh but read `dalphar_*` from those caches, so a wheel PT state is internally inconsistent. Reproducing it would mean threading a stale-iterate cache through a stateless port to serve knowingly worse numbers — same ruling as the mixture rows above |
 | The imposition-clear channel of the same corruption (upstream's stability feed fallback permanently clears SatL's constructor liquid imposition for the backend instance): the wheel's Nitrogen[0.97]&Water[0.03] sweep-pair inversions contradict its own forward flashes by up to 1.7 K or error outright | `hsu_p_imposition_clear_divergence_pinned` in `tests/golden/tests/mixtures.rs`, asserting the port's self-consistent inversions | Only observable through sweep-pair flashes (scalar PT builds a fresh backend per call); reproducing it would make PS/HP flashes history-dependent — same ruling as the row above. Full mechanism in the 2026-08-17 Decisions entries |
 | `HAPropsSI` errors return `Result` instead of upstream's `+inf`-with-a-global | humid-air suite | A global error slot is not a thing a WASM library should have |
 | PC-SAFT `WATER` PT/DT errors loudly | PC-SAFT suite, error parity asserted | Upstream computes on children whose sigma is still the −1 sentinel and returns garbage densities |
@@ -207,9 +220,14 @@ cd tools/golden-gen && ./.venv/bin/python gen_fixtures.py     # all
 ./.venv/bin/python -c "import gen_fixtures as g; g.write_jsonl('x.jsonl', g.gen_x())"  # one
 ```
 
-The acceptance sweep is seeded (`random.Random(20260807)`), so raising
-`N_PER` widens coverage without invalidating existing records — the first N
-draws are unchanged.
+The acceptance sweep is seeded, so widening it never invalidates what is
+already there. It now runs **four** independent streams, each frozen at the
+moment it landed: `20260807` (the original 3,720), `20260816` (+1,765),
+`20260817` (+535) and `20260818` (+360 pseudo-pure caloric pairs). **Add a new
+section with a fresh `random.Random(...)` rather than touching an existing
+stream** — every earlier record must stay bitwise identical, and the check is
+that regeneration produces a diff of pure insertions. Raising `N_PER` inside
+the original stream is also safe (the first N draws are unchanged).
 
 ### Pitfalls learned the hard way
 
@@ -246,40 +264,22 @@ draws are unchanged.
 
 Ranked by value per unit of effort. Nothing here is required for a release.
 
-*(2026-08-16: the previous #1 — widen the sweep — and #2 — audit the defect
-classes — are DONE; see PLAN.md's Decisions log. The sweep now covers
-mixtures, blends, wide outputs, IF97 pairs, pseudo-pure transport, and both
-low-level backends: HEOS 2580 + 865 mix, SRK/PR 450 each, INCOMP 360,
-PCSAFT 280, HA 240, IF97 260, plus tabular 1,950 and SVDSBTL 1,000 in their
-own fixtures. The partial_cmp sites were proven NaN-unreachable and closed.)*
+Everything ranked #1 or #2 here since 2026-08-16 has been done or deliberately
+pinned, in this order: widen the sweep; audit the invented-guard classes; the
+output tail; the two mixture latents; the cubic sub-pascal secant; the
+`Ok(non-finite)` validity gap; and (Wave-3 R9) the unread fixture batteries.
+Each has a dated entry in PLAN.md's Decisions log with its evidence — that log,
+not this list, is the record.
 
-*(2026-08-17: the previous #1 — the output tail — and #2 — the two mixture
-latents — are DONE; see PLAN.md's Decisions log. Every output the wheel
-serves is ported on both routes; the imposition-clear latent is pinned
-unported by `hsu_p_imposition_clear_divergence_pinned`, the Brent-throw
-latent proved not-constructible, and the hunt's bonus find — swallowed
-density-solve failures in `successive_substitution_guessrho` — is fixed.)*
+Two standing answers worth not re-deriving:
 
-*(2026-08-17, later: the previous #1 — the cubic sub-pascal secant — is
-FIXED, not excused: two association deviations in `psi_plus(0)` put ulp-level
-noise into the equal-Gibbs residual exactly where near-vacuum cancellation
-left no headroom. All 58 gate-band flashes now converge, the nine formerly
-erroring records match the wheel to ≤2 ulp, and the acceptance allowance is
-deleted. See the Decisions log.)*
-
-*(2026-08-18: the previous #1 — the `Ok(non-finite)` validity gap — is CLOSED,
-and #2 — the `post_update` refusal text — is PINNED as a divergence rather
-than chased. See the 2026-08-18 R11 entry in PLAN.md's Decisions log. Two
-upstream gates were ported at their own sites (`calc_alpha0_deriv_nocache`'s
-`ValidNumber` throw and the scalar-binding `_raise_if_invalid`), a
-58,926-combination abuse grid took the "port non-finite, wheel raises" column
-from 2,898 to 0 with the "port raises, wheel answers" column set-identical at
-314, and `tests/golden/tests/validity.rs` + `fixtures/validity.jsonl` (1,296
-records) pin the refusals, their verbatim messages, AND the answers. The
-sweep question that entry raised is answered there too: NO, the abuse
-dimension does not belong in the seeded acceptance sweep, because
-`sweep_propssi` skips every state the wheel rejects by design and so is
-structurally blind to this class.)*
+- **Input abuse does not belong in the seeded acceptance sweep.**
+  `sweep_propssi` skips every state the wheel rejects, by design, so it is
+  structurally blind to answer-vs-refuse defects. `validity.rs` (1,626 records,
+  0.02 s, runs in the ordinary `cargo test`) is that dimension's home.
+- **The sweep's value is in widening it, not in re-running it.** Its 2026-08-18
+  widening (pseudo-pure caloric pairs) was the first that found nothing — a
+  clean verdict on Wave 2's work, not a reason to stop widening.
 
 ### 1. Close the answer-vs-refuse residue at unphysical inputs (medium)
 
@@ -312,11 +312,19 @@ the mixture-side stability pairs in `mixture_vle.rs` still evaluate
 `dpdrho`/`d2pdrho2` separately and would take the same bit-identical memo
 pattern.
 
-### 4. Documentation for consumers (small, medium)
+### 3. Documentation for consumers (small)
 
 The README quickstart is real and doc-tested. What does not exist: per-engine
 guidance on *which* backend to choose, and a worked WASM example beyond the
 size table.
+
+### 4. Widen the sweep again, at the pairs no stream draws (small)
+
+The four seeded streams cover PT/PQ/QT/DT/HP/PS broadly and the pseudo-pure
+caloric pairs, but several PropsSI-reachable pure-fluid pairs have only
+hand-chosen goldens: `(D,H)`/`(D,S)`/`(D,U)` (HSU_D), `(H,T)`/`(T,U)`
+(generalized DHSU_T), `(P,U)` for the 130 pure fluids, and `(D,Q)`. Add a
+fifth stream rather than touching an existing one.
 
 ---
 

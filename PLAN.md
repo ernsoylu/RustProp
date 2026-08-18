@@ -2288,6 +2288,110 @@ Append-only; newest last. Seeded entries:
   `d(Hmolar)/d(T)|P` rows, which are not a validity question at all — `Param::parse` does
   not accept derivative OUTPUT STRINGS, so `props_si` rejects them outright while the
   wheel answers.
+- 2026-08-18 — SWEEP EXTENSION: the pseudo-pure caloric/density pairs (Wave-3 R9). Wave 2
+  ported `(H,P)`/`(P,S)`/`(P,U)`/`(D,P)` for the six pseudo-pure fluids and goldened them
+  at 665 HAND-CHOSEN records over six NAMED regions; the seeded sweep drew those fluids
+  only at PT/PQ/QT and transport, so the four new pairs had no randomized coverage at all.
+  `gen_acceptance_sweep` gained a FOURTH stream, `random.Random(20260818)`, appended after
+  the 20260817 sections and touching neither of the three before it: 60 draws per fluid,
+  each seeding a state FORWARD (70% `(T,p)` uniform-in-T / log-uniform-in-p over the
+  fluid's own range, 30% `(P,Q)` across the glide) and feeding that state's own
+  caloric/density coordinates back in, which is the only way to reach the hL/hLV/sL/sLV
+  ancillary curves — they have no PropsSI surface of their own upstream. 6 020 -> 6 380
+  records; regeneration is a diff of 360 pure INSERTIONS, verified twice (two independent
+  runs produced byte-identical files), so the frozen-stream discipline held.
+  RESULT: **zero failures on first run** — the first widening of this sweep that found
+  nothing. Reported as such rather than dressed up: the draws are real coverage (all four
+  pairs 79-106 records each, all six fluids at the full 60, all seven outputs, and 18 of
+  the 56 `Q` draws land in the dome), so the clean run is a verdict on Wave 2's R6/R7
+  work, not an artifact of easy sampling.
+  THE OTHER HALF, which skip-on-wheel-error hides: replaying the same rng4 stream and
+  collecting the queries the WHEEL REFUSED gives exactly ONE over 361 attempts — SES36
+  `PropsSI("D","P",7429.7495836710605,"S",947.0463619339738)`, where upstream throws
+  "unable to solve 1phase PY flash with Tmin=199.999, Tmax=245.886". The port refuses the
+  same state on the same bracket `[199.999, 245.88633829199915]`, carrying its own bracket
+  diagnostic (the message divergence already pinned in `pseudo_pure.rs`). Not added to the
+  fixture: `acceptance.rs` has no error-record arm, and building one for a single
+  hand-verified refusal would be machinery nobody runs. Air's 1-bar low-quality `(H,P)`
+  window is a needle in `(p, h)` that random draws do not hit; it stays pinned from both
+  sides in `pseudo_pure.jsonl`.
+- 2026-08-18 — THE SIX UNREAD FIXTURE BATTERIES (Wave-3 R9), and the upstream quirk they
+  exposed. Phase 4.8 generated full seven-suite batteries (terms/props/ancillary/sat/pt/
+  flash/hs) for its six new-term-family representatives — Fluorine (CP0Constant), Methanol
+  (CP0PolyT), n-Heptane (CP0AlyLee), R125 (direct PlanckEinsteinGeneralized), R22
+  (Exponential), RC318 (DoubleExponential/Lemmon2005) — and its commit message reports them
+  "green on first run", but it never added the fluids to `heos_fluids()`. The batteries
+  were therefore run once, by hand, and NEVER AGAIN: 42 committed fixture files, 4 662
+  records, that no test read. (`heos_hs.rs` still carried per-stem record counts for three
+  of them, which is the fingerprint of a list that was edited during the work and reverted
+  after.) `heos_fluids()` now returns 12 fluids; every one of the 122 committed fixtures is
+  read by a test.
+  ONE FAILURE, and it was the assertion, not the port: n-Heptane `(Hmolar,P)` -> `Smolar`
+  at 412.8 kPa missed the 1e-8 solver tier at 1.066e-8. The flash's own variable agrees —
+  port T within 7.06e-10 of the wheel, mid-pack for these pairs (Water 6.6e-10, CO2
+  8.7e-10, R22 8.6e-10 on the same suite) — and `dS/d(ln T) = cp` exactly, with
+  cp/|S| = 269.27/17.83 = 15.1 at that compressed-liquid state. The suite's entropy floor
+  was `R`, which is the ideal-gas scale; the real noise floor for a T-solved state is `cp`.
+  Fixed there, single-phase states only (in the dome upstream's cp is the raw single-phase
+  formula at the mixture density and carries no sensitivity meaning).
+  THE REAL FIND — upstream's PT flash serves properties off the density solver's LAST
+  TRIAL. `heos_pt.rs` then failed on 8 records (Fluorine/R125/R22, up to 5.01e-8 on
+  Cpmolar) and the density was BITWISE IDENTICAL to the wheel on every one of them, which
+  ruled out the suite's standing explanation ("near-critical states amplify the density
+  solver's stopping residual"). Chased outward instead: `FlashRoutines.cpp:336` closes
+  `PT_flash` with `HEOS._rhomolar = HEOS.solver_rho_Tp(HEOS._T, HEOS._p);` — it assigns the
+  root and NOTHING ELSE, while every residual evaluation inside that solve ran
+  `HEOS->update_DmolarT_direct(rhomolar, T)` (`HelmholtzEOSMixtureBackend.cpp:2803`) on the
+  same backend and left `_dalphar_dDelta` & co. cached at that trial density. The property
+  calculators then recompute `_delta = _rhomolar / _reducing.rhomolar` FRESH but read the
+  residual derivatives from those caches (`calc_hmolar`:3200, `calc_smolar`:3246,
+  `calc_cpmolar`:3326, `calc_speed_sound`:3368), so a wheel PT state MIXES a root-density
+  delta with last-iterate derivatives and is internally inconsistent. Confirmed three ways:
+  (1) the wheel's own `DmolarT` update at its own reported density reproduces the PORT's
+  h/s/cp/w, not its own PT values; (2) no single density shift reconciles all four outputs
+  (implied `dln rho` for Fluorine: h +1.47e-8, cp -1.25e-8 — opposite signs), which is the
+  signature of the mixing; (3) backing a trial density out of the wheel's cached
+  `dalphar_dtau_constdelta` reproduces its cached `dalphar_ddelta_consttau` to <=2.7e-13
+  and gives `dln rho` = +2.215e-8 / +1.474e-8 / -1.230e-8, each equal to that record's last
+  pressure residual divided by `dln p/dln rho` to four digits — i.e. exactly one Newton
+  step, which is what a solver that returns `x_new` after testing `f(x_old)` leaves behind.
+  NOT PORTED, same ruling as the mixture HSU_P rows: reproducing it means threading a
+  stale-iterate cache through a stateless port in order to serve knowingly worse numbers.
+  Bounded and asserted instead. `stale_cache_allowance` prices each record at the output's
+  spread over `rho(1 +/- ftol/|dln p/dln rho|)` with upstream's own `ftol = 1e-8`
+  (`solver_rho_Tp`:2937/:2944/:2951), times `MIXING_MARGIN = 2` because the fresh-delta /
+  stale-derivative mixing makes a pure displacement a proxy rather than an identity. The
+  suite prints the worst consumption of that allowance over the 872 cache-served records:
+  **1.317** (R22 Cpmolar), so the margin carries 1.5x headroom and a real regression cannot
+  hide in it. The 218 DENSITY records are now asserted BITWISE rather than at 1e-9 —
+  measured true for all 218 across all 12 fluids, and it is the premise the whole allowance
+  is derived from, so it should fail loudly and by name rather than be absorbed by a
+  tolerance. Net effect is a TIGHTER suite than before on every axis: the blanket 1e-8 tier
+  for Cpmolar and speed of sound is gone (1e-9 plus a mechanism-derived per-record
+  allowance), and Dmolar went from 1e-9 to exact.
+- 2026-08-18 — DOCS SWEEP (Wave-3 R9): `CLAUDE.md` went 365 -> 166 lines. Its Status
+  section had become a 287-line append-only phase diary — every phase from 0 to 15 written
+  up where it landed, in no order, with Phase 10 still described as "in progress" and
+  Phase 4.8's batteries claimed as verification that no test in fact ran. That is a file
+  the harness loads at the START OF EVERY SESSION, so its cost is paid on every task, and
+  everything in it was a worse copy of PLAN.md's Decisions log. CUT: the entire per-phase
+  narrative. KEPT and rewritten as instructions rather than history: the architecture
+  rules the code encodes, a five-row current-state table (engines, fluids, measured record
+  count, deliverables, a pointer to `WASM-SIZES.md` instead of duplicated byte counts),
+  the owner-blocked release items, a five-item **fidelity rules** section promoting the
+  lessons that are actually behavioural ("a guard upstream does not have is a DEFECT";
+  port the WHEEL where it disagrees with the tag; pin upstream's mutable-state artifacts
+  rather than reproducing them; prefer widening coverage to adding hand-picked states),
+  and a three-line wave log. Two stale statements fixed while there: deliverable 5 still
+  said the release pipeline was "still to come" (`release.yml` has existed since 15.2),
+  and the implementation rules still said "work the phases in order" (there are none left
+  — PLAN.md is now purely the Decisions log). `NEXT-STEPS.md` was reconciled the same way:
+  the four accumulated "the previous #1 is DONE" parentheticals collapsed into one
+  paragraph plus the two standing answers worth not re-deriving, the candidate list
+  renumbered (it ran 1, 2, 4), the oracle-record count corrected 39,468 -> 41,454, and a
+  transcription error fixed — it credited `validity.jsonl` with 1,296 records where the
+  file has 1,626. The seed guidance now states the discipline explicitly: add a new
+  `random.Random(...)` stream, never touch an existing one.
 
 ---
 

@@ -69,7 +69,28 @@ fn flash_pairs_match_upstream() {
                 (true, "Hmolar" | "Umolar") => {
                     rec.expected.abs().max(fluid.eos.gas_constant * state.t())
                 }
-                (true, "Smolar") => rec.expected.abs().max(fluid.eos.gas_constant),
+                // Entropy's floor is cp, not R: these pairs resolve T at the
+                // shared ~1e-9 tier and dS/d(ln T) = cp exactly, so wherever
+                // the reference state leaves |S| small next to cp the ratio
+                // is a genuine amplifier. Measured on the n-Heptane
+                // (Hmolar, P) compressed-liquid draw at 412.8 kPa: cp/|S| =
+                // 269.27/17.83 = 15.1, port T within 7.06e-10 of the wheel
+                // (mid-pack for these pairs — Water 6.6e-10, CO2 8.7e-10,
+                // R22 8.6e-10 on the same suite), S therefore within
+                // 1.07e-8. Two-phase states keep the R floor: upstream's cp
+                // there is the raw single-phase formula at the mixture
+                // density and carries no sensitivity meaning.
+                (true, "Smolar") => {
+                    let floor = if state.q() < 0.0 {
+                        fluid
+                            .eos
+                            .gas_constant
+                            .max(flash.eos.cpmolar(state.t(), state.rhomolar()))
+                    } else {
+                        fluid.eos.gas_constant
+                    };
+                    rec.expected.abs().max(floor)
+                }
                 _ => rec.expected.abs(),
             };
             let rel = (actual - rec.expected).abs() / denom;

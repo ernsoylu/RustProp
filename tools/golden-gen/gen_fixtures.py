@@ -2028,6 +2028,84 @@ def gen_acceptance_sweep():
                   cubic_tail_outs, ["PT", "PQ", "QT", "DT"], n=25, rng_=rng3)
     print(f"  cubics output tail: {len(rows) - n_mark} records")
 
+    # ====================================================================
+    # 2026-08-18 extension (Wave-3 R9): the pseudo-pure caloric/density
+    # pairs. Wave 2 ported (H,P)/(P,S)/(P,U)/(D,P) for all six pseudo-pure
+    # fluids, but the only coverage was ~665 hand-chosen records over six
+    # NAMED regions — precisely the shape randomized draws have beaten every
+    # time this sweep widened. The 20260816 section already draws pseudo-pure
+    # transport, and the 20260807 section their PT/PQ/QT; these four pairs
+    # were the gap. A FOURTH fresh rng: the 6,020 records above consume
+    # `rng`/`rng2`/`rng3` sequentially and must stay bitwise identical
+    # forever, so nothing below may touch them.
+    #
+    # Each draw seeds a state FORWARD through an already-swept pair (PT, or
+    # PQ across the glide) and feeds that state's own caloric/density
+    # coordinates back in, which is the only way to reach the hL/hLV/sL/sLV
+    # ancillary curves — they have no PropsSI surface of their own upstream.
+    # Skip-on-wheel-error keeps the sweep's standing policy, so upstream's
+    # own failure regions are not recorded here: Air's 1-bar low-quality
+    # (H,P) window, the pcrit..max_sat_p band refusals, and R410A's
+    # top-of-glide PQ `solver_rho_Tp` failure are all pinned from BOTH sides
+    # in `pseudo_pure.jsonl` instead.
+    rng4 = random.Random(20260818)
+
+    n_mark = len(rows)
+    pp_outs = ["T", "D", "H", "S", "U", "P", "Q"]
+    for name in PSEUDO_PURE:
+        spec = f"HEOS::{name}"
+        try:
+            Tmin = PropsSI("Tmin", "", 0, "", 0, spec)
+            Tmax = PropsSI("Tmax", "", 0, "", 0, spec)
+            pmax = min(PropsSI("pmax", "", 0, "", 0, spec), 5e8)
+            Tc = PropsSI("Tcrit", "", 0, "", 0, spec)
+        except Exception:
+            continue
+        drawn, attempts = 0, 0
+        while drawn < 60 and attempts < 60 * 12:
+            attempts += 1
+            if rng4.random() < 0.3:
+                # Two-phase seed: PQ anywhere across the temperature glide.
+                T_s = Tmin + (Tc - Tmin) * rng4.random()
+                try:
+                    pL = PropsSI("P", "T", T_s, "Q", 0, spec)
+                except Exception:
+                    continue
+                seed = ("P", pL, "Q", rng4.random())
+            else:
+                # Single-phase seed: liquid / gas / supercritical / the
+                # pcrit..max_sat_p band / sub-triple gas, wherever the draw
+                # lands.
+                T_s = Tmin + (Tmax - Tmin) * rng4.random()
+                p_s = math.exp(
+                    math.log(1e3) + (math.log(pmax) - math.log(1e3)) * rng4.random()
+                )
+                seed = ("T", T_s, "P", p_s)
+            try:
+                st = {k: PropsSI(k, seed[0], seed[1], seed[2], seed[3], spec)
+                      for k in ("P", "D", "H", "S", "U")}
+            except Exception:
+                continue
+            pair = ["HP", "PS", "PU", "DP"][rng4.randrange(4)]
+            if pair == "HP":
+                n1, v1, n2, v2 = "H", st["H"], "P", st["P"]
+            elif pair == "PS":
+                n1, v1, n2, v2 = "P", st["P"], "S", st["S"]
+            elif pair == "PU":
+                n1, v1, n2, v2 = "P", st["P"], "U", st["U"]
+            else:
+                n1, v1, n2, v2 = "D", st["D"], "P", st["P"]
+            out = pp_outs[rng4.randrange(len(pp_outs))]
+            try:
+                val = PropsSI(out, n1, v1, n2, v2, spec)
+            except Exception:
+                continue
+            if val != val or abs(val) == float("inf"):
+                continue
+            add("HEOS", name, out, n1, v1, n2, v2, val)
+            drawn += 1
+    print(f"  pseudo-pure caloric pairs: {len(rows) - n_mark} records")
+
     print(f"acceptance_sweep: {len(rows)} records")
     return rows
 

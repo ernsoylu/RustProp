@@ -9,15 +9,24 @@
 
 use std::path::Path;
 
-/// Every ported HEOS fluid: (upstream name, fixture/module stem, data).
+/// Every full-battery HEOS fluid: (upstream name, fixture/module stem, data).
 /// The stem follows rustprop-datagen's `module_name` convention and names
 /// both the generated data module and the `heos_<stem>_<suite>.jsonl`
 /// fixtures.
+///
+/// The first six are the Phase 4.1–4.7 fluids (Water plus one per term family
+/// reached there). The last six are Phase 4.8's representatives of the six
+/// term families that slice added — CP0Constant (Fluorine), CP0PolyT
+/// (Methanol), CP0AlyLee (n-Heptane), direct PlanckEinsteinGeneralized
+/// (R125), Exponential (R22), DoubleExponential/Lemmon2005 (RC318). 4.8
+/// generated their seven-suite batteries and reported them green, but never
+/// added them to this list, so nothing read those 4,662 records until Wave-3
+/// R9 wired them in.
 pub fn heos_fluids() -> [(
     &'static str,
     &'static str,
     &'static rustprop_core::fluid::FluidData,
-); 6] {
+); 12] {
     [
         ("Water", "water", &rustprop_data::fluids::water::WATER),
         (
@@ -41,6 +50,24 @@ pub fn heos_fluids() -> [(
             "ammonia",
             &rustprop_data::fluids::ammonia::AMMONIA,
         ),
+        (
+            "Fluorine",
+            "fluorine",
+            &rustprop_data::fluids::fluorine::FLUORINE,
+        ),
+        (
+            "Methanol",
+            "methanol",
+            &rustprop_data::fluids::methanol::METHANOL,
+        ),
+        (
+            "n-Heptane",
+            "n_heptane",
+            &rustprop_data::fluids::n_heptane::N_HEPTANE,
+        ),
+        ("R125", "r125", &rustprop_data::fluids::r125::R125),
+        ("R22", "r22", &rustprop_data::fluids::r22::R22),
+        ("RC318", "rc318", &rustprop_data::fluids::rc318::RC318),
     ]
 }
 
