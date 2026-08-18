@@ -18,7 +18,7 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | ~39,400 committed, generated from the CoolProp 8.0.0 wheel |
+| Oracle records | 39,468 committed, generated from the CoolProp 8.0.0 wheel |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
@@ -40,6 +40,36 @@ zero failures on first run) and both mixture latents — one pinned unported
 with the wheel contradicting itself, one proved not-constructible by a
 ~26,000-state exact-replica scan — and fixed the hunt's bonus find, a
 swallowed density-solve failure that let a degenerate Wilson split through.
+
+**Since 2026-08-17 the work has had an external driver**: integrating rustprop
+into the sibling `frees-wasm` project as its property backend (that repo's
+decision D8). Two waves have landed, both merged to `main` with the full gate
+green:
+
+- **Wave 1** — the Helmholtz derivative-matrix memoization (bit-identical by
+  construction; HP flash 963/839 → 380/305 µs, LogPH build 36.2 → 12.4 s),
+  the rational-polynomial caloric ancillary family for pseudo-pure fluids,
+  the cubic sub-pascal `psi_plus(0)` fix, and the pre-tag hygiene bundle
+  (real MSRV 1.88, tag-gated release, crates.io metadata in all 12 packages).
+- **Wave 2** — the last pseudo-pure input pairs, ported and goldened: `(H,P)`,
+  `(P,S)`, `(P,U)`, `(D,P)` for all six pseudo-pure fluids (665-record suite,
+  654 value at 1e-8 plus 11 error-parity pins, including upstream's own Air
+  1-bar failure window), and the **closure of the single-phase HSU_P bisection
+  stand-in** — upstream's real TOMS748 with its midpoint re-evaluation, plus
+  the warm-density carry. That closure is a fidelity win first and a speed win
+  second: median displacement over 1,433 (P, caloric) goldens fell from
+  1.77e-10 to 2.04e-16, bitwise-exact records went 262 → 608 of 1,433, no
+  fixture moved, and HP liquid Water dropped 283.6 → 80.2 µs (3.54x, quiet
+  box), taking `acceptance_tabular` from 204 s to 12.6 s with it.
+
+Wave 2 also turned up three port bugs the goldens had never reached, all
+fixed to bitwise agreement: `solver_rho_tp_guessed` was missing the
+phase-imposed stability retries (R410A's PQ liquid branch had been converging
+to the wrong root), `ancillary::invert` used upstream's `Secant` where
+`SaturationAncillaryFunction::invert` calls `ExtrapolatingSecant` (the two
+differ precisely in the non-finite-residual handling the band states need),
+and `update()` had no `post_update` validity gate, so some states answered
+NaN where the wheel refuses.
 
 ---
 
@@ -235,14 +265,54 @@ left no headroom. All 58 gate-band flashes now converge, the nine formerly
 erroring records match the wheel to ≤2 ulp, and the acceptance allowance is
 deleted. See the Decisions log.)*
 
-### 1. Performance (medium, unmeasured)
+### 1. Close the `Ok(non-finite)` validity gap (small-to-medium, evidence in hand)
 
-Nothing in this project has been profiled. The obvious candidate is the
-LogPH table build at ~100 s per process. Before optimising anything, measure
-— and note that `StateDerivs` caching already took LogPT from 50 s to 3.2 s
-without changing a single result.
+**rustprop returns `Ok(NaN)` in places where the wheel raises.** A ~1.8-million
+combination scan over (output, pair, value, fluid), run during the Wave-2
+integration, found **1,754 such calls**. Witness, re-confirmed against the
+wheel while writing this:
 
-### 2. Documentation for consumers (small, medium)
+```
+PropsSI("L","T",1e30,"P",101325,"Water")
+  rustprop -> Ok(NaN)
+  wheel    -> raises "calc_alpha0_deriv_nocache returned invalid number
+              with inputs nTau: 2, nDelta: 0, tau: 6.47096e-28"
+```
+
+It looks like a missing `ValidNumber` check on the ideal-gas derivative — the
+same *class* of defect as the invented guards the 2026-08-16 audit removed,
+but inverted: a guard upstream HAS that the port does not. Note this is
+exactly what the sweep is for, and the sweep did not draw it — the scan that
+found it varied *inputs* far outside the fluid's range, which the seeded
+acceptance sweep deliberately does not do. Worth deciding whether that
+input-abuse dimension belongs in the sweep permanently.
+
+Not urgent for the frees integration (that repo's backend rejects non-finite
+values on both sides of every call, so this cannot reach its engine), but it
+is a real divergence and currently pinned nowhere on this side.
+
+### 2. Decide the `post_update` refusal text (small)
+
+R7's `post_update` port turned `PropsSI("Hmass","T",0,"Smass",101325,"Water")`
+from `Ok(NaN)` into a refusal, matching the wheel — but the message differs:
+rustprop says *"rhomolar is not a valid number"*, the wheel *"rhomolar is less
+than zero"*, because rustprop's density is NaN there where upstream's is
+negative. The `< 0` arm IS carried, in upstream's order, so this is a
+value-level difference rather than a missing branch. Either pin it as a
+divergence row or chase the density difference; do not leave it unrecorded.
+
+### 3. Performance (measured; the obvious targets are gone)
+
+This is no longer unprofiled ground — `tools/perf-bench` and `PERF.md` exist,
+and the two biggest costs have been paid: the derivative-matrix memoization
+(Wave 1) and the TOMS748 + warm-carry closure (Wave 2) together took the HP
+flash from ~963 µs to ~80 µs and the LogPH-backed suites from ~200 s to
+~13 s. What remains is smaller and should be measured before it is touched:
+the mixture-side stability pairs in `mixture_vle.rs` still evaluate
+`dpdrho`/`d2pdrho2` separately and would take the same bit-identical memo
+pattern.
+
+### 4. Documentation for consumers (small, medium)
 
 The README quickstart is real and doc-tested. What does not exist: per-engine
 guidance on *which* backend to choose, and a worked WASM example beyond the
