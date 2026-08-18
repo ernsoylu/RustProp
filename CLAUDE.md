@@ -18,12 +18,13 @@ The defining constraint is **modularity for WASM binary size**: all CoolProp dat
 2. Comprehensive test suites validating ported data and calculation results against upstream CoolProp values.
 3. An example CLI application that makes the libraries and calculations available over stdout.
 4. Releases published both as source code and as prebuilt binaries for consumption by other WASM applications.
-5. CI/CD pipelines covering build, lint, the full test suite, and release packaging — GitHub Actions. `.github/workflows/ci.yml` exists; the release pipeline (prebuilt wasm artifacts) is still to come.
+5. CI/CD pipelines covering build, lint, the full test suite, and release packaging — GitHub Actions. Both exist: `.github/workflows/ci.yml` (every push, plus a weekly `sweep` job for the `#[ignore]`d heavy suites) and `.github/workflows/release.yml` (fires on a `vX.Y.Z` tag).
 
 ## Implementation rules
 
-- The roadmap is **`PLAN.md`** — phased, checkbox-tracked, every step carrying a `→ verify:` clause. Work the phases in order; tick boxes and append to its Decisions log in the same commit as the work; update the Status section below at phase gates.
+- **`PLAN.md` is no longer a roadmap** — all fifteen phases are done. It is now the append-only **Decisions log**: every non-obvious choice gets an entry, in the same commit as the work, and no existing entry is ever rewritten.
 - Follow `.claude/skills/karpathy-guidelines/SKILL.md` for all code: surface assumptions before coding; write the minimum code that solves the step (nothing speculative); make surgical diffs; frame every task as a verifiable goal and loop until its check passes.
+- Nothing is committed until the full gate is green. The commands are in `NEXT-STEPS.md`; `cargo fmt --all` runs last, because formatting invalidates exact-string edits.
 
 ## Picking the work back up
 
@@ -33,292 +34,90 @@ divergences and by-design exclusions, the gate commands, the pitfalls learned,
 and ranked candidates for the next piece of work. `PLAN.md`'s Decisions log
 remains the authoritative record of *why* each choice was made.
 
-## Status (as of 2026-08)
+## Status (2026-08-18)
 
-PLAN.md **Phases 0–3 are complete**: verification infrastructure; core parameter system + error types; and the **IF97 steam engine, fully ported and golden-verified** — 356 oracle records match at rtol 1e-11 (most at 1e-12), all IAPWS published check tables pass, steam properties work end-to-end from the CLI (`cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water`) and compile to ~113 KB of wasm (`if97` feature). Live now: the pinned upstream checkout (sibling `~/homecloud/dev/CoolProp`, tag `v8.0.0`), the golden-fixture oracle (CoolProp 8.0.0 wheel in `tools/golden-gen/.venv`), the comparison harness (`tests/golden`), and a CI wasm-size report (70-byte baseline). Shipped crates have zero external dependencies — serde/serde_json are confined to the unpublished test harness. The crate map is in README.md. Architecture rules the scaffold encodes:
+**All fifteen PLAN.md phases are complete** — every checkbox ticked, every gate
+passed. rustprop is a feature-complete port of CoolProp 8.0.0's `PropsSI` /
+`HAPropsSI` surface. Work no longer advances phases; it lands in **waves**
+driven by an external consumer (see below).
 
-- **Types/contents split**: fluid-data *types* live in `rustprop-core`, generated data *contents* in `rustprop-data` (one Cargo feature per fluid, `default = []`). Engines depend only on core — apps link data solely for the fluids they opt into.
-- The facade crate `rustprop` puts every engine behind a Cargo feature with `default = []`; `all-backends` turns everything on (used by the CLI and CI).
-- `rustprop-data` contents come only from `tools/rustprop-datagen` codegen, never hand edits; JSON parsing must stay out of shipped binaries.
-- Workspace lints deny `unsafe_code`; release profile uses fat LTO, `panic = "abort"`, symbol stripping.
+| | |
+|---|---|
+| Engines | HEOS (pure, pseudo-pure, mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
+| Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
+| Oracle records | 41,454 in 122 committed fixtures, read by 34 suites (`cat tests/golden/fixtures/*.jsonl \| wc -l`) |
+| Deliverables | engine crates, `rustprop-cli`, `rustprop-wasm`, `release.yml`, CI |
+| Bundle sizes | measured in `WASM-SIZES.md` — 128 KB (IF97) to 4.2 MB (all-backends) |
 
-Phase 3 added the data pipeline: fluid JSON dumped verbatim from the oracle wheel into `data/coolprop-json/` (pinned, attributed), `rustprop-datagen` emitting feature-gated modules into `rustprop-data` (Water first, bitwise fidelity-tested, CI regeneration guard).
+**Blocked on the owner, and only on the owner**: claim the crates.io names, add
+the `CARGO_REGISTRY_TOKEN` secret, then tag `v0.1.0`. Publication is
+irreversible; nothing else stands between the tree and a release.
 
-Phase 4 (HEOS pure fluids) is complete through 4.7 — **all seven flash pairs**: Helmholtz term
-machinery (GenExp with B-recursion, NonAnalytic, GaoB; ideal container in upstream's fixed member
-order), single-phase properties, classic + super-ancillaries (piecewise Chebyshev, dyadic-split
-inverse-on-ln(p)), QT/PQ/PT flashes with upstream's solver strategy tree (SRK seed, Halley,
-Householder4, Brent), the (D,T)/(H,P)/(P,S)/(D,P) pairs, and the (H,S) pair: runtime-built
-caloric superancillaries (degree-12 L/U refit of h/s along both saturation branches),
-colleague-matrix extrema (EISPACK `hqr` — logged stand-in for Eigen's RealSchur), the
-two-phase Qh==Qs screen + Brent, the three-leg single-phase cascade with the (T, ln rho)
-homotopy corrector, and the legacy TS-scan sad path with its (Smolar,T) inner flash — which
-low-quality two-phase inputs genuinely require (upstream's endpoint Brent cannot bracket
-them). Single-phase HS results carry upstream's `_Q = 10000` sentinel (oracle-confirmed).
-**Six fluids golden-verified end to end** — Water, Nitrogen, CarbonDioxide, R134a, n-Propane,
-Ammonia — full suite battery (terms 1e-13/1e-12, props 1e-9, ancillaries 1e-12, saturation
-1e-8 policy observed ≤4e-12, PT 1e-9 with Cp/A at 1e-8, flash pairs 1e-9/1e-8, hs 1e-8 with
-documented Dmolar/P scale guards) against ~6,200 committed oracle records, plus bitwise
-data-fidelity walks of every fluid document. Ammonia's document carries two EOS blocks —
-upstream evaluates `EOSVector[0]` only (Gao-2020), the Tillner-Roth alternate is not ported.
-The melting-line caloric cascade leg is deferred with the melting line (no committed golden
-needs it).
+Nothing from `NEXT-STEPS.md` or `PLAN.md` is restated below, on purpose: this
+file goes stale the moment it duplicates them.
 
-**4.8 all-fluids sweep is done**: all 130 pure fluids (every one has a superancillary) are
-datagen-generated behind per-fluid features (`all-fluids` aggregate; datagen-emitted registry
-`rustprop_data::fluids::all()`), bitwise fidelity-walked, and smoke-tested against the wheel
-(1,922-record `#[ignore]`d suite, weekly/dispatch CI job). Six new term families landed with
-representative-fluid full batteries: CP0Constant/CP0PolyT/CP0AlyLee, direct
-PlanckEinsteinGeneralized, Exponential/DoubleExponential/Lemmon2005 (GenExp tau_mi channel).
-Runtime `Ttriple()`/`Tmin()` = `sat_min_liquid.T` everywhere (differs from the JSON `Ttriple`
-key for 27 fluids). Wasm cost: HEOS+Water 136 KB; all 130 fluids 3.31 MB (~26 KB/fluid).
-The 6 pseudo-pure fluids (Air, R404A, ...) are deferred with the Maxwell fallback and pL/pV
-ancillary shape.
+### Architecture rules the code encodes
 
-**Phase 5 (PropsSI string API) is done**: `rustprop::props_si` with upstream's backend-prefix
-parsing, registry resolution (CAS/name/alias/upper-alias, 639 queries wheel-verified), trivial
-and echo routes, mass<->molar conversions, Q validation, and error conditions (196 goldens +
-variant-asserted errors). Critical-parameter DISCOVERY encoded: superancillary fluids report the
-NUMERICAL critical point (Tcrit_num/pmax/rhocrit_num) through every consumer, not
-STATES.critical. CLI: `rustprop-cli props Dmolar T 300 P 101325 Water`; README quickstart is
-real (e2e + doc-tests).
+- **Types/contents split**: fluid-data *types* live in `rustprop-core`,
+  generated *contents* in `rustprop-data` (one Cargo feature per fluid,
+  `default = []`). Engines depend only on core, so an app links data solely for
+  the fluids it opts into.
+- The facade crate `rustprop` puts every engine behind a Cargo feature with
+  `default = []`; `all-backends` turns everything on (CLI and CI use it).
+- `rustprop-data` contents come only from `tools/rustprop-datagen` codegen,
+  never hand edits. JSON parsing must stay out of shipped binaries — serde is
+  confined to dev tooling and the unpublished test harness. `wasm-bindgen` (in
+  `rustprop-wasm`) is the only external dependency in any shipped crate.
+- Workspace lints deny `unsafe_code`; the release profile uses fat LTO,
+  `panic = "abort"`, symbol stripping.
+- Golden fixtures are generated ONLY by `tools/golden-gen/gen_fixtures.py` and
+  committed. Never hand-edit one; regenerate through its generator.
 
-Phase 10 (mixtures) in progress: slices 10a (888 binary pairs + 28 departure fns
-datagen'd behind `mixture-data`, 6 Lemmon pairs converted at datagen), 10b
-(`Gerg2008Reducing`: Yr + five f_Y blocks + first/second composition derivs, both
-XN conventions), and 10c (`MixtureModel`: CS sum + excess term via the new GenExp
-eta1 delta-linear channel; GERG Table B5 alpha0 on STATES.critical scales with
-R_mix = R_U_CODATA) are done — 864 goldens at 1e-12 across six pairs/all three
-departure kinds/F=0, and 10d (PT single-phase flash: SRK-seeded lowest-Gibbs
-root selection + homogeneous props, 696 goldens at 1e-9 against the wheel's real
-PT update). Wheel discovery: mixture DmolarT updates re-solve density in phase
-determination (delta = 1+6e-13), so Helmholtz-assembly fixtures impose
-iphase_supercritical. In-dome PT returns the metastable single-phase root until
-10f (stability + Michelsen split). 10e (QT/PQ VLE) is done: Wilson/preconditioner
-seeds, successive_substitution (Peneloux SRK seed, hardcoded R=8.3144598),
-newton_raphson_saturation (XN_DEPENDENT Jacobian, Gaussian solve for Eigen QR),
-full MixtureDerivatives fugacity layer — 720 goldens at 1e-8, Q in {0,0.3,0.5,1}.
-Fixed latent 10b bug: d2Yrdxidxj lacked the Gernert Table S1 XN_DEPENDENT
-branches (FD regression test added). PropsSI mixture routing shipped behind the
-opt-in `heos-mixtures` facade feature (~358 KB wasm): extract_fractions verbatim,
-PT/QT/PQ + weighted trivials + mass basis + error parity, 284 goldens. Deviations
-until 10f: sweep-based pairs (DmolarT/HmolarP/...) and mixture transport error
-loudly where upstream computes them. Predefined mixtures done: 154 blends
-datagen'd (`MIX_PREDEFINED`), "<Name>.mix"/uppercase registry checked before the
-pure library, 175 goldens incl. Air ternary VLE and 10-component Amarillo PT.
-10f part 1 done: Michelsen TPD
-stability (SS+GDEM, minimize_tpd trust-region), Wilson cross-check split,
-solver_rho_Tp_global (spinodal finder, omega-Halley ladder), PTflash_twophase
-solve_michelsen (log-K RR, scaled Gibbs Newton, Jacobi min-eigenvalue) — full
-PT_flash_mixtures glue; 192 in-dome goldens at 1e-6 (Q conditioning documented).
-10f part 2 done: all ten sweep
-pairs (DHSU_T/HSU_P/HSU_D with upstream's fast paths + verify gates) — 138
-goldens (weekly CI job, #[ignore]d). Boost TOMS748 ported verbatim after
-bisection walked into a wrong-root pocket the wheel reproduces bitwise (its
-TOMS748 interpolates past). Mixture transport done (log-linear
-eta / linear lambda over pure components at bulk state, 24 goldens bitwise).
-**PHASE 10 COMPLETE** (phase-envelope machinery is PropsSI-dead upstream and
-unported by design). Phase 11 started: 11a data done (180
-fluids + 140 CAS-sorted kij behind `pcsaft-fluids`, python-verified bitwise).
-Workspace serde_json now enables `float_roundtrip` — its DEFAULT parse is
-best-effort and put 1-ulp errors into ~140 generated files (now corrected).
-11b EOS kernels done: alphar/dadt/Z +
-residual h/s/g over all five term families (shared Prep, per-kernel XA
-tolerances 1e-15/1e-14, quirks documented) — 80 goldens, calorics bitwise.
-11c part 1 done: fugacity coefficients
-+ solver_rho_Tp (two-grid bracket scan + Brent + min-Gibbs root pick) —
-TOLUENE 1 ulp / PROPANE bitwise. **PHASE 11 COMPLETE**: 11c part 2
-shipped the inside-out QT/PQ flashes (kb-shadowing quirk, _HUGE=+inf clear
-semantics), PT/DT phase determination, and the PropsSI PCSAFT route — 164
-flash goldens at 1e-7 (TOLUENE PQ 6e-15, NaCl(aq) VLE 1.2e-9). Documented
-deviation: WATER PT/DT errors loudly where upstream returns sigma-sentinel
-garbage. Phase 12 started: 12a done — the
-generic (T,rho) partial-derivative machinery (`rustprop_heos::derivs`:
-get_dT_drho + second derivatives + the Jacobian-ratio first/second
-partial_deriv) that the Tabular grid build calls at every node; 207 goldens
-vs the wheel's own d(X)/d(Y)|Z strings (firsts 1e-9, seconds 1e-8).
-12b done: `rustprop-tabular::tables`
-builds the saturation table (1000 log-p points) and both single-phase grids
-(LogPH/LogPT, 200x200, two-phase holes, good-neighbour fixups) at runtime;
-140 goldens on limits + nodes. Deviation: upstream's msgpack disk cache is
-not ported (no home dir in WASM), so a LogPH build costs ~100 s per process.
-12c done: TTSE evaluation
-(2nd-order Taylor about the nearest node, bilinear transport, both quadratic
-inverters, bisect/nearest-node search) — 144 goldens vs the wheel's own TTSE
-backend, bitwise on the first probe, plus node-exactness. 12d done: bicubic (16-coefficient
-cells from the row-major Ainv, Horner evaluation, invalid-cell remap) — 160
-goldens vs the wheel's BICUBIC backend. Found and reproduced an upstream
-`bisect_vector` bug: an exact-node query zeroes the residual, poisoning the
-sign test so the index marches to R-1 (the wheel mis-locates identically).
-**PHASE 12 COMPLETE.** 12e shipped the low-level `TabularState`
-(`TabularBackend::update`'s PT branch: range gate, two-phase rejection,
-per-scheme cached indices, outputs and transport off those indices) plus the
-ROUTING discovery — `available_in_high_level()` is FALSE upstream, so
-`props_si` returns the verbatim "cannot be used in the high-level interface"
-rejection for `TTSE&HEOS::`/`BICUBIC&HEOS::` and the tables are a LOW-LEVEL
-API only (552 goldens). 12f completed `update`: HmolarP/PUmolar/PSmolar/
-DmolarP on the LogPH table (x-inversion for hmolar), SmolarT/DmolarT on the
-LogPT table (y-inversion for p), PQ/QT on the saturation table — with the
-generalized `is_inside`, `PureFluidSaturationTableData::evaluate`,
-`find_nearest_neighbor` + `bisect_segmented_vector_slice`, bicubic's
-cubic-root inversions and `recalculate_singlephase_phase` (1,632 goldens,
-`#[ignore]`d + weekly CI because each state builds a 200x200 LogPH grid at
-~100 s). Fixed a port bug 12c had introduced: `invert_single_phase_y` had
-copied the x variant's root ladder; upstream's y variant keeps the root
-CLOSEST TO the node instead. More upstream quirks reproduced: QT's
-`(void)`-discarded `is_inside` (p = +inf instead of an error) and
-`bisect_segmented_vector_slice` sizing itself on `mat[j]`. Tolerance 1e-9
-except density-keyed bicubic inversions at 1e-5 (LogPH nodes come from
-iterative (h, p) flashes; worst observed 2.0e-6). **Phase 15 (release pipeline) is code-complete.** 15.1: every `rustprop*` name is
-FREE on crates.io (control-checked) and on npm, so no rename is needed; five wasm
-presets chosen from the measured size table. 15.2: `release.yml` fires on a `vX.Y.Z`
-tag — verify job, crates.io publication, five presets x three wasm targets, CLI
-binaries for three platforms. `cargo publish --dry-run --workspace` is the every-push
-CI gate (the per-crate form CANNOT work before a first publish: cargo resolves each
-crate's deps against the index). 15.3: the seeded acceptance sweep, 3,720 records over
-seven backends, wired into the weekly job.
+### Fidelity rules, learned the expensive way
 
-**The acceptance sweep found five real defects on its first run**, none of which the
-~28,000 hand-chosen goldens had caught, all now fixed: (1) a PANIC in `rho_tp_cubic`
-(`partial_cmp().unwrap()` on the NaN roots `solve_cubic` leaves when the leading
-coefficient underflows — upstream's `sort3` is a `>` network that passes NaN through);
-(2) cp/cv wrongly refused in the dome for HEOS and cubics (upstream has NO two-phase
-guard — raw single-phase formula at the mixture density, same shape as the Phase 6.1
-conductivity finding); (3) speed of sound refused at Q==0/1 where upstream returns the
-saturated branch; (4) Gibbs energy refused in the dome where upstream applies the lever
-rule; (5) the ECHO ROUTE missing from the cubic and incompressible paths — upstream
-returns an output that IS an input without updating the state, so `PropsSI("T","T",...)`
-answers even where the flash cannot converge. The one divergence this sweep left standing —
-cubic PQ below one pascal — was root-caused and FIXED on 2026-08-17 (see below).
+These override any instinct about what the code "should" do:
 
-**2026-08-16 post-completion audit (NEXT-STEPS candidates #1+#2) is DONE**: the six
-`partial_cmp().unwrap()` sites proved NaN-unreachable (closed, unchanged); TEN more invented
-guards fixed (blend conductivity "None"→0.0; mixture two-phase Cp/Cv/w/G; IF97 Q sentinel +
-the full IF97 output family on every pair incl. PT, rebuilt in upstream's update/serve shape;
-the HEOS keyed_output family Phase/Z/PIP/Prandtl/Cp0/Helmholtz/residuals/kappa_T/beta/FD;
-cubic Z/Cp0/residuals/Gibbs + limit trivials; PCSAFT Z; P_min) plus two echo routes (IF97
-generic echo; INCOMP molar-rejection ordering) and the reverse case (rhomass_reducing now
-refused as upstream does). Cubic PT Phase quirk reproduced (stale −HUGE ⇒ subcritical always
-gas); HEOS DT/HP/PS/DP flash tails now end in recalculate_singlephase_phase. TWO wheel-vs-tag
-discoveries (IF97 set_phase; DT reclassification) — the SHIPPED wheel's behavior is ported,
-documented in-code. Acceptance sweep extended 3,720→5,485 (+ acceptance_tabular 1,950 +
-acceptance_svdsbtl 1,000 with two new ingested .svds artifacts); the extension exposed five
-NEW mixture defects: two port bugs fixed to bitwise (mixture transport uses the pure
-component's DmolarT-flash pressure; stability warm solves carry SatL/SatV's constructor phase
-imposition), three wheel-side failures pinned in acceptance.rs as port-asserted divergences
-(mixture HSU_P shared-state corruption ×2, shallow-TPD metastable root ×1 — each proven by
-the wheel contradicting its own fresh PT flash). The cubic sub-pascal PQ divergence (gate then
-at the observed 10 Pa envelope) is FIXED as of 2026-08-17: two association deviations in
-`psi_plus(0)` vs upstream (direct division instead of multiply-by-`c_term = 1/bm`; ungrouped
-`delta*Delta_i*b` instead of `delta*(Delta_i*bm)`) put ulp-level noise into the equal-Gibbs
-residual exactly where near-vacuum vapour-root cancellation left no headroom — all 58
-gate-band flashes now converge, matching the wheel to ≤2 ulp, and the acceptance allowance is
-deleted. ~38,400 committed oracle records; all suites green.
+- **A guard upstream does not have is a DEFECT**, however defensive it looks.
+  Roughly twenty invented guards have been found and removed this way; every
+  hunt for them has found more.
+- Reproduce upstream's bugs, quirks and failure windows as **error parity** —
+  same refusal, same state, verbatim message where the port can reach it.
+- **When the shipped 8.0.0 wheel disagrees with the v8.0.0 tag source, port the
+  WHEEL** (two such discoveries so far: IF97 `set_phase`, HEOS DmolarT phase
+  labels). Every golden came from the wheel.
+- Where upstream's answer is an artifact of its own mutable backend state
+  (stale caches, cross-call corruption), the port does not reproduce it — a
+  stateless port cannot express history-dependence, and would be serving
+  knowingly worse numbers if it tried. Such cases are pinned as divergences
+  with evidence that the wheel contradicts itself; see the NEXT-STEPS table.
+- **Randomized and unread coverage finds what hand-chosen goldens do not.** The
+  seeded acceptance sweep has produced a real defect nearly every time it
+  widened, and the six fixture batteries nobody had wired up produced another
+  the day they were first run. Prefer widening coverage over adding more
+  hand-picked states.
 
-**2026-08-17: the OUTPUT TAIL and the mixture latents are closed.** Every output the wheel
-serves is now ported on the HEOS and cubic routes (ideal-gas family, residual Gibbs, the
-eight keyed alphar/alpha0 derivative strings, virials, Tau/Delta, Qmass with the literal
-mv/(mv+ml) roundtrip, isentropic expansion, cubic PIP/kappa/beta/FD via a new `DerivEos`
-trait generalizing StateDerivs, CubicDerivs to third order) plus the ENVIRONMENTAL block
-(datagen'd `INFO.ENVIRONMENTAL`, +inf defaults for 11 blockless fluids, GWP/ODP −1-sentinel
-gate, FH/HH/PH raw with the empty-message +inf path; ASHRAE34 excluded as PropsSI-dead).
-Sweep 5,485 → 6,020 (third seed 20260817) — ZERO failures on first run. Latents: the
-imposition-clear corruption is real but only sweep-pair-reachable and stays UNPORTED,
-pinned by `hsu_p_imposition_clear_divergence_pinned` (the wheel contradicts its own forward
-flash); the side-root Brent throw is NOT CONSTRUCTIBLE (~26k-state exact-replica scan). One
-new port bug found and fixed: `successive_substitution_guessrho` now propagates
-density-solve failures as upstream does (a swallowed error let a degenerate Wilson split
-through on Methane/Ethane). ~39,100 committed oracle records.
+### Waves since phase completion
 
-REMAINING FOR THE OWNER (cannot be done from here): claim the crates.io names and add
-the `CARGO_REGISTRY_TOKEN` secret, then tag v0.1.0. Publication is irreversible.
+Driven by integrating rustprop into the sibling `frees-wasm` project as its
+property backend (that repo's decision D8). Full accounts live in PLAN.md's
+Decisions log.
 
-**Phase 14 (WASM bindings) is DONE**: `crates/rustprop-wasm` exports
-`props_si` / `ha_props_si` / `upstream_version` plus the typed fast path
-`props_si_many` (both input vectors as `Float64Array`; a failing state yields
-NaN in its slot rather than aborting the batch). Errors cross as thrown JS
-exceptions. `wasm-bindgen` is the first and only external dependency in a
-shipped crate. `tests/wasm-smoke/smoke.mjs` runs 61 checks from Node against
-the same committed fixtures the Rust suite uses; CI builds with wasm-pack and
-runs it. `WASM-SIZES.md` (from `tools/wasm-size-table.sh`) records what a
-browser downloads: IF97 124 KB, HEOS+Water 304 KB, HEOS+4 refrigerants
-380 KB, humid air 230 KB, cubics 151 KB, incompressible 183 KB, HEOS+all 130
-fluids 3.59 MB, all-backends 4.21 MB. Build gotchas fixed and documented:
-wasm-opt 117 needs `--enable-bulk-memory --enable-nontrapping-float-to-int`
-for what rustc now emits; feature forwarding must name BOTH this crate's
-features and the facade's (an `all-backends` bundle otherwise came out at
-13 KB with no exports).
-
-**Phase 13 (SVDSBTL) is DONE.** 13.1's study overturned the phase's premise:
-measured against the wheel, one fluid's two MVP surfaces are 26.4 MB — eight
-times this project's whole 130-fluid HEOS wasm build — so SVDSBTL buys SPEED,
-not size, and like Tabular it is low-level only
-(`available_in_high_level()` is false). 13.2 ported what that implies:
-`rustprop-svdsbtl` carries the evaluator (Hermite basis, AxisTransform,
-boundary curves, Region/RegionAtlas, the rank-r kernel, SvdSurface dispatch)
-and an artifact reader for a flat little-endian `.svds` blob; the BUILDER is
-deliberately NOT ported (Eigen BDCSVD is not reproducible bitwise, so the
-coefficients are ingested by `tools/rustprop-svdgen` from upstream's
-`.svd.bin.z`, never recomputed). 745 goldens, 700 bitwise, worst 1.8e-15
-(GCC's `-ffp-contract=fast` in the reference build; fusing the obvious
-candidate makes agreement worse). Tables-only wasm: **51,491 bytes** with
-zero coefficients linked. Upstream's `critical_patch` defaults to "auto" and
-silently returns SOURCE-backend truth near the critical point — left as a
-caller seam, goldens generated with the patch off. Unported by design: the
-builder, dome blend, `fast_evaluate`, REFPROP/IF97 sources, and
-`PiecewiseChebyshevCurve` (loader refuses it loudly).
-
-Phase 6.2 (surface tension) is done: 104 curves ported and bitwise-walked, 518 goldens at
-1e-12 through `props_si("I", ...)` with upstream's two-phase gating and error conditions.
-
-**Phase 6.1 (transport) is DONE — every transport class ported**: structured families,
-fully-/section-hardcoded models, Chung, rhosr-CS, and ECS (conformal-state 2-D Newton;
-references Propane/R134a/Nitrogen resolved through the registry via an `EcsRef` resolver
-seam; conductivity's OS critical term uses pure struct defaults — upstream never reads the
-JSON `q_D`). TRANSPORT slots are per-property tri-state (Absent/Unported/Model); zero
-Unported remain. Viscosity: 61 fluids/482 goldens; conductivity: 58 fluids/571 goldens, 1e-8.
-Fidelity discovery: upstream v8 has NO two-phase conductivity guard (cp/cv are raw
-single-phase formulas at mixture density) — two-phase states evaluate; the only two-phase
-errors are conformal-solver failures (R32 et al., error parity asserted).
-
-**Tier-2 deferrals are closed** except pseudo-pure fluids: every PropsSI-reachable input
-pair is ported — (H,T)/(T,U) via generalized DHSU_T, (P,U) via HSU_P, (D,H)/(D,S)/(D,U)
-via HSU_D's superancillary happy path, (D,Q) with strict-mode root enumeration; HQ/QS are
-upstream string-API dead ends (generate_update_pair has no rows) and (Hmass,T)/(T,Umass)/
-(Smolar,Umolar) are upstream "not yet supported" — all with exact error-message parity.
-Melting lines fully ported (3 segment families, 29 fluids, PT below-Tmelt check, (P,X)
-Tmelt bracket floor, HS cascade leg 4 via MeltingCaloric). Sub-triple (P,X) gas states
-and multi-output-'&' parity done. ~15,800 committed oracle records.
-
-**Pseudo-pure fluids are ported** (Air, R404A/407C/410A/507A, SES36 — 136 registry
-fluids total): datagen pL/pV split (`p_s` + `p_v_split`, pure fluids alias one curve),
-max_sat_T/max_sat_p state points, bitwise walker. Flashes per upstream: QT strictly
-Q∈{0,1} (ancillary p + guessed PT solve), PQ with per-branch temperatures across the
-glide (`HeosState::TwoPhase` carries `t_l`/`t_v`), PT via the 1.02·pL/0.98·pV ancillary
-arbiter (in-band throws, as upstream). Discovery: upstream's pseudo-pure QT/PQ never
-call `saturation_T_pure` — the ancillaries are used explicitly. Remaining pairs are loud
-NotImplemented for pseudo-pure (upstream serves them through legacy solvers that are
-dead code for the 130 superancillary fluids). 330 goldens + verbatim error parity.
-~16,500 committed oracle records overall. Tier-2 deferral list: EMPTY.
-
-**Phase 7 (cubics) is DONE**: `rustprop-cubics` ports SRK/Peng-Robinson per upstream
-(T_r = 1/rho_r = 1 so tau = 1/T, delta = rho; SRK Omega literals verbatim incl. upstream's
-corrupted digits; Kazakov rhomolar_critical; the smolar tau*-rescale DEFECT reproduced;
-QT/PQ equal-Gibbs secant with Pitzer seeds; PT cubic-root selection with the inner PQ
-branch pick; DmolarT via the six extracted Chebyshev superancillary tables with the
-broken-sub-state two-phase caloric throw). `SRK::`/`PR::` PropsSI routes; 116-fluid table
-behind one `cubic-fluids` feature; cubics-only wasm = 146 KB total. 2,328 cubic goldens.
-
-**Phase 8 (incompressible) is DONE**: 126 fluids (74 pure + solutions/brines) behind
-`incompressible-fluids`; Polynomial2DFrac machinery (Horner-from-top, fracIntCentral),
-the five block forms, the hard-coded reference state, five input pairs, INCOMP:: with
-Name/Name[x]/Name-40% parsing. 935 goldens, direct evaluations bit-identical.
-
-**Phase 9 (humid air) is DONE**: HAPropsSI on RP-1485 virials — IAPWS-06 ice, EOS +
-hardcoded virials, enhancement factor, three distinct gas constants, upstream's solver
-loop shapes and quirks all reproduced; `ha_props_si` facade + CLI `ha` subcommand.
-897 goldens. Deviation (logged): errors return as Result instead of +inf-with-global.
-~21,000 committed oracle records overall. Next: Phase 10 (HEOS mixtures).
+- **Wave 1** — Helmholtz derivative-matrix memoization (bit-identical by
+  construction; HP flash 963 → 380 µs, LogPH build 36.2 → 12.4 s); the
+  rational-polynomial caloric ancillary family; the cubic sub-pascal
+  `psi_plus(0)` fix; pre-tag hygiene (MSRV 1.88, tag-gated release, crates.io
+  metadata).
+- **Wave 2** — the last pseudo-pure input pairs `(H,P)`/`(P,S)`/`(P,U)`/`(D,P)`
+  with a 665-record suite, and the closure of the single-phase HSU_P bisection
+  stand-in by upstream's real TOMS748 plus a warm-density carry (median
+  displacement over 1,433 goldens 1.77e-10 → 2.04e-16; HP liquid Water 283.6 →
+  80.2 µs). Three port bugs fixed to bitwise along the way.
+- **Wave 3** — the `Ok(non-finite)` validity gap closed by porting upstream's
+  two real gates (`calc_alpha0_deriv_nocache`'s `ValidNumber` throw and the
+  binding-level `_raise_if_invalid`), pinned by a 1,626-record `validity` suite;
+  the acceptance sweep widened to 6,380 with pseudo-pure caloric draws; and the
+  six Phase-4.8 fixture batteries that no test had ever read wired in, which
+  exposed upstream's PT stale-cache quirk (`heos_pt.rs`).
 
 ## Toolchain
 

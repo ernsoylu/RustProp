@@ -24,6 +24,14 @@ rustprop-data = { workspace = true, features = [
     "r134a",
     "n_propane",
     "ammonia",
+    # Phase 4.8's six new-term-family representatives, whose seven-suite
+    # batteries `heos_fluids()` runs since Wave-3 R9.
+    "fluorine",
+    "methanol",
+    "n_heptane",
+    "r125",
+    "r22",
+    "rc318",
     "pcsaft-fluids",
 ] }
 rustprop-cubics = { workspace = true }
