@@ -2393,6 +2393,28 @@ Append-only; newest last. Seeded entries:
   file has 1,626. The seed guidance now states the discipline explicitly: add a new
   `random.Random(...)` stream, never touch an existing one.
 
+- **Wave-3 integration (2026-08-18): `heos_pt`'s density assertion moved from BITWISE to
+  1e-13, because a PT root is not a single double.** R9 tightened the 218 `Dmolar` records
+  from 1e-9 to bitwise and gated with `cargo test --workspace --all-features --release`.
+  CI's command has no `--release`, and in a debug build one record fails: Ammonia
+  `T=425.838 K, P=17.045 MPa` (supercritical) lands 42 ulp — 8.90e-15 relative — from the
+  wheel's `_rhomolar`. The merge was not the cause; the merged tree is byte-identical to
+  `wave3-r9`, and the branch fails the same way on its own. **Neither density is wrong.**
+  Evaluating the EOS back at each reproduces the requested pressure to 5.25e-15 (port) and
+  2.84e-15 (wheel), with opposite signs: the two straddle the true root, each inside the
+  rounding noise of the ~50-term Helmholtz pressure sum, so `p(T, rho) = P` has no unique
+  `f64` solution at that state and which one a build finds is a codegen detail (inlining
+  and constant-folding differ between `-C opt-level=0` and release). Bitwise was therefore
+  never a property of the port — it was a property of one optimisation level, and the
+  release-only gate run is what hid that. 1e-13 is eleven times the observed worst and
+  five orders below the 1e-8 scale `stale_cache_allowance` is derived from, so the premise
+  that allowance rests on ("the port finds the same root") survives intact, while a
+  genuinely wrong root — a different branch of the p(rho) curve — misses by 1e-3 or more
+  and still fails. The bitwise COUNT is now printed rather than asserted (217 of 218 in
+  debug, 218 of 218 in release), so drift stays visible without being load-bearing. The
+  standing lesson generalises: gate on the profile CI gates on, and never assert bitwise
+  equality on an iteratively solved root.
+
 ---
 
 ## Status: all fifteen phases complete

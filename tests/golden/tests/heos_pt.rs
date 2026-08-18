@@ -3,12 +3,12 @@
 //! the 1e-9 policy across liquid, vapor, and supercritical states, for
 //! every ported fluid.
 //!
-//! The density is asserted BITWISE — all 218 density records, all 12 fluids —
-//! because that is the premise everything else here rests on: upstream assigns
-//! the solved root to `_rhomolar` and the port finds the same root. Everything
-//! served off the reduced-Helmholtz derivatives instead carries a per-record
-//! STALE-CACHE ALLOWANCE — see `stale_cache_allowance` for the upstream
-//! mechanism and its bound.
+//! The density is asserted at `DENSITY_RTOL` — all 218 density records, all 12
+//! fluids — because that is the premise everything else here rests on: upstream
+//! assigns the solved root to `_rhomolar` and the port finds the same root.
+//! Everything served off the reduced-Helmholtz derivatives instead carries a
+//! per-record STALE-CACHE ALLOWANCE — see `stale_cache_allowance` for the
+//! upstream mechanism and its bound.
 
 use rustprop_golden_tests::{heos_fluids, load_jsonl};
 use rustprop_heos::flash_pt::PtFlash;
@@ -47,6 +47,29 @@ use std::path::Path;
 /// 1.32 for R22 Cp — the worst over the whole suite is printed on the log).
 const MIXING_MARGIN: f64 = 2.0;
 
+/// How closely the port's PT root must reproduce the wheel's `_rhomolar`.
+///
+/// 217 of the 218 records agree BITWISE, and all 218 do in a `--release`
+/// build — but bitwise is not an assertion the root can carry, because at
+/// least one state does not resolve to a single double. Ammonia
+/// `T=425.838 K, P=17.045 MPa` (supercritical) lands 42 ulp (8.90e-15
+/// relative) away in a debug build, and NEITHER density is the wrong answer:
+/// evaluating the EOS back at each reproduces the requested pressure to
+/// 5.25e-15 (port) and 2.84e-15 (wheel), with opposite signs. The two
+/// straddle the true root, each inside the rounding noise of the ~50-term
+/// Helmholtz pressure sum, so which double a build lands on is a codegen
+/// detail — inlining and constant-folding differ between `-C opt-level=0`
+/// and the release profile, which is why an earlier `--release`-only gate run
+/// saw 218 of 218 and CI's debug run does not.
+///
+/// 1e-13 is eleven times the observed worst and five orders below the 1e-8
+/// scale of `stale_cache_allowance`, so the premise that allowance is derived
+/// from survives intact, while a genuinely wrong root — a different branch of
+/// the cubic-like p(rho) curve — misses by 1e-3 or more and still fails here.
+/// The bitwise count is printed rather than asserted so any drift in how many
+/// records land exactly is visible without being load-bearing.
+const DENSITY_RTOL: f64 = 1e-13;
+
 fn stale_cache_allowance(flash: &PtFlash, t: f64, rho: f64, eval: impl Fn(f64) -> f64) -> f64 {
     let tau = flash.eos.t_reducing / t;
     let delta = rho / flash.eos.rhomolar_reducing;
@@ -67,6 +90,8 @@ fn pt_states_match_upstream() {
     let mut failures = Vec::new();
     let mut worst_mix: (f64, String) = (0.0, String::new());
     let mut density_records = 0usize;
+    let mut density_bitwise = 0usize;
+    let mut worst_density: (f64, String) = (0.0, String::new());
     for (name, stem, fluid) in heos_fluids() {
         let path =
             Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("fixtures/heos_{stem}_pt.jsonl"));
@@ -92,19 +117,26 @@ fn pt_states_match_upstream() {
             };
             let actual = eval(rho);
             // The density is the root upstream assigns and the port solves to
-            // the same double, so it is asserted BITWISE rather than at a
-            // tolerance — if that ever stops holding, the stale-cache
+            // the same root, so it is held to DENSITY_RTOL rather than to the
+            // 1e-9 policy — if that ever stops holding, the stale-cache
             // allowance below loses the premise it is derived from and this
             // says so directly instead of absorbing it.
             if rec.out == "Dmolar" {
                 density_records += 1;
-                if actual != rec.expected {
+                let rel = ((actual - rec.expected) / rec.expected).abs();
+                if actual == rec.expected {
+                    density_bitwise += 1;
+                }
+                if rel > worst_density.0 {
+                    worst_density = (rel, format!("{name} {}", rec.id()));
+                }
+                if rel > DENSITY_RTOL || rel.is_nan() {
                     failures.push(format!(
-                        "{name} {}: density {actual:e} is not BITWISE the wheel's {:e} \
-                         (rel {:e}) — the stale-cache allowance assumes it is",
+                        "{name} {}: density {actual:e} misses the wheel's {:e} by \
+                         rel {rel:e} > {DENSITY_RTOL:e} — the stale-cache allowance \
+                         assumes the port finds the same root",
                         rec.id(),
                         rec.expected,
-                        ((actual - rec.expected) / rec.expected).abs()
                     ));
                 }
                 continue;
@@ -136,11 +168,15 @@ fn pt_states_match_upstream() {
         println!("{name}: worst deviation {:e} at {}", worst.0, worst.1);
     }
     println!(
-        "{density_records} density records bitwise; worst stale-cache mixing ratio \
-         {:.3} (margin {MIXING_MARGIN}) at {}",
+        "{density_records} density records within {DENSITY_RTOL:e} \
+         ({density_bitwise} of them bitwise); worst density deviation {:e} at {}",
+        worst_density.0, worst_density.1
+    );
+    println!(
+        "worst stale-cache mixing ratio {:.3} (margin {MIXING_MARGIN}) at {}",
         worst_mix.0, worst_mix.1
     );
-    // The bitwise premise is only meaningful if the records are actually there.
+    // The same-root premise is only meaningful if the records are actually there.
     assert_eq!(density_records, 218, "density records checked");
     assert!(
         failures.is_empty(),
