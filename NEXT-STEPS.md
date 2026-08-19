@@ -4,11 +4,15 @@ Read this first when picking the work back up. `PLAN.md` is the phase-by-phase
 roadmap and its Decisions log is the authoritative record of *why* things are
 the way they are; this file is the short version plus the open ends.
 
-Last updated: 2026-08-19, after the Wave-4b integration — R12 merged
-(registry-wide (P,X) refusal parity, the superancillary inverse's TOMS748, the
-assertion audit), its claims re-measured independently, and the release
-readiness restated below. See the dated blocks in PLAN.md's Decisions log for
-the full record of each round.
+Last updated: 2026-08-19, after R10 (release engineering) — off-Linux platform
+tests, the cargo-deny gate, the oracle's archival, `RELEASE-CHECKLIST.md`,
+`CHANGELOG.md`, and a crates.io rate limit that would have half-published the
+project. Before it, the Wave-4b integration merged R12 (registry-wide (P,X)
+refusal parity, the superancillary inverse's TOMS748, the assertion audit) and
+re-measured its claims. See the dated blocks in PLAN.md's Decisions log for the
+full record of each round.
+
+**Before doing anything release-shaped, read `RELEASE-CHECKLIST.md` §0.**
 
 ---
 
@@ -135,26 +139,50 @@ divergences), `cargo publish --dry-run --workspace` from purged caches
 What could **not** be run here, and is therefore only ever green on a runner:
 the macOS and Windows CLI builds in `release.yml`'s `cli-binaries` matrix, the
 five-preset × three-target wasm bundle matrix, and the crates.io upload itself.
-`cargo-deny` is not installed and there is no `deny.toml`, so the supply-chain
-gate has nothing to run either way — see (b).
+
+**Updated 2026-08-19 by R10.** `deny.toml` now exists and `cargo-deny` 0.20.2
+runs clean here (advisories ok, bans ok, licenses ok, sources ok), so the
+supply-chain gate is real and wired into `ci.yml`. Three CI jobs were added
+that have **never executed anywhere**: `platform` (the golden suites on
+macOS-arm64 and Windows-x64), `supply-chain`, and `schedule-keepalive`. Read
+**`RELEASE-CHECKLIST.md`** before doing anything in (a) — it is the execution
+order, and it opens with a hazard that would otherwise half-publish the
+project:
+
+> **The crates.io new-crate rate limit blocks a one-shot release.** crates.io
+> allows a burst of **5** new crates per user, refilling one per 10 minutes
+> (`rust-lang/crates.io`, `rate_limiter.rs`). This workspace publishes
+> **twelve**, all new, and `cargo publish` does not retry a 429 — so the first
+> tag would upload about five and stop, permanently, with the `rustprop` facade
+> (11th in the upload order) among the casualties. `release.yml`'s `crates-io`
+> job now refuses to start in that state, before any upload. The remedy is a
+> rate-limit override requested from the crates.io team *before* tagging;
+> `RELEASE-CHECKLIST.md` §0 has the procedure and the alternative.
 
 ### (a) Owner-only, and irreversible
 
-Unchanged in substance since Wave 4 — re-verified, not assumed:
+**`RELEASE-CHECKLIST.md` is the executable version of this list** — same steps,
+in order, with the checks and the resume story. The summary:
 
-1. **Claim the twelve crates.io names.** All twelve still return **404** as of
-   2026-08-19, with `serde` returning 200 through the same request as the
-   control: `rustprop`, `rustprop-core`, `rustprop-data`, `rustprop-heos`,
-   `rustprop-if97`, `rustprop-cubics`, `rustprop-incompressible`,
-   `rustprop-pcsaft`, `rustprop-tabular`, `rustprop-svdsbtl`,
-   `rustprop-humid-air`, `rustprop-wasm`. (`rustprop-cli` is `publish = false`
-   — it is the example app, not a deliverable crate.)
+0. **Clear the crates.io new-crate rate limit** (see the box above). New since
+   R10, and it comes first because everything after it is irreversible.
+1. **Re-check the twelve crates.io names.** crates.io has no reservation
+   mechanism — a name is claimed by the first successful publish, so this is a
+   check, not an action. All twelve returned **404** on 2026-08-19, with
+   `serde` at 200 through the same request as the control: `rustprop`,
+   `rustprop-core`, `rustprop-data`, `rustprop-heos`, `rustprop-if97`,
+   `rustprop-cubics`, `rustprop-incompressible`, `rustprop-pcsaft`,
+   `rustprop-tabular`, `rustprop-svdsbtl`, `rustprop-humid-air`,
+   `rustprop-wasm`. (`rustprop-cli` is `publish = false` — it is the example
+   app, not a deliverable crate, which also means `cargo install rustprop-cli`
+   will not work.)
 2. **Add the `CARGO_REGISTRY_TOKEN` repository secret** that
    `.github/workflows/release.yml` reads.
-3. **Push `main`.** This is new since Wave 4 and it is a *precondition*, not a
-   nicety: `origin/main` is still `d5a7331`, seven commits behind, so CI has
-   never seen the Wave-4b tree. Tagging without pushing first would fire the
-   release pipeline on code no CI run has ever built.
+3. **Push `main`.** A *precondition*, not a nicety: `origin/main` is still
+   `d5a7331`, and local `main` has run well ahead of it, so CI has never seen
+   this tree. Tagging without pushing first would fire the release pipeline on
+   code no CI run has ever built — and would skip the first-ever run of the
+   `platform` job, which is the one that could still find something.
 4. **Tag `v0.1.0` and push the tag**, which runs verify → crates.io publish →
    five wasm presets × three targets → CLI binaries for linux-x64 /
    macos-arm64 / windows-x64 → GitHub release.
@@ -177,44 +205,48 @@ dispatch run exercises verify + the five wasm bundles + all three CLI targets
 and publishes nothing. It has never been run even once; the first real tag
 would otherwise be the first execution of that pipeline.
 
-### (b) Doable in a session — nobody has done these
+### (b) The R10 round — landed 2026-08-19
 
-The Wave-4b R10 round (release checklist, oracle archival, platform tests,
-supply chain) **never landed**: no branch, no commits, no report. Its four
-items are still open, and none of them blocks a release:
+The Wave-4b R10 round is **done** (branch `r10-release`). What it produced,
+and what is left in each item:
 
-- **Supply chain.** There is no `deny.toml` and no `cargo-deny` / `cargo-audit`
-  step in CI. The surface is genuinely small — `wasm-bindgen` is the only
-  external dependency in any shipped crate — so what a gate buys here is
-  licence and advisory *monitoring*, not a big attack surface today.
-- **Platform coverage.** `ci.yml` runs the suite on `ubuntu-latest` only.
-  `release.yml` *builds* the CLI on macOS and Windows but never *runs* the
-  tests there, so no floating-point result in this port has ever been checked
-  off Linux/x86-64. Given how much of the suite asserts at 1e-12 and tighter,
-  that is the highest-value item in this list.
-- **Oracle archival.** `tools/golden-gen/requirements.txt` pins
-  `CoolProp==8.0.0` by version only, and the `.venv` is gitignored. Every
-  golden in the tree came from one specific binary — the wheel whose
-  `CoolProp.abi3.so` is sha256
-  `05d85591871524e83bb23170e22ee149e1167fb3ef5deaf81b9d248283089be5`, tag
-  `cp312-abi3-manylinux_2_17_x86_64`, `__gitrevision__`
-  `ae81610e7d23efc57f9d051c8e70a4d66e87537f` — and that identity is recorded
-  nowhere in the repository. It matters more here than in a normal project,
-  because this port deliberately follows the *wheel* where it disagrees with
-  the v8.0.0 tag source (see the wheel-vs-tag note below). Recording the hash,
-  and ideally a `--require-hashes` install, makes regeneration reproducible on
-  another machine.
-- **A release checklist document.** The steps live in this section and in
-  `release.yml`; there is no single checklist the owner ticks through.
+- **Supply chain — closed.** `deny.toml` is an exact licence allowlist over the
+  29-crate external graph (all permissive: `0BSD`, `Apache-2.0`, `MIT`,
+  `Unicode-3.0`, `Unlicense`, `Zlib`), zero advisories, `sources` denying git
+  and non-crates.io registries. `ci.yml`'s `supply-chain` job installs
+  cargo-deny 0.20.2 from a sha256-pinned tarball rather than an unpinned Docker
+  action. The first run found two real problems in `tools/dbg-pcsaft` (no
+  licence field, three wildcard path deps), fixed at source.
+- **Platform coverage — jobs added, NEVER RUN.** `ci.yml`'s `platform` job runs
+  the golden suites on `macos-latest` and `windows-latest` — debug on every
+  event, release on pushes to `main`, plus a CLI smoke. `.gitattributes` pins
+  LF so the Windows checkout cannot mangle the fixtures. **Whether the suites
+  actually pass off Linux/x86-64 is still unknown**; that is the point of the
+  job, and a first-run failure there is a finding about the port before it is a
+  bug in the YAML.
+- **Oracle archival — closed.** `requirements.txt` pins CoolProp by sha256 for
+  `--require-hashes`; `tools/golden-gen/ORACLE.md` records the full identity
+  and a cold-start walkthrough; `verify-oracle.sh` answers "is this THE oracle"
+  and reads its expected digest from `manifest.json` so it cannot go stale; and
+  the wheel itself is archived at `tools/golden-gen/vendor/` (10.3 MB, MIT,
+  dev-only — see the PLAN.md entry for the size-vs-reproducibility judgement,
+  and note it is a separate commit so the judgement stays reversible).
+- **A release checklist — closed, and it found the release's real blocker.**
+  `RELEASE-CHECKLIST.md` is the owner's execution order. Writing it surfaced
+  the crates.io new-crate rate limit quoted above, which no amount of testing
+  the tree could have found.
 
-Also open, and found while verifying Wave-4b:
+Also closed:
 
-- **`tests/golden/fixtures/manifest.json` lists 111 of the 123 fixture files.**
-  The twelve missing are the heavy generators' outputs (`acceptance_sweep`,
-  `acceptance_tabular`, `acceptance_svdsbtl`, `tabular_*`, `ttse`, `bicubic`,
-  `svdsbtl`, `pcsaft_flash`, `partial_derivs`, `validity`). Pre-existing drift,
-  not R12's; closing it means a full `gen_fixtures.py` run, which rebuilds the
-  ~100 s tabular tables.
+- **`manifest.json`'s drift**, fixed at the generator. Its `files` key came
+  from the in-process `WRITTEN` list, so regenerating one fixture *shrank* the
+  manifest; `write_manifest()` now scans the fixture directory (and records the
+  oracle's sha256). It lists all 123 files, and refreshing it no longer costs a
+  ~100 s tabular rebuild.
+- **`.gitignore`** now covers `release.yml`'s `pkg-<preset>-<target>` fan-out
+  and the `rustprop-{wasm,cli}-*.tar.gz` archives it packages at the repo root.
+- **`CHANGELOG.md`** exists, with the divergences a consumer can actually hit
+  separated from the ones only a digit-by-digit comparison would show.
 
 The ranked candidate work further down this file (the answer-vs-refuse residue
 at unphysical inputs, the mixture-side memo, consumer documentation, a fifth
@@ -326,6 +358,7 @@ cargo test --workspace --all-features --release   # RELEASE — release.yml's ve
 cargo run -q -p rustprop-datagen && git diff --exit-code   # datagen determinism
 cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown --release
 cargo publish --dry-run --workspace
+cargo deny --workspace --all-features check    # licences + advisories (deny.toml)
 node tests/wasm-smoke/smoke.mjs        # after a wasm-pack --target nodejs build
 ```
 
@@ -474,6 +507,14 @@ fifth stream rather than touching an existing one.
   append-only and is where every non-obvious choice is justified. Read the
   entries for whatever you are about to touch.
 - `CLAUDE.md` — the working status summary, kept current at phase gates.
+- `RELEASE-CHECKLIST.md` — the owner's pre-tag execution order, the resume
+  story for a partial crates.io publish, and everything about `release.yml`
+  that has never been observed running.
+- `CHANGELOG.md` — what v0.1.0 ships, what it deliberately does not, and which
+  divergences a consumer can actually reach.
+- `tools/golden-gen/ORACLE.md` — which exact CoolProp binary every golden came
+  from, why a version number does not identify it, and how to reproduce it from
+  cold. Read before touching a fixture.
 - `WASM-SIZES.md` — measured bundle sizes, regenerate with
   `tools/wasm-size-table.sh`.
 - Upstream lives at `~/homecloud/dev/CoolProp`, pinned at tag `v8.0.0`. It is

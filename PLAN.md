@@ -2738,6 +2738,29 @@ Append-only; newest last. Seeded entries:
   asset. A closing section names everything the checklist could not verify from this
   machine, which is most of `release.yml`.
 
+- 2026-08-19 — **R10, part 5: `CHANGELOG.md`, and the docs realigned.** The project had no
+  changelog at all, and a fidelity port needs one shaped differently from the usual: for a
+  consumer, "Added" matters far less than *where this library will not agree with CoolProp*,
+  because that is the only kind of surprise it can hand them. So the v0.1.0 entry splits the
+  divergences three ways — **API-shaped** ones they will hit immediately (`Result` instead
+  of `+inf`-with-a-global, `cargo install rustprop-cli` not working because the CLI is
+  `publish = false`, derivative output strings unparsed, the pseudo-pure pair subset,
+  `(Dmolar,P)` below the triple point), **numerical** ones only a digit-by-digit comparison
+  shows (the PT last-trial-iterate 5.0e-8, the three mixture pins, SVDSBTL's few ulp, the
+  single MethylLinoleate state, R507A's 0.995·pmax needle, the refusal-text rows), and
+  **behavioural** ones (no tabular disk cache — the ~100 s LogPH build a consumer actually
+  feels; PC-SAFT `WATER` refusing). The "not ported by design" list is stated as decisions
+  with reasons rather than as a gap list, including the two principled ones: upstream's
+  Emscripten wrapper, replaced on purpose, and any answer that is an artifact of upstream's
+  own mutable backend state, which a stateless port would have to serve knowingly worse
+  numbers to reproduce. Counts in it were measured on the tree, not copied: 41,629 records /
+  123 fixtures / 35 suites / 134 tests across 71 binaries.
+  `NEXT-STEPS.md` was updated rather than left to rot: its (b) section now reads as *landed*
+  instead of *open*, the rate-limit hazard sits in a block quote at the top of Release
+  readiness, item (a) leads with clearing that limit and corrects "claim the names" to a
+  re-check (crates.io has no reservation mechanism), and the gate list gained `cargo deny`.
+  The README points at the changelog for the consumer-facing account.
+
 ---
 
 ## Status: all fifteen phases complete
