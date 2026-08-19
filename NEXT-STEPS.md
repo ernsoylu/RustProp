@@ -117,37 +117,47 @@ decision D8). Three waves have landed, each with the full gate green:
 
 ## Release readiness
 
-**Restated 2026-08-19 after the Wave-4b integration, superseding the Wave-4
-version.** Everything below was re-derived on the merged tree that day rather
-than carried forward: the gate was re-run in both profiles plus all six heavy
-suites, the dry-run was re-run with its caches purged, and the publication
-state was re-checked against crates.io and GitHub directly.
+**Restated 2026-08-19 on the R10 merge (`5c93a15`), superseding the Wave-4b
+version.** Nothing below is carried forward: every claim was re-derived on the
+merged tree, and each one that R10 reported was re-measured independently
+rather than trusted. What changed since the Wave-4b statement is listed at the
+end of this section.
 
-**What is green, measured on this tree** (the shipped code is identical from
-the merge commit onward — the commits after it touch only documents)**:**
-`fmt --check`, `clippy --workspace
---all-targets --all-features -D warnings`, `cargo test --workspace
---all-features` in **debug** (134 tests across 71 binaries) and in
-**`--release`** (the same 134), the datagen determinism check (regenerate →
-empty diff), the wasm32 `all-backends` release build, all six `#[ignore]`d
-weekly suites in release (acceptance 6,380 records / 3 pinned mixture
-divergences), `cargo publish --dry-run --workspace` from purged caches
-(12 crates packaged, verified, upload aborted), the MSRV job's
-`cargo +1.88 check` on both shipped facades, and `wasm-pack --target nodejs` +
-`node tests/wasm-smoke/smoke.mjs` (61 checks).
+**What is green, measured on this tree:** `fmt --check`; `clippy --workspace
+--all-targets --all-features -D warnings`; `cargo test --workspace
+--all-features` in **debug** and in **`--release`** — 134 passed, 0 failed,
+7 ignored, across 71 test binaries, identical in both profiles; the datagen
+determinism check (regenerate → empty diff, no untracked files); the wasm32
+`all-backends` release build; all six `#[ignore]`d weekly suites run exactly as
+`ci.yml`'s `sweep` job runs them (130 fluids; mixture sweep; tabular_pairs
+1,632 records, worst 5.9e-9; acceptance 6,380 records over 8 engines with the 3
+pinned mixture divergences; acceptance_tabular 1,950 records; acceptance_svdsbtl
+995/1000 bitwise, worst 8.2e-16); `cargo publish --dry-run --workspace` from
+genuinely cold caches (12 packaged, 12 verified, 12 uploads aborted, no errors);
+the MSRV job's `cargo +1.88 check` on both shipped facades; `wasm-pack --target
+nodejs` + `node tests/wasm-smoke/smoke.mjs` (61 checks); `cargo deny --workspace
+--all-features check` (advisories ok, bans ok, licenses ok, sources ok); and the
+CLI smoke `props T P 101325 Q 0 IF97::Water` → `373.12430000048056`.
+
+The **seventh** ignored test is not a coverage gap and not part of the weekly
+sweep: `crates/rustprop-svdsbtl/tests/roundtrip.rs::eval_from_env_artifact` is a
+scratch harness that requires `RUSTPROP_SVDS` to point at a locally built
+upstream table.
 
 What could **not** be run here, and is therefore only ever green on a runner:
 the macOS and Windows CLI builds in `release.yml`'s `cli-binaries` matrix, the
-five-preset × three-target wasm bundle matrix, and the crates.io upload itself.
+five-preset × three-target wasm bundle matrix, the crates.io upload itself, and
+— new with R10 — the `platform`, `supply-chain` and `schedule-keepalive` jobs
+*as jobs*. Note the distinction for `supply-chain`: its **content** is fully
+proven here (the pinned tarball was re-downloaded, its sha256 matched the digest
+`ci.yml` hard-codes, and that exact binary produced the verdict above) — only
+the YAML wrapping it is unexercised. For `platform` nothing is proven: whether
+the golden suites hold off Linux/x86-64 is genuinely unknown, and a first-run
+failure there is a finding about the port before it is a bug in the workflow.
 
-**Updated 2026-08-19 by R10.** `deny.toml` now exists and `cargo-deny` 0.20.2
-runs clean here (advisories ok, bans ok, licenses ok, sources ok), so the
-supply-chain gate is real and wired into `ci.yml`. Three CI jobs were added
-that have **never executed anywhere**: `platform` (the golden suites on
-macOS-arm64 and Windows-x64), `supply-chain`, and `schedule-keepalive`. Read
-**`RELEASE-CHECKLIST.md`** before doing anything in (a) — it is the execution
-order, and it opens with a hazard that would otherwise half-publish the
-project:
+Read **`RELEASE-CHECKLIST.md`** before doing anything in (a) — it is the
+execution order, and it opens with a hazard that would otherwise half-publish
+the project:
 
 > **The crates.io new-crate rate limit blocks a one-shot release.** crates.io
 > allows a burst of **5** new crates per user, refilling one per 10 minutes
@@ -159,6 +169,19 @@ project:
 > rate-limit override requested from the crates.io team *before* tagging;
 > `RELEASE-CHECKLIST.md` §0 has the procedure and the alternative.
 
+That hazard was re-derived independently on the merge, not taken on R10's word.
+The preflight's crate set (`cargo metadata --no-deps`, `select(.publish==null)`)
+resolves to exactly the twelve crates the dry-run uploads and excludes the six
+`publish = false` members; the dry-run from cold caches confirms the upload order
+is **core, data, heos, if97, pcsaft, svdsbtl, cubics, humid-air, incompressible,
+tabular, `rustprop`, `rustprop-wasm`** — so the facade really is 11th, past a
+burst of 5, and the packaging order cargo prints first is *not* the upload order.
+All twelve names still returned 404 (control `serde` 200), and
+`gh variable list` is empty, so `CRATES_IO_NEW_CRATE_BURST` is unset and the
+preflight uses its default of 5: **as the repository stands, the `crates-io` job
+would refuse to publish.** That is the intended behaviour, not a defect — it is
+the guard doing its job, and clearing it is step 0 below.
+
 ### (a) Owner-only, and irreversible
 
 **`RELEASE-CHECKLIST.md` is the executable version of this list** — same steps,
@@ -168,8 +191,9 @@ in order, with the checks and the resume story. The summary:
    R10, and it comes first because everything after it is irreversible.
 1. **Re-check the twelve crates.io names.** crates.io has no reservation
    mechanism — a name is claimed by the first successful publish, so this is a
-   check, not an action. All twelve returned **404** on 2026-08-19, with
-   `serde` at 200 through the same request as the control: `rustprop`,
+   check, not an action. All twelve returned **404** on 2026-08-19 (re-checked
+   on the R10 merge), with `serde` at 200 through the same request as the
+   control: `rustprop`,
    `rustprop-core`, `rustprop-data`, `rustprop-heos`, `rustprop-if97`,
    `rustprop-cubics`, `rustprop-incompressible`, `rustprop-pcsaft`,
    `rustprop-tabular`, `rustprop-svdsbtl`, `rustprop-humid-air`,
@@ -177,12 +201,14 @@ in order, with the checks and the resume story. The summary:
    app, not a deliverable crate, which also means `cargo install rustprop-cli`
    will not work.)
 2. **Add the `CARGO_REGISTRY_TOKEN` repository secret** that
-   `.github/workflows/release.yml` reads.
+   `.github/workflows/release.yml` reads. `gh secret list` is still **empty**.
 3. **Push `main`.** A *precondition*, not a nicety: `origin/main` is still
-   `d5a7331`, and local `main` has run well ahead of it, so CI has never seen
-   this tree. Tagging without pushing first would fire the release pipeline on
-   code no CI run has ever built — and would skip the first-ever run of the
-   `platform` job, which is the one that could still find something.
+   `d5a7331` and local `main` is **16 commits ahead** of it (at this writing),
+   so CI has never seen this tree — the newest CI run on record built
+   `d5a7331`. Tagging without
+   pushing first would fire the release pipeline on code no CI run has ever
+   built, and would skip the first-ever run of the `platform` job, which is the
+   one that could still find something.
 4. **Tag `v0.1.0` and push the tag**, which runs verify → crates.io publish →
    five wasm presets × three targets → CLI binaries for linux-x64 /
    macos-arm64 / windows-x64 → GitHub release.
@@ -205,9 +231,32 @@ dispatch run exercises verify + the five wasm bundles + all three CLI targets
 and publishes nothing. It has never been run even once; the first real tag
 would otherwise be the first execution of that pipeline.
 
-### (b) The R10 round — landed 2026-08-19
+### (b) Still doable in a session, and nobody has done it
 
-The Wave-4b R10 round is **done** (branch `r10-release`). What it produced,
+**Essentially nothing — and that is the finding.** The local verification
+surface is exhausted: every command in "The gate" above, plus all six heavy
+suites, plus the MSRV checks, the node smoke and the cold-cache dry-run, are
+green on this tree. What is left cannot be reached from a workstation:
+
+- **The three new CI jobs need a runner, and a runner needs a push.** `platform`
+  needs macOS and Windows hosts; `schedule-keepalive` needs a `schedule` event.
+  Neither can be simulated here, and pushing is (a)'s step 3.
+- **`release.yml` needs a dispatch**, which is a workflow run — an owner action
+  by policy, written out in `RELEASE-CHECKLIST.md` §3 rather than performed.
+- **Cross-compiling the off-Linux targets locally is not a substitute** even if
+  the toolchains were installed: the risk `platform` exists to cover is a
+  *libm* difference in the last bits of `exp`/`log`/`pow`, which only shows up
+  when the suite actually executes on that platform.
+
+The one open judgement call that needs a person rather than a machine: the
+**archived oracle wheel** (10.3 MB, `.git` 64 → 75 MB). It sits alone in commit
+`6f50785` specifically so it can be dropped before the first push if the owner
+would rather not carry a binary in history; the PLAN.md entry names the exact
+sentences that would then need deleting.
+
+### (b′) The R10 round — landed 2026-08-19, merged as `5c93a15`
+
+The Wave-4b R10 round is **done** and merged to `main`. What it produced,
 and what is left in each item:
 
 - **Supply chain — closed.** `deny.toml` is an exact licence allowlist over the
@@ -242,7 +291,9 @@ Also closed:
   from the in-process `WRITTEN` list, so regenerating one fixture *shrank* the
   manifest; `write_manifest()` now scans the fixture directory (and records the
   oracle's sha256). It lists all 123 files, and refreshing it no longer costs a
-  ~100 s tabular rebuild.
+  ~100 s tabular rebuild. Verified by counting rather than by reading the claim:
+  the manifest's `files` key and `ls tests/golden/fixtures/*.jsonl` are the same
+  123 names, set-for-set, with nothing missing on either side.
 - **`.gitignore`** now covers `release.yml`'s `pkg-<preset>-<target>` fan-out
   and the `rustprop-{wasm,cli}-*.tar.gz` archives it packages at the repo root.
 - **`CHANGELOG.md`** exists, with the divergences a consumer can actually hit
@@ -251,6 +302,33 @@ Also closed:
 The ranked candidate work further down this file (the answer-vs-refuse residue
 at unphysical inputs, the mixture-side memo, consumer documentation, a fifth
 sweep stream) is unchanged and none of it is required for a release either.
+
+**What changed since the Wave-4b statement.** Only the release *apparatus*
+changed; **the shipped numbers did not move**. No crate source, fixture or
+golden value differs from the Wave-4b tree — R10 touched workflows, docs, the
+generator's manifest writer, `deny.toml`, `.gitattributes`, `.gitignore` and
+`tools/dbg-pcsaft`'s manifest, and the record/fixture/test counts are unchanged
+at 41,629 / 123 / 134. Concretely:
+
+1. **A release blocker was found that testing could never have surfaced** — the
+   crates.io new-crate rate limit. Wave-4b's statement said the tree was ready
+   to tag; on the evidence it was ready to *half-publish*. This is the single
+   most important delta.
+2. **The supply-chain gate went from absent to real**, and is now part of the
+   gate command list rather than an aspiration.
+3. **The oracle stopped being un-reproducible.** Wave-4b identified it as
+   "CoolProp 8.0.0"; it is now pinned by the sha256 of the actual compiled
+   extension, archived, and checkable with one script.
+4. **Off-Linux went from untested to *scheduled to be tested***. That is a
+   smaller step than it sounds: the coverage does not exist until CI runs it.
+5. **The manifest stopped lying** (111 of 123 → 123 of 123), fixed at the
+   generator so the documented one-file regeneration recipe can no longer
+   shrink it.
+6. **Two counts corrected in the owner's favour**: "claim the crates.io names"
+   was wrong — crates.io has no reservation mechanism, so it is a re-check
+   immediately before tagging, not an action that can be completed in advance;
+   and `cargo install rustprop-cli` will not work, because the CLI is
+   `publish = false` and reaches users only as a release binary.
 
 ### (c) Known and accepted gaps
 

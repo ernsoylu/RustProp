@@ -2761,6 +2761,70 @@ Append-only; newest last. Seeded entries:
   re-check (crates.io has no reservation mechanism), and the gate list gained `cargo deny`.
   The README points at the changelog for the consumer-facing account.
 
+### 2026-08-19 — R10 integrated: verifying the claims instead of accepting them
+
+R10 landed on `main` as merge `5c93a15` (`--no-ff`, seven commits, 20 files,
++1402/−80). The integration deliberately **re-derived** every load-bearing claim
+rather than trusting the branch report, because R10's most valuable output was a
+*hazard* — a pipeline that would half-publish — and a hazard nobody re-checks is
+indistinguishable from a rumour. Four checks, all independent of R10's own tooling:
+
+- **The manifest drift.** Counted both sides rather than reading the fix: the
+  `files` key and `tests/golden/fixtures/*.jsonl` are the same 123 names,
+  set-for-set, nothing missing either way. (The bug was real — a `WRITTEN`-derived
+  manifest shrank to whatever the last partial regeneration touched.)
+- **The oracle chain.** Recomputed it end to end: `CP.__file__` in the generator's
+  venv is `CoolProp/CoolProp.abi3.so`, sha256 `05d85591…` (9,050,856 B); that is
+  byte-identical to the `.so` extracted from the archived wheel, whose own sha256
+  is `8ca1aefd…` (10,814,565 B); and `manifest.json`'s `oracle_sha256` is that
+  same digest. `verify-oracle.sh` agrees. So the chain fixture → manifest → wheel
+  closes without relying on any claim.
+- **The rate-limit finding.** Reproduced the *inputs*, not the conclusion. The
+  preflight's `cargo metadata --no-deps` + `select(.publish==null)` filter
+  resolves to exactly the twelve crates the dry-run uploads (excluding the six
+  `publish = false` members); a cold-cache `cargo publish --dry-run --workspace`
+  confirms the **upload** order — core, data, heos, if97, pcsaft, svdsbtl, cubics,
+  humid-air, incompressible, tabular, `rustprop`, `rustprop-wasm` — which differs
+  from the packaging order cargo prints first and does put the facade 11th, past a
+  burst of 5. All twelve names still 404 (`serde` 200 as control) and
+  `gh variable list` is empty, so `CRATES_IO_NEW_CRATE_BURST` defaults to 5 and
+  the `crates-io` job would refuse today. That is the guard working, not a defect.
+- **The pinned cargo-deny digest.** Re-downloaded the 0.20.2 musl tarball from the
+  GitHub release and hashed it: it matches the sha256 hard-coded in `ci.yml`, and
+  *that* binary produced "advisories ok, bans ok, licenses ok, sources ok". So the
+  `supply-chain` job's content is proven here even though the job never ran.
+
+Gate on the merge, both profiles: fmt, clippy, `cargo test --workspace
+--all-features` debug **and** `--release` (134 passed / 0 failed / 7 ignored over
+71 binaries, identical in both), datagen determinism, wasm32 `all-backends`,
+MSRV `+1.88` on both facades, wasm-pack node smoke (61 checks), CLI smoke
+(`373.12430000048056`), cargo-deny, cold-cache dry-run, and all six `#[ignore]`d
+sweeps run exactly as `ci.yml`'s `sweep` job runs them (acceptance 6,380 records
+over 8 engines, 3 pinned mixture divergences; acceptance_svdsbtl 995/1000 bitwise).
+
+Two things worth recording that the report did not say. First, the **seventh**
+ignored test — `rustprop-svdsbtl`'s `eval_from_env_artifact` — is a scratch
+harness gated on `RUSTPROP_SVDS`, not a heavy suite, so "six sweeps" and "seven
+ignored" are both correct and neither is a coverage gap. Second, `.gitattributes`
+introduces **no renormalisation churn**: the index holds zero CRLF and zero mixed
+files (563 `i/lf`, 136 `i/none` — the minified per-fluid JSON, which has no line
+endings at all — and 4 binary), and the archived wheel picks up the explicit
+`*.whl binary` rule while the three `.svds` fixtures rely on git's content
+heuristic, which currently detects them correctly.
+
+**Nothing shipped moved.** `git diff --name-only 3c4359a 5c93a15 -- crates apps
+data 'tests/golden/fixtures/*.jsonl'` is empty: R10 changed workflows, docs, the
+generator's manifest writer, `deny.toml`, `.gitattributes`, `.gitignore` and
+`tools/dbg-pcsaft`'s manifest, and nothing else. Record/fixture/test counts are
+unchanged at 41,629 / 123 / 134. `NEXT-STEPS.md`'s Release readiness was restated
+in place on that basis, and its section (b) now answers "what is still doable in a
+session" with the honest answer — essentially nothing, because everything that
+remains needs a runner or the owner's credentials. Note that the **Status**
+paragraph below still says "claiming the crates.io names"; it predates R10's
+finding that crates.io has no reservation mechanism, and it is left as written
+because this log is append-only. `NEXT-STEPS.md`, which it defers to, carries the
+correction: that step is a re-check immediately before tagging, not an action.
+
 ---
 
 ## Status: all fifteen phases complete
