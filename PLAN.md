@@ -2559,14 +2559,58 @@ Append-only; newest last. Seeded entries:
   file needs all of them touched in the commit that moves it, and the cheap way to catch a
   miss is to re-derive rather than re-read.
 
+- 2026-08-19 — **Wave-4b integration, part 2: R12's claims re-measured, not accepted, and the
+  release readiness restated.** A report is evidence about a measurement, not the
+  measurement, so all three of R12's headline claims were re-derived from the wheel and the
+  built CLI before the merge was blessed. (1) **The fixture is real oracle output**: all 175
+  records of `px_refusal_parity.jsonl` replay against the shipped 8.0.0 wheel with 128
+  answers **bitwise identical** and 47 refusal messages **verbatim**, zero mismatches — a
+  fixture that had been hand-written or mis-generated could not do that. (2) **The Air band
+  reproduces digit for digit.** Both classification edges were re-bisected independently on
+  both sides at the same nine pressures: the upper edge is bitwise identical wheel-vs-port
+  at **all nine**, and the lower edge differs by 7.89e-9 / 8.55e-9 / 1.62e-8 / 3.03e-8 /
+  1.55e-8 / 5.35e-7 / 2.24e-6 / 4.86e-8 / 1.36e-8 relative — the same numbers R12 reported,
+  worst absolute 7.08e-9 of the dome. (3) **The MethylLinoleate knife-edge is sharper than
+  R12 stated, in the port's favour.** Bisecting the wheel's own refusal edge in ulps of h
+  (rather than probing at ±10,000 as R12 did) puts it **614 ulp** below the Q = 0 enthalpy
+  the wheel itself serves: at `h0 − 614` the WHEEL refuses with "rhomolar is less than
+  zero", the very message the port gives at `h0`. Bisecting the port's edge the same way
+  puts it at `h0 + 9,435`. So the disagreement window is 10,048 ulp of h wide, and one ulp
+  of h is 2.90e-16 of the dome, i.e. the two implementations' `q = 0` crossings sit 2.9e-12
+  apart — which is the 2.0e-12 Chebyshev extrapolation residue R12 root-caused, arriving
+  from an independent direction. The wheel is 614 ulp from refusing at a state it serves;
+  neither implementation has a defensible answer there. Two numbers in R12's own prose are
+  off and are corrected in passing: `rho_V` at that state is 1.6e-10 **kg/m³** (5.50e-10
+  mol/m³), not mol/m³, and `manifest.json` lists **111** of the 123 fixtures, not 110.
+  Independently confirmed alongside: `cargo publish --dry-run --workspace` from purged
+  caches (`target/package` plus both `~/.cargo/registry` layers) packages, verifies and
+  aborts the upload for all twelve publishable crates; all twelve names still return 404 on
+  crates.io with `serde` at 200 as the control; no tag exists locally or on `origin`; there
+  are no GitHub releases; and the `release` workflow has **never** run — so nothing is
+  published or half-published. The **Wave-4b R10 round never landed** (no branch, no
+  commits, no dangling objects newer than 2026-08-18, no report), so its four items —
+  supply-chain gating, off-Linux platform tests, oracle archival, a release checklist — are
+  restated as open in `NEXT-STEPS.md`'s new **Release readiness** section, which supersedes
+  the Wave-4 "Blocked on the owner" block. The substantive additions there: pushing `main`
+  is now a *precondition* for tagging (`origin/main` is six commits behind, so CI has never
+  built this tree), a `workflow_dispatch` run of `release.yml` is a free rehearsal because
+  its `crates-io` job is gated on a `refs/tags/v` ref, and the oracle wheel's identity is
+  recorded for the first time (`CoolProp.abi3.so` sha256
+  `05d85591871524e83bb23170e22ee149e1167fb3ef5deaf81b9d248283089be5`, tag
+  `cp312-abi3-manylinux_2_17_x86_64`, `__gitrevision__` `ae81610e…`) — every golden in the
+  tree came from that one binary, and `requirements.txt` pins only `CoolProp==8.0.0`.
+
 ---
 
 ## Status: all fifteen phases complete
 
 Every checkbox above is ticked and every phase gate has passed. What remains is
-not implementation: claiming the crates.io names and adding the
-`CARGO_REGISTRY_TOKEN` secret, then tagging `v0.1.0`. Both need the owner's
-credentials, and publication cannot be undone.
+not implementation: claiming the crates.io names, adding the
+`CARGO_REGISTRY_TOKEN` secret, pushing `main` so CI builds the tree that will
+ship, then tagging `v0.1.0`. Those need the owner's credentials, and
+publication cannot be undone. `NEXT-STEPS.md`'s **Release readiness** section
+is the current statement of what is green, what is still open, and what is an
+accepted gap.
 
 ## Handoff
 

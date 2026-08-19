@@ -4,9 +4,11 @@ Read this first when picking the work back up. `PLAN.md` is the phase-by-phase
 roadmap and its Decisions log is the authoritative record of *why* things are
 the way they are; this file is the short version plus the open ends.
 
-Last updated: 2026-08-19, after Wave-4 R12 (registry-wide (P,X) refusal
-parity, the superancillary inverse's TOMS748, the assertion audit). See the
-dated blocks in PLAN.md's Decisions log for the full record of each round.
+Last updated: 2026-08-19, after the Wave-4b integration — R12 merged
+(registry-wide (P,X) refusal parity, the superancillary inverse's TOMS748, the
+assertion audit), its claims re-measured independently, and the release
+readiness restated below. See the dated blocks in PLAN.md's Decisions log for
+the full record of each round.
 
 ---
 
@@ -94,31 +96,148 @@ decision D8). Three waves have landed, each with the full gate green:
   R12 also closed the superancillary inverse's bisection stand-in (upstream
   calls boost TOMS748 there) and audited every exact/≤1e-12 assertion in the
   suite, relaxing the one that pinned a tabular density bitwise.
+- **Wave-4b integration** — R12 merged, and its three headline claims
+  re-measured from scratch rather than taken on report. All 175 fixture records
+  replay from the wheel exactly (128 answers bitwise, 47 refusal messages
+  verbatim); both Air band edges were re-bisected on both sides at nine
+  pressures and reproduce R12's table digit for digit (upper edge bitwise
+  everywhere, lower edge worst 2.24e-6 relative / 7.08e-9 absolute in quality);
+  and the MethylLinoleate knife-edge was re-derived, which sharpened it — the
+  wheel's own refusal edge is **614 ulp** below the Q = 0 enthalpy it serves,
+  the port's is 9,435 ulp above it, so the disagreement window is 10,048 ulp of
+  h ≈ 2.9e-12 of quality, and the wheel refuses with the port's exact message
+  just outside it. The size table and the oracle-record counters had drifted
+  and were re-measured (see the Decisions log).
 
 ---
 
-## Blocked on the owner
+## Release readiness
 
-Two things cannot be done from a coding session. Both are irreversible, which
-is why they were left alone.
+**Restated 2026-08-19 after the Wave-4b integration, superseding the Wave-4
+version.** Everything below was re-derived on the merged tree that day rather
+than carried forward: the gate was re-run in both profiles plus all six heavy
+suites, the dry-run was re-run with its caches purged, and the publication
+state was re-checked against crates.io and GitHub directly.
 
-1. **Claim the crates.io names.** Every `rustprop*` name was verified free
-   (control-checked against `serde`, which returns 200 through the same
-   request). `rustprop` and `rustprop-wasm` are also free on npm.
-2. **Add the `CARGO_REGISTRY_TOKEN` repository secret**, which
+**What is green, measured on this tree** (the shipped code is identical from
+the merge commit onward — the commits after it touch only documents)**:**
+`fmt --check`, `clippy --workspace
+--all-targets --all-features -D warnings`, `cargo test --workspace
+--all-features` in **debug** (134 tests across 71 binaries) and in
+**`--release`** (the same 134), the datagen determinism check (regenerate →
+empty diff), the wasm32 `all-backends` release build, all six `#[ignore]`d
+weekly suites in release (acceptance 6,380 records / 3 pinned mixture
+divergences), `cargo publish --dry-run --workspace` from purged caches
+(12 crates packaged, verified, upload aborted), the MSRV job's
+`cargo +1.88 check` on both shipped facades, and `wasm-pack --target nodejs` +
+`node tests/wasm-smoke/smoke.mjs` (61 checks).
+
+What could **not** be run here, and is therefore only ever green on a runner:
+the macOS and Windows CLI builds in `release.yml`'s `cli-binaries` matrix, the
+five-preset × three-target wasm bundle matrix, and the crates.io upload itself.
+`cargo-deny` is not installed and there is no `deny.toml`, so the supply-chain
+gate has nothing to run either way — see (b).
+
+### (a) Owner-only, and irreversible
+
+Unchanged in substance since Wave 4 — re-verified, not assumed:
+
+1. **Claim the twelve crates.io names.** All twelve still return **404** as of
+   2026-08-19, with `serde` returning 200 through the same request as the
+   control: `rustprop`, `rustprop-core`, `rustprop-data`, `rustprop-heos`,
+   `rustprop-if97`, `rustprop-cubics`, `rustprop-incompressible`,
+   `rustprop-pcsaft`, `rustprop-tabular`, `rustprop-svdsbtl`,
+   `rustprop-humid-air`, `rustprop-wasm`. (`rustprop-cli` is `publish = false`
+   — it is the example app, not a deliverable crate.)
+2. **Add the `CARGO_REGISTRY_TOKEN` repository secret** that
    `.github/workflows/release.yml` reads.
-
-Then tagging `v0.1.0` runs the release pipeline: verify job → crates.io
-publication → five wasm presets across three targets → CLI binaries for
-linux-x64 / macos-arm64 / windows-x64 → GitHub release.
+3. **Push `main`.** This is new since Wave 4 and it is a *precondition*, not a
+   nicety: `origin/main` is still `d5a7331`, seven commits behind, so CI has
+   never seen the Wave-4b tree. Tagging without pushing first would fire the
+   release pipeline on code no CI run has ever built.
+4. **Tag `v0.1.0` and push the tag**, which runs verify → crates.io publish →
+   five wasm presets × three targets → CLI binaries for linux-x64 /
+   macos-arm64 / windows-x64 → GitHub release.
 
 ```bash
+git push origin main            # let CI go green on the real tree first
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-A crates.io version can be yanked but never replaced, so the `verify` job
-re-runs fmt, clippy, the full test suite and `cargo publish --dry-run
---workspace` before anything is uploaded.
+Nothing has been published and nothing is half-published: **no tags exist**
+locally or on `origin`, there are **no GitHub releases**, and the `release`
+workflow has **never run** — the Actions history is CI runs only. A crates.io
+version can be yanked but never replaced, which is why the `verify` job re-runs
+fmt, clippy, the release-profile suite and the dry-run before anything uploads.
+
+One de-risking step is available to the owner and costs nothing irreversible:
+after pushing `main`, **`workflow_dispatch` the release workflow**. The
+`crates-io` job is gated on `startsWith(github.ref, 'refs/tags/v')`, so a
+dispatch run exercises verify + the five wasm bundles + all three CLI targets
+and publishes nothing. It has never been run even once; the first real tag
+would otherwise be the first execution of that pipeline.
+
+### (b) Doable in a session — nobody has done these
+
+The Wave-4b R10 round (release checklist, oracle archival, platform tests,
+supply chain) **never landed**: no branch, no commits, no report. Its four
+items are still open, and none of them blocks a release:
+
+- **Supply chain.** There is no `deny.toml` and no `cargo-deny` / `cargo-audit`
+  step in CI. The surface is genuinely small — `wasm-bindgen` is the only
+  external dependency in any shipped crate — so what a gate buys here is
+  licence and advisory *monitoring*, not a big attack surface today.
+- **Platform coverage.** `ci.yml` runs the suite on `ubuntu-latest` only.
+  `release.yml` *builds* the CLI on macOS and Windows but never *runs* the
+  tests there, so no floating-point result in this port has ever been checked
+  off Linux/x86-64. Given how much of the suite asserts at 1e-12 and tighter,
+  that is the highest-value item in this list.
+- **Oracle archival.** `tools/golden-gen/requirements.txt` pins
+  `CoolProp==8.0.0` by version only, and the `.venv` is gitignored. Every
+  golden in the tree came from one specific binary — the wheel whose
+  `CoolProp.abi3.so` is sha256
+  `05d85591871524e83bb23170e22ee149e1167fb3ef5deaf81b9d248283089be5`, tag
+  `cp312-abi3-manylinux_2_17_x86_64`, `__gitrevision__`
+  `ae81610e7d23efc57f9d051c8e70a4d66e87537f` — and that identity is recorded
+  nowhere in the repository. It matters more here than in a normal project,
+  because this port deliberately follows the *wheel* where it disagrees with
+  the v8.0.0 tag source (see the wheel-vs-tag note below). Recording the hash,
+  and ideally a `--require-hashes` install, makes regeneration reproducible on
+  another machine.
+- **A release checklist document.** The steps live in this section and in
+  `release.yml`; there is no single checklist the owner ticks through.
+
+Also open, and found while verifying Wave-4b:
+
+- **`tests/golden/fixtures/manifest.json` lists 111 of the 123 fixture files.**
+  The twelve missing are the heavy generators' outputs (`acceptance_sweep`,
+  `acceptance_tabular`, `acceptance_svdsbtl`, `tabular_*`, `ttse`, `bicubic`,
+  `svdsbtl`, `pcsaft_flash`, `partial_derivs`, `validity`). Pre-existing drift,
+  not R12's; closing it means a full `gen_fixtures.py` run, which rebuilds the
+  ~100 s tabular tables.
+
+The ranked candidate work further down this file (the answer-vs-refuse residue
+at unphysical inputs, the mixture-side memo, consumer documentation, a fifth
+sweep stream) is unchanged and none of it is required for a release either.
+
+### (c) Known and accepted gaps
+
+Not restated here — they have their own tables, and each is asserted somewhere
+so it can neither widen nor silently heal:
+
+- **Known divergences from upstream** (the table below), now including R12's
+  MethylLinoleate row: one state in 157,374 where the wheel answers and the
+  port refuses.
+- **Unported by design** (the list below): the SVDSBTL builder and its critical
+  patch, mixture phase-envelope machinery and mixture `HS_flash`, third-order /
+  PSI mixture derivatives, Ammonia's Tillner-Roth alternate EOS, the REFPROP
+  backend.
+- **The tabular msgpack+zlib disk cache**, which costs ~100 s per process for a
+  LogPH build. WASM has no home directory; this is the one gap a consumer
+  actually feels.
+- **`HAPropsSI` returns `Result` rather than upstream's `+inf`-with-a-global**,
+  and pseudo-pure fluids serve PT/PQ/QT plus the four classic-ancillary caloric
+  pairs while the rest refuse loudly.
 
 ---
 

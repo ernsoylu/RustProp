@@ -50,8 +50,11 @@ driven by an external consumer (see below).
 | Bundle sizes | measured in `WASM-SIZES.md` — 128 KB (IF97) to 4.2 MB (all-backends) |
 
 **Blocked on the owner, and only on the owner**: claim the crates.io names, add
-the `CARGO_REGISTRY_TOKEN` secret, then tag `v0.1.0`. Publication is
-irreversible; nothing else stands between the tree and a release.
+the `CARGO_REGISTRY_TOKEN` secret, **push `main`** (CI has never built this
+tree), then tag `v0.1.0`. Publication is irreversible; nothing else stands
+between the tree and a release. The full statement — what is green, what is
+still doable in a session, what is an accepted gap — is `NEXT-STEPS.md`'s
+**Release readiness** section.
 
 Nothing from `NEXT-STEPS.md` or `PLAN.md` is restated below, on purpose: this
 file goes stale the moment it duplicates them.
@@ -118,6 +121,12 @@ Decisions log.
   the acceptance sweep widened to 6,380 with pseudo-pure caloric draws; and the
   six Phase-4.8 fixture batteries that no test had ever read wired in, which
   exposed upstream's PT stale-cache quirk (`heos_pt.rs`).
+- **Wave 4 / 4b** — registry-wide `(P, caloric)` refusal parity (136 fluids ×
+  157,374 states; the Air `(P,h)` band proved to be upstream parity, one
+  MethylLinoleate knife-edge pinned as the single registry-wide divergence),
+  the superancillary inverse's TOMS748 closure, the assertion audit — then the
+  integration round that re-measured all of it independently and restated the
+  release readiness.
 
 ## Toolchain
 
