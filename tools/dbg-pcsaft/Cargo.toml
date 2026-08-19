@@ -1,10 +1,17 @@
 [package]
 name = "dbg-pcsaft"
-version = "0.1.0"
-edition = "2021"
+description = "Scratch binary for inspecting PC-SAFT intermediates against upstream"
 publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
-rustprop-core = { path = "../../crates/rustprop-core" }
-rustprop-pcsaft = { path = "../../crates/rustprop-pcsaft" }
-rustprop-data = { path = "../../crates/rustprop-data", features = ["pcsaft-fluids"] }
+rustprop-core.workspace = true
+rustprop-pcsaft.workspace = true
+rustprop-data = { workspace = true, features = ["pcsaft-fluids"] }
+
+[lints]
+workspace = true

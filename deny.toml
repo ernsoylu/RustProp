@@ -1,0 +1,69 @@
+# cargo-deny configuration — supply-chain gate for the workspace.
+#
+# What this is guarding. The SHIPPED crates have exactly one external
+# dependency between them: `wasm-bindgen`, in `rustprop-wasm`. Everything
+# else in the graph below is dev/test/tooling only — serde + serde_json for
+# the golden harness and the datagen tools, rmpv/flate2 for reading
+# upstream's msgpack tabular blobs in `rustprop-svdgen`. So the value here is
+# not a large attack surface; it is *monitoring*: an advisory filed against
+# wasm-bindgen, or a licence change anywhere in the graph, should turn CI red
+# the week it happens rather than the day someone audits the tree by hand.
+#
+# Run it exactly as CI does:
+#   cargo deny --workspace --all-features check
+#
+# NEVER silence a finding to make this gate green. If an advisory fires,
+# either upgrade or record the decision (with its reasoning) in PLAN.md's
+# Decisions log alongside the `ignore` entry that carries the advisory id.
+
+[graph]
+# Check every target the project actually builds for. Anything not listed is
+# still resolved by `cargo deny` for the license/ban checks; this list keeps
+# platform-gated advisories relevant.
+targets = [
+    "wasm32-unknown-unknown",  # the primary deliverable
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[advisories]
+# Fail on any RustSec advisory, including unmaintained/unsound ones. There
+# are none as of 2026-08-19 (checked locally against advisory-db).
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+# Every entry below was observed in the resolved graph on 2026-08-19; the
+# list is deliberately an exact allowlist, not a category filter, so a new
+# licence in the tree fails the gate and gets a human decision.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "MIT",
+    "Unicode-3.0",  # unicode-ident's data tables
+    "Unlicense",    # memchr, dual-licensed with MIT
+    "Zlib",         # miniz_oxide, triple-licensed with MIT/Apache-2.0
+]
+# The project itself is MIT (see the workspace manifest); confidence stays at
+# cargo-deny's default 0.8 so a mangled licence file is a finding, not a pass.
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# `syn` legitimately resolves to both 2.x and 3.x: proc-macro2/quote pull 2.x
+# while serde_derive has moved to 3.x. Two copies of a proc-macro dependency
+# cost build time only — no shipped crate links either one.
+skip = [{ crate = "syn", reason = "proc-macro-only; 2.x and 3.x coexist in the build graph" }]
+
+[sources]
+# crates.io only. No git dependencies, no alternative registries — a
+# published crate cannot depend on either, and this makes that structural.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

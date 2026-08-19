@@ -2600,6 +2600,44 @@ Append-only; newest last. Seeded entries:
   `cp312-abi3-manylinux_2_17_x86_64`, `__gitrevision__` `ae81610e…`) — every golden in the
   tree came from that one binary, and `requirements.txt` pins only `CoolProp==8.0.0`.
 
+- 2026-08-19 — **R10, part 1: the supply-chain gate, and the two loose ends it sits next
+  to.** `deny.toml` is an exact licence **allowlist**, not a category filter
+  (`allow-osi-fsf-free` and friends), so that a licence appearing in the graph for the first
+  time fails the gate and gets a human decision instead of being waved through by a
+  category. The resolved graph is 29 external crates and every one is permissive: the six
+  distinct terms are `0BSD`, `Apache-2.0`, `MIT`, `Unicode-3.0` (unicode-ident's tables),
+  `Unlicense` (memchr, dual with MIT) and `Zlib` (miniz_oxide, triple with MIT/Apache-2.0).
+  Advisories: **zero**, checked against RustSec's advisory-db on the day. `bans` allows the
+  one genuine duplicate — `syn` 2.x (proc-macro2/quote) alongside 3.x (serde\_derive) — with
+  the reason recorded inline, because both are proc-macro-only and no shipped crate links
+  either. `sources` denies git and non-crates.io registries outright, which is structural
+  rather than aspirational: a published crate cannot depend on either.
+  **CI installs cargo-deny by pinned tarball + sha256 rather than using
+  `EmbarkStudios/cargo-deny-action`**, on the grounds that a supply-chain gate should not
+  itself introduce an unpinned Docker action, and that the pinned binary
+  (`0.20.2-x86_64-unknown-linux-musl`, sha256 `9f12ed4c…`, matching the digest the release
+  publishes alongside it) is the exact binary whose verdict was reproduced locally.
+  Two real findings came out of the first run, both fixed at source rather than silenced:
+  `tools/dbg-pcsaft` carried **no licence field** and three **wildcard path dependencies**
+  (`path = …` with no `version`), because it was the one crate in the workspace that never
+  got the workspace-inherited metadata treatment. It now inherits version/edition/licence/
+  repository/lints like every other tool crate; the edition moved 2021 → 2024 in the process
+  and it still compiles clean under `-D warnings`.
+  Alongside, the two loose ends: **`manifest.json`'s drift is fixed at the generator.** The
+  manifest listed 111 of 123 fixtures because its `files` key came from `WRITTEN`, the
+  in-process list of files that particular run touched — so the documented one-file
+  regeneration recipe silently *shrank* the manifest, and the twelve heavy generators'
+  outputs had never been in a run that also rewrote it. `write_manifest()` now scans
+  `FIXTURES.glob("*.jsonl")`, which cannot under-report, and is callable on its own so the
+  manifest can be refreshed without rebuilding the ~100 s tabular tables. It also records
+  the oracle's identity now — `oracle_sha256` (the compiled extension module,
+  `05d85591…`), `coolprop_gitrevision` and the Python version — so every future
+  regeneration says which binary answered. And `.gitignore` gained
+  `/crates/rustprop-wasm/pkg-*`, which subsumes the three hand-listed `pkg-node`/`pkg-size`
+  entries and covers `release.yml`'s five-preset × three-target `pkg-<preset>-<target>`
+  fan-out, plus the `rustprop-{wasm,cli}-*.tar.gz` archives that workflow packages at the
+  repo root — all of which would otherwise land untracked in a release-rehearsal tree.
+
 ---
 
 ## Status: all fifteen phases complete

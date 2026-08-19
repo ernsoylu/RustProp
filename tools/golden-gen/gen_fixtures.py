@@ -11,6 +11,7 @@ Fixture record schema (JSON Lines, one object per line):
 PropsSI(out, name1, val1, name2, val2, "backend::fluid").
 """
 
+import hashlib
 import json
 import math
 import platform
@@ -3144,6 +3145,42 @@ def write_jsonl(name, rows):
     WRITTEN.append(name)
     print(f"wrote {len(rows):4d} records -> {name}")
 
+
+def oracle_sha256():
+    """sha256 of the compiled CoolProp extension that answered every call.
+
+    The whole port is calibrated against ONE binary — this project follows the
+    shipped wheel where it disagrees with the v8.0.0 tag source (NEXT-STEPS.md,
+    "Wheel-vs-tag discoveries"), so "CoolProp 8.0.0" alone does not identify
+    the oracle. Recording the hash here means every regeneration says which
+    binary it came from. See tools/golden-gen/ORACLE.md.
+    """
+    return hashlib.sha256(Path(CP.__file__).read_bytes()).hexdigest()
+
+
+def write_manifest():
+    """Describe the fixture directory AS IT IS ON DISK.
+
+    Deliberately a directory scan rather than the in-process `WRITTEN` list:
+    regenerating one fixture (or any subset — the documented one-file recipe in
+    NEXT-STEPS.md) is the normal working mode, and a `WRITTEN`-derived manifest
+    silently SHRANK to whatever that run happened to touch. That is exactly how
+    the committed manifest came to list 111 of 123 files, missing every heavy
+    generator's output. A scan cannot under-report.
+    """
+    manifest = {
+        "generator": "tools/golden-gen/gen_fixtures.py",
+        "coolprop_version": CoolProp.__version__,
+        "coolprop_gitrevision": CoolProp.__gitrevision__,
+        "upstream_tag": "v8.0.0",
+        "oracle_sha256": oracle_sha256(),
+        "python": platform.python_version(),
+        "platform": f"{platform.system()}-{platform.machine()}",
+        "files": sorted(p.name for p in FIXTURES.glob("*.jsonl")),
+    }
+    (FIXTURES / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    print(f"wrote manifest -> {len(manifest['files'])} fixture files")
+
 # Tiny HEOS::Water smoke set proving generator + harness plumbing (PLAN 0.4).
 # Phase-specific suites (IF97, HEOS grids, ...) supersede it for coverage.
 WATER_SMOKE = [
@@ -3231,14 +3268,7 @@ def main():
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))
     write_jsonl("phases.jsonl", dump_phases())
 
-    manifest = {
-        "generator": "tools/golden-gen/gen_fixtures.py",
-        "coolprop_version": CoolProp.__version__,
-        "upstream_tag": "v8.0.0",
-        "platform": f"{platform.system()}-{platform.machine()}",
-        "files": sorted(WRITTEN),
-    }
-    (FIXTURES / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    write_manifest()
 
 
 if __name__ == "__main__":
