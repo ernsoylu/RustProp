@@ -2415,6 +2415,40 @@ Append-only; newest last. Seeded entries:
   standing lesson generalises: gate on the profile CI gates on, and never assert bitwise
   equality on an iteratively solved root.
 
+- 2026-08-19 — **Wave-4 integration: the shipped size numbers had gone stale, and one doc
+  contradicted the code.** No engine line changed in this round; the tree is functionally
+  identical to `d5a7331`. Three documentation defects were found while gating and fixed:
+  (1) `WASM-SIZES.md` was last regenerated at `f1890f3`, before Waves 1–3, so **every row
+  understated what a browser downloads** — HEOS-bearing bundles by up to +7.2% (heos+Water
+  317,640 → 340,597 B; refrigerants 396,057 → 419,017; pcsaft+heos 418,317 → 441,299;
+  cubics 161,460 → 172,177; all-backends 4,331,706 → 4,360,609). Regenerated with
+  `tools/wasm-size-table.sh`; README's two quoted figures moved with it. Sizes are
+  deterministic, so a loaded box does not invalidate them. (2) README claimed "~39,100
+  committed oracle records"; the tree holds **41,454 in 122 fixtures**, which is what
+  NEXT-STEPS.md and CLAUDE.md already said. (3) `d5a7331` relaxed `heos_pt`'s 218 density
+  records from bitwise to 1e-13 and recorded that here and in the test, but **NEXT-STEPS.md's
+  divergence table still said "asserted BITWISE"** — the front-door document contradicting
+  the code it describes. Corrected, with the reason and the debug/release counts inline.
+  The generalisable point: a number quoted in more than one file needs the regeneration
+  command committed next to it, and the size table has one — it just was not run.
+
+- 2026-08-19 — **The five release presets in `release.yml` had never been built.** CI only
+  ever builds `if97,heos,water,humid-air` (the Node smoke bundle), so the `wasm-bundles`
+  matrix was unexercised, and the `refrigerants` preset uses a feature syntax nothing else
+  in the repo uses (`--features heos,rustprop-data/r134a,...`, reaching an OPTIONAL
+  dependency of `rustprop-wasm` from the command line). Built all five against `--target
+  web` and checked the emitted `rustprop_wasm.js` for real exports: all five link and
+  export what they should (`humid-air` exports `ha_props_si` + `upstream_version` only,
+  correctly — it carries no `props_si` engine). `refrigerants` links exactly R134a/R32/
+  R125/R1234yf and their CAS strings and NOT Water/Ammonia/CO2, confirming per-fluid data
+  selection survives the indirect feature path. `cargo build -p rustprop-cli --release
+  --features rustprop/all-backends` (the `cli-binaries` job's spec, also never run) is
+  green. This closes the build half of 15.2's verify clause; the "install from the
+  artifact and compute a golden value" half still needs a real `workflow_dispatch` run,
+  which is the owner's to trigger. Minor: `.gitignore` covers `pkg`/`pkg-node`/`pkg-size`
+  but not `release.yml`'s `pkg-<preset>-<target>` output, so a local rehearsal dirties the
+  tree.
+
 ---
 
 ## Status: all fifteen phases complete

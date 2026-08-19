@@ -6,12 +6,12 @@ i.e. what a browser actually downloads.
 
 | feature set | bytes | KB |
 |---|---:|---:|
-| if97 | 130796 | 127.7 |
-| heos + Water | 317640 | 310.2 |
-| heos + refrigerants (R134a, R32, R125, R1234yf) | 396057 | 386.8 |
-| humid-air | 235484 | 230.0 |
-| cubics (116 fluids) | 161460 | 157.7 |
-| incompressible (126 fluids) | 187417 | 183.0 |
-| pcsaft (180 fluids) + heos | 418317 | 408.5 |
-| heos + all 130 fluids | 3688781 | 3602.3 |
-| all-backends | 4331706 | 4230.2 |
+| if97 | 130908 | 127.8 |
+| heos + Water | 340597 | 332.6 |
+| heos + refrigerants (R134a, R32, R125, R1234yf) | 419017 | 409.2 |
+| humid-air | 244527 | 238.8 |
+| cubics (116 fluids) | 172177 | 168.1 |
+| incompressible (126 fluids) | 187595 | 183.2 |
+| pcsaft (180 fluids) + heos | 441299 | 431.0 |
+| heos + all 130 fluids | 3714726 | 3627.7 |
+| all-backends | 4360609 | 4258.4 |
