@@ -290,8 +290,13 @@ for c in rustprop-core rustprop-data rustprop-heos rustprop-if97 rustprop-pcsaft
 done
 ```
 
-**Do not simply re-run the job.** `cargo publish --workspace` will try the
-already-published crates again and fail on "crate version already uploaded".
+**Do not count on simply re-running the job.** `cargo publish --workspace`
+re-attempts every member, and crates.io rejects a version that already exists
+("crate version `0.1.0` is already uploaded"). Whether cargo filters those out
+before uploading or surfaces the rejection **could not be determined from the
+development machine** — neither `cargo publish --help` nor the cargo book says,
+and testing it requires a real partial publish. Plan for the failure; if a
+plain re-run happens to work, nothing is lost.
 
 **Resume**, from a clean checkout of the tagged commit, excluding what is
 already live:
@@ -323,9 +328,9 @@ registry is complete, re-run the failed jobs:
 gh run rerun <run-id> --failed -R ernsoylu/RustProp
 ```
 
-The preflight will now see zero new crates and pass, but `cargo publish
---workspace` will still fail on the already-uploaded versions. The pragmatic
-finish is to create the release from the artifacts by hand:
+The preflight will now see zero new crates and pass. If `cargo publish
+--workspace` still refuses the already-uploaded versions, the pragmatic finish
+is to create the release from the artifacts by hand:
 
 ```bash
 gh run download <run-id> -R ernsoylu/RustProp -D artifacts
@@ -376,6 +381,8 @@ documentation, not observed:
   deployed values are not observable from outside.
 - **The crates.io upload itself** — obviously — and therefore the resume
   procedure in §6, which is derived from `cargo publish --help` and the
-  observed dry-run ordering, not from a real partial publish.
+  observed dry-run ordering, not from a real partial publish. In particular,
+  **what `cargo publish --workspace` does when some members are already
+  published is unknown**; §6 assumes the pessimistic answer.
 - **The macOS and Windows CLI builds and the 5×3 wasm bundle matrix** in
   `release.yml` have never been built anywhere.

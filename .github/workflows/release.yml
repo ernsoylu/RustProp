@@ -97,10 +97,11 @@ jobs:
       # --workspace resolves the dependency order itself, so the crates go up
       # bottom-first without a hand-maintained list that would rot.
       #
-      # If this DOES fail partway anyway, do not re-run the job as-is: the
-      # already-uploaded versions make `--workspace` fail immediately. Resume
-      # with `--exclude` per published crate — RELEASE-CHECKLIST.md has the
-      # upload order and the exact command.
+      # If this DOES fail partway anyway, do not count on re-running the job:
+      # crates.io rejects an already-uploaded version, and whether cargo
+      # filters those out first is not something this repository has ever
+      # observed. Resume with `--exclude` per published crate —
+      # RELEASE-CHECKLIST.md has the upload order and the exact command.
       - run: cargo publish --workspace
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

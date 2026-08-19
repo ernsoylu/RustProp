@@ -127,6 +127,15 @@ Decisions log.
   the superancillary inverse's TOMS748 closure, the assertion audit — then the
   integration round that re-measured all of it independently and restated the
   release readiness.
+- **R10 (release engineering)** — the golden suites finally run off
+  Linux/x86-64 (`ci.yml`'s `platform` job, macOS-arm64 + Windows-x64; never
+  executed yet), a `cargo-deny` supply-chain gate, the oracle pinned by sha256
+  and archived in-repo, a `schedule-keepalive` alarm so the weekly sweep cannot
+  die quietly, `RELEASE-CHECKLIST.md`, `CHANGELOG.md` — and the finding that
+  matters most: **crates.io's new-crate rate limit (burst 5, one per 10 min)
+  would have half-published this 12-crate workspace on the first tag.**
+  `release.yml`'s `crates-io` job now refuses to start in that state. Read
+  `RELEASE-CHECKLIST.md` §0 before anything release-shaped.
 
 ## Toolchain
 
