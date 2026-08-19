@@ -3091,9 +3091,11 @@ def gen_px_refusal_parity():
 
     **The Air low-quality band.** Wave-3's F8 saw the port refuse `(P, Hmass)`
     for Air in a low-quality window and declined to call that upstream parity
-    without checking. It is: bisecting the classification boundary on both
-    sides puts the flip points within 1e-11 relative of each other at every
-    pressure from 1 bar to 0.9999*pcrit. The band exists because upstream's
+    without checking. It is: bisecting the two classification boundaries on
+    both sides at 1, 2, 5, 7, 20 bar and 0.8/0.95/0.99/0.999*pcrit puts the
+    UPPER edge bitwise identical at all nine pressures and the lower edge
+    within 7.4e-13 to 7.1e-9 of the dome width. The band exists because
+    upstream's
     `HSU_P_flash` hands `HSU_P_flash_singlephase_Brent` a gas-branch bracket
     [Tsat(p), 1.5*Tmax] whose residual does not change sign, and the ladder
     that follows — Halley from the better endpoint, then the

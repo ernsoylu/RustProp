@@ -15,13 +15,18 @@
 //! and TOMS748 never runs; upstream falls to `Halley` from whichever endpoint
 //! has the smaller residual, which walks out of range, and then — only when
 //! `p > 0.95*pcrit` — to a 2-D Newton that also fails. The port stops at the
-//! bracket test, because neither continuation is ported. Bisecting the
-//! classification boundary on both sides puts the flip points within 1e-11
-//! relative of each other at 1, 2, 5, 7, 20 bar, 0.8/0.95/0.99/0.999*pcrit, so
-//! the two implementations refuse over the same band for the same reason: the
-//! unported ladder never rescues a state, it only changes the message. The
-//! MESSAGES are therefore NOT asserted (the PY-flash text divergence in
-//! NEXT-STEPS covers that); the classification is.
+//! bracket test, because neither continuation is ported.
+//!
+//! Bisecting the two classification boundaries on both sides, at 1, 2, 5, 7,
+//! 20 bar and 0.8/0.95/0.99/0.999*pcrit: the UPPER edge (where the gas bracket
+//! starts to contain the root) is BITWISE identical on both sides at all nine
+//! pressures, and the lower edge — the one at the very bottom of the dome,
+//! where the classification turns on solver noise — agrees to between 7.4e-13
+//! and 7.1e-9 of the dome width in quality (worst at 0.95*pcrit). So the two
+//! implementations refuse over the same band for the same reason: the unported
+//! ladder never rescues a state, it only changes the message. The MESSAGES are
+//! therefore NOT asserted (the PY-flash text divergence in NEXT-STEPS covers
+//! that); the classification is.
 //!
 //! **The MethylLinoleate knife-edge**, pinned by
 //! `methyl_linoleate_superanc_extrapolation_divergence_pinned` below.

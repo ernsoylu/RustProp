@@ -133,7 +133,8 @@ Common commands (CI runs exactly these):
 
 ```bash
 cargo build                                     # native build
-cargo test --workspace --all-features           # all tests
+cargo test --workspace --all-features           # all tests, DEBUG (ci.yml)
+cargo test --workspace --all-features --release # all tests, RELEASE (release.yml verify)
 cargo test -p rustprop <test_name>              # single test by name
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all
@@ -141,6 +142,13 @@ cargo run -p rustprop-cli                       # example CLI
 cargo build -p rustprop --features all-backends \
     --target wasm32-unknown-unknown --release   # wasm facade build
 ```
+
+**Gate the test suite in BOTH profiles.** `ci.yml` runs debug, `release.yml`'s
+verify job runs `--release`, so a one-profile gate can pass here and fail on
+the tag. It has happened: `heos_pt` asserted bitwise on a PT density that the
+two profiles round to doubles 42 ulp apart — both reproducing the requested
+pressure — and the assertion had to be relaxed to 1e-13 (`d5a7331`). Never
+assert bitwise on anything an iterative solver produced.
 
 ## Porting reference: upstream CoolProp 8 layout
 
