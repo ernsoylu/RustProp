@@ -136,31 +136,16 @@ fn eval_at<C: Cheb1D>(e: &C, x: f64) -> f64 {
 // `make_invlnp`)
 // ---------------------------------------------------------------------------
 
-/// Bracketed root of `f` in [a, b] (f(a), f(b) supplied). Upstream uses boost
-/// TOMS748 with 64-bit eps tolerance and returns the bracket midpoint;
-/// bisection to machine tightness yields the same double to ~1 ULP.
-fn bracket_solve<F: Fn(f64) -> f64>(f: F, mut a: f64, mut b: f64, fa_in: f64, fb_in: f64) -> f64 {
-    let (mut fa, mut fb) = (fa_in, fb_in);
+/// Bracketed root of `f` in [a, b] (f(a), f(b) supplied), upstream
+/// `superancillary::detail::toms748` — boost `toms748_solve` with
+/// `eps_tolerance<double>(bits)`, returning the midpoint of the final bracket.
+/// `ChebyshevExpansion::solve_for_x_count` always passes the caller's `bits`
+/// and `max_iter`, and every superancillary call site passes 64 / 100.
+fn bracket_solve<F: Fn(f64) -> f64>(f: F, a: f64, b: f64, fa: f64, fb: f64) -> f64 {
     debug_assert!(fa * fb <= 0.0);
-    for _ in 0..200 {
-        let m = 0.5 * (a + b);
-        if m <= a || m >= b {
-            break; // bracket at machine tightness
-        }
-        let fm = f(m);
-        if fm == 0.0 {
-            return m;
-        }
-        if (fa < 0.0) == (fm < 0.0) {
-            a = m;
-            fa = fm;
-        } else {
-            b = m;
-            fb = fm;
-        }
-    }
-    let _ = (fa, fb);
-    0.5 * (a + b)
+    let mut g = |x: f64| Ok(f(x));
+    crate::solvers::toms748_solve(&mut g, a, b, fa, fb, 64, 100)
+        .expect("the caller has already checked the bracket and the ordering")
 }
 
 /// Upstream `ChebyshevExpansion::solve_for_x_count` bounds handling +

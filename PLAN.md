@@ -2449,6 +2449,24 @@ Append-only; newest last. Seeded entries:
   but not `release.yml`'s `pkg-<preset>-<target>` output, so a local rehearsal dirties the
   tree.
 
+- 2026-08-19 — **Wave-4 R12, part 1: the superancillary inverse's bisection stand-in is
+  closed.** `saturation.rs::bracket_solve` was a bisection-to-machine-tightness stand-in
+  for what upstream actually calls — `superancillary::detail::toms748`, i.e. boost
+  `toms748_solve` with `eps_tolerance<double>(bits)` returning `(l + r) / 2`, reached from
+  `ChebyshevExpansion::solve_for_x_count(y, a, b, bits = 64, max_iter = 100, boundsytol =
+  1e-8)`. The port has carried a verbatim Boost TOMS748 since Phase 10f
+  (`solvers::toms748_solve`), so the stand-in was pure omission; `bracket_solve` now calls
+  it with upstream's 64 / 100. Same shape as Wave 2's closure of the `HSU_P` bisection
+  stand-in. These roots are the node values `make_invlnp` fits, so the change moves the
+  inverted-pressure superancillary of every fluid — and moves NOTHING in the suite: the
+  full workspace test run is green in both profiles with no fixture edited. Measured
+  effect on `T(p)` against the wheel over 200 log-spaced pressures per fluid: the interior
+  was already ≤2.5e-15 and stays there; the only point that moves is the domain endpoint
+  (see the next entry), 2.24e-12 → 1.97e-12. That residue is the honest limit: the
+  remaining ~1e-15 interior disagreement is the Chebyshev coefficient assembly (upstream
+  contracts `L * f` through Eigen, whose reduction order a sequential Rust sum does not
+  reproduce), not the rootfinder.
+
 ---
 
 ## Status: all fifteen phases complete
