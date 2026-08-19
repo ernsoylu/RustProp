@@ -2449,6 +2449,94 @@ Append-only; newest last. Seeded entries:
   but not `release.yml`'s `pkg-<preset>-<target>` output, so a local rehearsal dirties the
   tree.
 
+- 2026-08-19 — **Wave-4 R12, part 1: the superancillary inverse's bisection stand-in is
+  closed.** `saturation.rs::bracket_solve` was a bisection-to-machine-tightness stand-in
+  for what upstream actually calls — `superancillary::detail::toms748`, i.e. boost
+  `toms748_solve` with `eps_tolerance<double>(bits)` returning `(l + r) / 2`, reached from
+  `ChebyshevExpansion::solve_for_x_count(y, a, b, bits = 64, max_iter = 100, boundsytol =
+  1e-8)`. The port has carried a verbatim Boost TOMS748 since Phase 10f
+  (`solvers::toms748_solve`), so the stand-in was pure omission; `bracket_solve` now calls
+  it with upstream's 64 / 100. Same shape as Wave 2's closure of the `HSU_P` bisection
+  stand-in. These roots are the node values `make_invlnp` fits, so the change moves the
+  inverted-pressure superancillary of every fluid — and moves NOTHING in the suite: the
+  full workspace test run is green in both profiles with no fixture edited. Measured
+  effect on `T(p)` against the wheel over 200 log-spaced pressures per fluid: the interior
+  was already ≤2.5e-15 and stays there; the only point that moves is the domain endpoint
+  (see the next entry), 2.24e-12 → 1.97e-12. That residue is the honest limit: the
+  remaining ~1e-15 interior disagreement is the Chebyshev coefficient assembly (upstream
+  contracts `L * f` through Eigen, whose reduction order a sequential Rust sum does not
+  reproduce), not the rootfinder.
+
+- 2026-08-19 — **Wave-4 R12, part 2: (P, X) refusal parity is measured, not assumed.** Wave
+  3's F8 had seen the port refuse Air `(P, Hmass)` in a low-quality band and explicitly
+  declined to call it upstream parity. It is. Two measurements settle it. (a) A
+  full-registry scan — all 136 HEOS fluids, every superancillary-derived `(P, H/S/U)`
+  state over a pressure ladder from 1.001·ptriple to 0.999·pcrit crossed with a 47-point
+  quality ladder, **157,374 states** — classified each point answer-vs-refuse on both
+  sides. The wheel refuses at **297**, all in three fluids (Air 177, SES36 89, R407C 31);
+  the port refuses at the same 297 **but three**, and answers nowhere the wheel refuses.
+  No value disagreement exceeded 1e-6 anywhere both answered. (b) Bisecting Air's two band
+  edges on both sides at 1, 2, 5, 7, 20 bar and 0.8/0.95/0.99/0.999·pcrit: the **upper
+  edge is BITWISE identical at all nine pressures**, and the lower edge — the one at the
+  bottom of the dome where the classification turns on solver noise — agrees to between
+  7.4e-13 and 7.1e-9 of the dome width in quality (worst at 0.95·pcrit). The mechanism is
+  the same on both sides and is not a port gap: `HSU_P_flash` classifies these as GAS and
+  hands `HSU_P_flash_singlephase_Brent` the bracket [Tsat(p), 1.5·Tmax], whose residual is
+  negative at both ends, so `resid_Tmin * resid_Tmax < 0` fails and TOMS748 never runs.
+  Upstream then tries `Halley` from the better endpoint (it walks out of range: "Input
+  [78.87…] is out of range" against Tmax = 78.7977) and, only above 0.95·pcrit, a 2-D
+  Newton ("2D Newton method was unable to find a solution"). Neither is ported; neither
+  ever rescues a state in the band, so the unported ladder changes the MESSAGE and not the
+  answer — which is exactly the PY-flash text divergence already in NEXT-STEPS, now with
+  the classification measured underneath it.
+
+  **The three disagreements are one state**, MethylLinoleate `(P, H/S/U)` at
+  p = 1.001·ptriple = 1.312561985443192e-06 Pa with the caloric input taken from the
+  wheel's own Q = 0 value. Root cause, in three steps. (1) This fluid's JSON `satminL`
+  block says (T = 260 K, p = 1.3113e-06 Pa) but its superancillary p-curve evaluates
+  p(260 K) = 1.4986e-06 Pa — 14% apart. Upstream's phase determination gates on the JSON
+  value (`components[0].EOS().ptriple`, itself loaded from `satminL/p` in
+  `FluidLibrary.h:385`), so a pressure between the two is admitted and handed to
+  `SuperAncillary::get_T_from_p`, i.e. `m_invlnp.eval(log p)` — an EXTRAPOLATION below the
+  fitted domain, on both sides. (2) `make_invlnp` fits to `tol = 1e-12` and the two
+  implementations' coefficients differ in their last bits; inside the domain that is worth
+  ≤2.5e-15 relative on T(p) for every fluid measured, extrapolated here it is 2.0e-12,
+  hence 1.4e-12 on the saturated-liquid u (1.3e-6 J/kg). (3) The input sits exactly on
+  Q = 0, so that 1.3e-6 J/kg decides the SIGN of `q = (u − u_L)/(u_V − u_L)`: wheel 0, port
+  −3.4e-12. Upstream's `q < −1e-9` test keeps both in the two-phase branch, and at 1.3 µPa
+  rho_V = 1.6e-10 mol/m³ — twelve orders below rho_L — so a quality of −3.4e-12 makes the
+  lever-rule mixture density NEGATIVE and upstream's own `post_update` (ported) refuses
+  with "rhomolar is less than zero". **The port is running upstream's algorithm and hitting
+  upstream's guard**; what differs is which side of zero a Chebyshev extrapolation lands
+  on. Proof, and the shape of the pin: nudge the wheel's own Q = 0 value down 10,000 ulp
+  (q = −3.0e-13) and the WHEEL refuses with that identical message; nudge it up and both
+  answer. Pinned, not chased — healing it means reproducing Eigen's reduction order bit for
+  bit, the same ruling as the SVDSBTL `-ffp-contract=fast` row. New fixture
+  `px_refusal_parity.jsonl` (175 records, 47 oracle refusals) and suite
+  `tests/golden/tests/px_refusal_parity.rs`, with heal detection on the pinned count of 3.
+
+- 2026-08-19 — **Wave-4 R12, part 3: the assertion audit, done by reading the assertions.**
+  Every exact-equality and ≤1e-12 comparison in the 34 golden suites and the in-crate unit
+  tests was classified as DIRECT EVALUATION (stays exact/tight) or ITERATIVE SOLVER OUTPUT
+  (cannot be). One was genuinely wrong: `tabular.rs::tabular_low_level_state_pt` asserted a
+  TTSE and a bicubic `Dmolar` **bitwise** against 17-digit literals. Every node of the LogPT
+  grid those schemes interpolate is a PT flash — the very root `heos_pt` had to relax from
+  bitwise to 1e-13 in `d5a7331`, because two doubles 42 ulp apart both reproduce the
+  requested pressure — and the value is an expansion off those nodes. Now 1e-12: one decade
+  above `DENSITY_RTOL`, and still six orders tighter than the 9.1e-7 gap between the two
+  schemes, which is what the test exists to separate. Everything else held, with the reason
+  now written at the assertion: `heos_saturation`'s `rhomolar` (an algebraic identity
+  recomputed from the two doubles the function returns), `props_si`'s `"Water"` vs
+  `"HEOS::Water"` and `mixtures`' `"Water[1.0]"` vs `"Water"` (bit-equality IS the claim —
+  same route after parsing), `humid_air`'s echo route and `tabular`'s T/P echoes (no solve
+  happens), `ttse::ttse_is_exact_at_nodes` (the Taylor deltas are exactly zero at a node),
+  `heos_terms`' structural zeros, and the `data_fidelity` walks and `ancillary.rs`
+  rational-polynomial replicas (direct arithmetic against literals, no FMA on either side).
+  Tight tolerances on solver output were checked for headroom rather than loosened
+  reflexively: `heos_pt`'s 1e-13, `melting`'s 1e-10 on `t_of_p` (its direct `p_of_t`
+  siblings stay at 1e-12) and `validity`'s 1e-12 on the T = 1e30 PT density (bitwise today,
+  and the residual is ideal-gas conditioned there) are all correctly placed.
+
 ---
 
 ## Status: all fifteen phases complete

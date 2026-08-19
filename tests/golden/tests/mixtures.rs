@@ -462,7 +462,11 @@ fn mixture_propssi_error_conditions() {
         Error::Value(m) => assert!(m.contains("Could not match the binary pair"), "got: {m}"),
         other => panic!("wrong variant {other:?}"),
     }
-    // Pure-fluid collapse: single component after parsing behaves as pure
+    // Pure-fluid collapse: single component after parsing behaves as pure.
+    // Bitwise despite the iterative PT density: `extract_fractions` drops a
+    // one-name composition on the floor (`props_api.rs`, `names.len() == 1`),
+    // so both calls enter the same pure flash with the same doubles. The
+    // claim is "same route", which is a bit-equality claim.
     let pure = props_si("Dmolar", "T", 300.0, "P", 1e5, "HEOS::Water[1.0]").unwrap();
     let direct = props_si("Dmolar", "T", 300.0, "P", 1e5, "Water").unwrap();
     assert_eq!(pure, direct);

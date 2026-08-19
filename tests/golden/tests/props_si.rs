@@ -109,6 +109,10 @@ fn props_si_matches_upstream() {
 fn bare_fluid_name_defaults_to_heos() {
     let a = props_si("Dmolar", "T", 300.0, "P", 101325.0, "Water").unwrap();
     let b = props_si("Dmolar", "T", 300.0, "P", 101325.0, "HEOS::Water").unwrap();
+    // Bitwise despite the value being an iteratively solved PT density: the
+    // two strings differ only in the backend prefix, and after parsing both
+    // run the identical flash on the identical inputs. The claim under test
+    // is "same route", which is a bit-equality claim.
     assert_eq!(a, b);
 }
 

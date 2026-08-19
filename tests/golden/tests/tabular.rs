@@ -118,8 +118,15 @@ fn tabular_is_rejected_by_high_level_api() {
 
 /// The low-level path (upstream `AbstractState::factory("TTSE&HEOS", ...)`)
 /// works, and rejects out-of-range inputs with upstream's verbatim message.
-/// Values are the wheel's, bitwise. (The bulk state goldens live in
-/// `tabular_state.rs`; this test pins the errors and the entry point.)
+/// The two densities are the wheel's, and the port reproduces them bitwise
+/// today — but they are NOT asserted bitwise. Every LogPT node is a PT flash,
+/// i.e. an iteratively solved density root, and the TTSE/bicubic value is an
+/// expansion off those nodes; `heos_pt` already had to give up bitwise on
+/// exactly that root (two candidates 42 ulp apart both reproduce the requested
+/// pressure). 1e-12 is one decade above that suite's `DENSITY_RTOL` and still
+/// separates the two schemes by six orders of magnitude — they disagree at
+/// 9.1e-7, which is the thing this test exists to pin. (The bulk state goldens
+/// live in `tabular_state.rs`; this test pins the errors and the entry point.)
 ///
 /// FIDELITY FINDING, documented rather than asserted: upstream's PT
 /// two-phase rejection ("P,T with TTSE cannot be two-phase for now") is
@@ -142,7 +149,13 @@ fn tabular_low_level_state_pt() {
     ] {
         let mut st = TabularState::new(scheme, &flash, 200, 200, None).expect("tables");
         st.update_pt(101_325.0, 400.0).expect("PT update");
-        assert_eq!(st.keyed_output(Param::Dmolar).expect("Dmolar"), expected);
+        let rho = st.keyed_output(Param::Dmolar).expect("Dmolar");
+        assert!(
+            ((rho - expected) / expected).abs() <= 1e-12,
+            "{scheme:?}: Dmolar {rho} vs {expected}"
+        );
+        // T and P are exact: `update_pt` stores the inputs and serves them
+        // back unchanged, so these are echoes, not interpolations.
         assert_eq!(st.keyed_output(Param::T).expect("T"), 400.0);
         assert_eq!(st.keyed_output(Param::P).expect("P"), 101_325.0);
 

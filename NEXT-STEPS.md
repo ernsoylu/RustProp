@@ -4,9 +4,9 @@ Read this first when picking the work back up. `PLAN.md` is the phase-by-phase
 roadmap and its Decisions log is the authoritative record of *why* things are
 the way they are; this file is the short version plus the open ends.
 
-Last updated: 2026-08-18, after Wave-3 R9 (sweep extension, the six unread
-fixture batteries, docs sweep). See the dated blocks in PLAN.md's Decisions log
-for the full record of each round.
+Last updated: 2026-08-19, after Wave-4 R12 (registry-wide (P,X) refusal
+parity, the superancillary inverse's TOMS748, the assertion audit). See the
+dated blocks in PLAN.md's Decisions log for the full record of each round.
 
 ---
 
@@ -82,6 +82,18 @@ decision D8). Three waves have landed, each with the full gate green:
   `heos_fluids()`. Those 4,662 records exposed an upstream quirk the six
   original fluids had only grazed: `PT_flash` serves properties off the density
   solver's LAST TRIAL (see the divergence table).
+- **Wave 4** — R12 measured `(P, caloric)` refusal parity across the whole
+  registry instead of assuming it: 136 fluids × 157,374 states classified
+  answer-vs-refuse on both sides. The wheel refuses at 297 (Air 177, SES36 89,
+  R407C 31) and the port at the same 297 but three. Air's low-quality `(P,h)`
+  band — Wave-3 F8's open question — IS upstream parity: its upper edge is
+  bitwise identical on both sides at nine pressures and its lower edge agrees
+  to ≤7.1e-9 of the dome width, because upstream's unported Halley / 2-D Newton
+  continuations fail everywhere in the band too. The three exceptions are one
+  MethylLinoleate knife-edge state, now a pinned divergence (see the table).
+  R12 also closed the superancillary inverse's bisection stand-in (upstream
+  calls boost TOMS748 there) and audited every exact/≤1e-12 assertion in the
+  suite, relaxing the one that pinned a tabular density bitwise.
 
 ---
 
@@ -131,6 +143,7 @@ heal. Do not "fix" one without checking the assertion that pins it.
 | At inputs far outside the fluid's range, refusal-vs-answer agrees but the alpha0 message's `tau`/`delta` can differ (9 rows in the R11 scan, all sub-triple `(P,Q)` or negative-`T` `(Q,T)`) | `tests/golden/tests/validity.rs` asserts the 216 records where the states agree; the 9 are described in the 2026-08-18 Decisions entry | Same cause as the row above: the `nTau`/`nDelta` always match — it is the garbage state underneath that differs |
 | SVDSBTL evaluator agrees to a few ulp, not bitwise (700 of 745 records bitwise, worst 1.8e-15) | `tests/golden/tests/svdsbtl.rs` | GCC compiles the reference build with `-ffp-contract=fast`. Fusing the obvious candidate makes agreement *worse*, so the contraction sits elsewhere; chasing it would match a compiler flag, not port an algorithm |
 | Upstream's `PXFLASH_DIRECT_EOS` cache-bypass for warm (P,X) probes is not ported (R8); the port takes upstream's own `catch (...)` fallback, the cached `update_TP_guessrho` path | `PxResid` doc comment in `flash_px.rs`; the (P,X) golden suites at their 1e-8 policy | It exists to dodge a `CachedElement` layer this port does not have (each residual owns a `DerivsMemo`), and upstream calls it "bit-equivalent within ULP" to the path we do run. Measured cost: 2.0e-16 median displacement over 1 433 (P, caloric) goldens, 608 of them bitwise |
+| ONE state in the whole registry where the wheel answers and the port refuses: MethylLinoleate `(P, H/S/U)` at p = 1.001·ptriple = 1.3126e-06 Pa with the caloric input taken from the wheel's own Q=0 value (R12; found by a 157,374-state answer-vs-refuse scan over all 136 fluids, which agrees everywhere else) | `methyl_linoleate_superanc_extrapolation_divergence_pinned` and the pinned count in `px_refusal_parity_matches_upstream` (`tests/golden/tests/px_refusal_parity.rs`), plus the fixture's ±10,000-ulp control rows | This fluid's JSON `satminL` (T=260 K, p=1.3113e-06 Pa) and its superancillary p-curve (p(260 K)=1.4986e-06 Pa) disagree by 14%, and the phase-determination band gates on the JSON value — so `get_T_from_p` EXTRAPOLATES the inverted-pressure expansion below its own domain, on both sides. The residual coefficient noise (Eigen's `L*f` reduction order vs a sequential sum; ~2e-15 inside the domain, 2.0e-12 extrapolated here) then decides the SIGN of `q = (u−u_L)/(u_V−u_L)` for an input that sits exactly on Q=0: wheel 0, port −3.4e-12. With rho_V = 1.6e-10 mol/m³ that makes the lever-rule density negative, and upstream's own `post_update` refuses it — 10,000 ulp lower the WHEEL refuses identically. Healing it means matching Eigen bit for bit, same ruling as the SVDSBTL row |
 
 **Wheel-vs-tag discoveries** (not divergences — the port follows the SHIPPED
 wheel, which is what every golden was generated from): the 8.0.0 wheel does
@@ -189,12 +202,20 @@ Nothing gets committed until all of these are zero. CI runs the same set.
 ```bash
 cargo fmt --all
 cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-features --release
+cargo test --workspace --all-features             # DEBUG — what ci.yml runs
+cargo test --workspace --all-features --release   # RELEASE — release.yml's verify job
 cargo run -q -p rustprop-datagen && git diff --exit-code   # datagen determinism
 cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown --release
 cargo publish --dry-run --workspace
 node tests/wasm-smoke/smoke.mjs        # after a wasm-pack --target nodejs build
 ```
+
+> **Run the test suite in BOTH profiles, every time.** `ci.yml` runs debug and
+> `release.yml`'s verify job runs `--release`, so a one-profile gate can pass
+> here and fail on the tag. It has already happened: `heos_pt` asserted bitwise
+> on a PT density that debug and release round to doubles 42 ulp apart — both
+> reproducing the requested pressure — and the assertion had to be relaxed to
+> 1e-13 (`d5a7331`). Anything an iterative solver produces can split this way.
 
 ### Heavy suites
 
