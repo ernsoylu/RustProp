@@ -2699,6 +2699,45 @@ Append-only; newest last. Seeded entries:
   only this paragraph's archival sentences and `ORACLE.md`'s "Archived in-repo" section
   would need deleting, along with the `vendor/` fallback in its cold-start step 3b.
 
+- 2026-08-19 — **R10, part 4: `RELEASE-CHECKLIST.md`, and the rate limit that would have
+  half-published the project.** Writing the checklist turned up a defect in the release
+  design that no amount of testing the *tree* could have found: crates.io rate-limits
+  **new-crate** creation per user at a burst of **5**, refilling one per 10 minutes
+  (`rust-lang/crates.io`, `rate_limiter.rs`, `LimitedAction::PublishNew` —
+  `default_burst() = 5`, `default_rate_seconds() = 600`). This workspace publishes
+  **twelve** crates, all twelve new, and `cargo publish` does not retry an HTTP 429. So
+  `cargo publish --workspace` on the first tag would have uploaded about five crates, been
+  refused for the sixth, and stopped — leaving a permanent partial publish with the facade
+  `rustprop` (the crate anyone would actually depend on, 11th in the upload order) among
+  the casualties. Nothing can undo that; a crates.io version can be yanked but never
+  replaced.
+  The fix is **a preflight in the `crates-io` job, before the first upload**: it derives the
+  publishable set from `cargo metadata` (no hand-maintained list), counts how many are
+  absent from crates.io, and fails if that exceeds `vars.CRATES_IO_NEW_CRATE_BURST`
+  (default 5). It runs where the irreversible action lives rather than in `verify`, so it
+  cannot block the recommended `workflow_dispatch` rehearsal, and its only possible effect
+  is to REFUSE a publish. Verified against the live registry from here: 12 of 12 new,
+  allowance 5, refuses — the exact state a tag today would have hit. The publish step
+  itself is deliberately unchanged; the recommended remedy is an override from the
+  crates.io team *before* tagging, which keeps the pipeline the single thing that publishes.
+  The checklist itself is written for someone who is not the author: the owner-only acts in
+  order (token → name re-check → tag), with pushing `main` and a dispatch rehearsal as
+  preconditions ahead of them, and the rehearsal's safety argument quoting the `crates-io`
+  job's `startsWith(github.ref, 'refs/tags/v')` gate plus the consequence that
+  `github-release` is skipped along with it. The **resume story** is the part that needed
+  real evidence, and it is built on the actual upload order from
+  `cargo publish --dry-run --workspace` (core, data, heos, if97, pcsaft, svdsbtl, cubics,
+  humid-air, incompressible, tabular, rustprop, rustprop-wasm — which is NOT the packaging
+  order cargo prints first), what is live at each failure point, `--exclude` as the resume
+  mechanism, why re-running the job as-is cannot work, why single-crate `-p` publishes work
+  *after* the first upload even though the NEXT-STEPS pitfall says they cannot before it,
+  and why a tag is never moved to retry. Two smaller corrections it records: crates.io has
+  no name-reservation mechanism at all, so "claim the names" is a re-check immediately
+  before tagging rather than an action; and `rustprop-cli` being `publish = false` means
+  `cargo install rustprop-cli` will not work — the CLI reaches users only as a release
+  asset. A closing section names everything the checklist could not verify from this
+  machine, which is most of `release.yml`.
+
 ---
 
 ## Status: all fifteen phases complete

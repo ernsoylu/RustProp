@@ -53,8 +53,54 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
+      # Fail BEFORE the first irreversible upload, not partway through it.
+      #
+      # crates.io rate-limits the creation of NEW crates per user: burst 5,
+      # refilling one per 10 minutes (rust-lang/crates.io `rate_limiter.rs`,
+      # LimitedAction::PublishNew). This workspace publishes TWELVE crates, and
+      # `cargo publish` does not retry a 429 — so a first release would upload
+      # five, be rejected, and leave a partial publish that can never be undone.
+      # The right fix is a rate-limit override from the crates.io team BEFORE
+      # tagging; RELEASE-CHECKLIST.md carries the request procedure. Once one is
+      # granted, raise the repository variable CRATES_IO_NEW_CRATE_BURST to the
+      # allowance you were given.
+      #
+      # This step only ever refuses to publish. It cannot cause a publish.
+      - name: crates.io new-crate rate-limit preflight
+        env:
+          REPO: ${{ github.repository }}
+          NEW_CRATE_BURST: ${{ vars.CRATES_IO_NEW_CRATE_BURST || '5' }}
+        run: |
+          set -euo pipefail
+          crates="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish == null) | .name' | sort)"
+          new=0
+          total=0
+          for crate in $crates; do
+            total=$((total + 1))
+            code="$(curl -sS -o /dev/null -w '%{http_code}' \
+              -A "rustprop-release-preflight (+https://github.com/${REPO})" \
+              "https://crates.io/api/v1/crates/${crate}")"
+            case "$code" in
+              200) echo "exists  ${crate}" ;;
+              404) echo "NEW     ${crate}"; new=$((new + 1)) ;;
+              *)   echo "::error::crates.io returned HTTP ${code} for ${crate}; cannot tell how many new crates this publish would create"
+                   exit 1 ;;
+            esac
+            sleep 1
+          done
+          echo "${new} of ${total} crates would be created new; allowance ${NEW_CRATE_BURST}"
+          if [ "$new" -gt "$NEW_CRATE_BURST" ]; then
+            echo "::error::${new} new crates exceeds the crates.io new-crate burst of ${NEW_CRATE_BURST}. Publishing now would upload roughly ${NEW_CRATE_BURST} crates and then fail on HTTP 429, leaving a partial release that cannot be undone. See RELEASE-CHECKLIST.md, 'The rate limit that will bite'."
+            exit 1
+          fi
       # --workspace resolves the dependency order itself, so the crates go up
       # bottom-first without a hand-maintained list that would rot.
+      #
+      # If this DOES fail partway anyway, do not re-run the job as-is: the
+      # already-uploaded versions make `--workspace` fail immediately. Resume
+      # with `--exclude` per published crate — RELEASE-CHECKLIST.md has the
+      # upload order and the exact command.
       - run: cargo publish --workspace
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
