@@ -1,0 +1,15 @@
+# Keep the working tree byte-identical on every platform.
+#
+# The Windows CI runner checks out with `core.autocrlf=true` unless told
+# otherwise, which would rewrite every committed golden fixture to CRLF before
+# the suite reads it. Rust's `str::lines()` happens to tolerate that, so the
+# harness would survive — but "happens to tolerate" is not a property this
+# project should depend on when 41,629 oracle records are on the other side of
+# it, and a CRLF checkout also makes `git diff --exit-code` (the datagen
+# determinism gate) meaningless off Linux. Every tracked text file is LF.
+* text=auto eol=lf
+
+# The archived oracle wheel is a zip: git must never touch a byte of it, and
+# its sha256 is the whole point. `text=auto` would already detect it as
+# binary; this says so explicitly rather than relying on the heuristic.
+*.whl binary

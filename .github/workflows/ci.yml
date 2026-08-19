@@ -57,6 +57,88 @@ jobs:
               "$(stat -c %s target/wasm32-unknown-unknown/release/rustprop_wasm_size_probe.wasm)"
           done
 
+  # Off-Linux platform tests.
+  #
+  # WHY THIS JOB EXISTS. Until it landed, every number this port has ever been
+  # checked against was computed on Linux/x86-64, while `release.yml` ships CLI
+  # binaries for macOS-arm64 and Windows-x64 that no test had ever touched. A
+  # build-only matrix cannot catch the risk that actually matters here: the
+  # suite asserts agreement with the CoolProp 8.0.0 oracle at 1e-12 and tighter
+  # (much of it bitwise), and the libm a platform links — Apple's, MSVC's,
+  # glibc's — is free to return different last bits for exp/log/pow/sin, which
+  # every Helmholtz term and every solver iterate is built out of. That
+  # divergence is invisible to a compile.
+  #
+  # WHY THIS SUBSET. `cargo test --workspace --all-features` is exactly the
+  # golden suites and nothing else: the six heavy sweeps are `#[ignore]`d, so
+  # the default set skips them by construction. That is the right trade — the
+  # goldens are hand-placed at the states where agreement is hard (critical
+  # region, saturation edges, phase boundaries), while the seeded sweeps are
+  # randomized draws whose value is breadth on a platform already covered
+  # weekly. Adding them here would multiply runner minutes for redundant
+  # coverage. If a platform break ever shows up, widen THIS job.
+  #
+  # WHY BOTH PROFILES ON MAIN. debug and release are the two gates the project
+  # actually enforces (`ci.yml` runs debug, `release.yml`'s verify job runs
+  # `--release`), and they have already disagreed once — `heos_pt` asserted
+  # bitwise on a PT density the two profiles round 42 ulp apart (`d5a7331`).
+  # Pull requests run debug only, to keep the feedback loop cheap.
+  #
+  # NOT VERIFIED LOCALLY: this job has never executed. It was written on a
+  # Linux box that cannot run a macOS or Windows runner, so a first-run failure
+  # here is INFORMATION, not necessarily a defect in the workflow — read the
+  # failing assertion before assuming the YAML is wrong.
+  platform:
+    strategy:
+      fail-fast: false # a macOS break and a Windows break are separate facts
+      matrix:
+        include:
+          - os: macos-latest # aarch64-apple-darwin, as release.yml ships
+          - os: windows-latest # x86_64-pc-windows-msvc, as release.yml ships
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - name: golden suites (debug)
+        run: cargo test --workspace --all-features
+      - name: golden suites (release)
+        if: github.event_name != 'pull_request'
+        run: cargo test --workspace --all-features --release
+      # The CLI is the one deliverable release.yml builds for these two
+      # platforms. Run the binary, not just its crate's tests.
+      - name: CLI smoke
+        run: cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water
+
+  # Supply-chain gate: licences and RustSec advisories over the whole graph.
+  #
+  # cargo-deny is installed from its own release tarball, pinned by version AND
+  # sha256, rather than through `EmbarkStudios/cargo-deny-action` — a gate whose
+  # job is to police what the project trusts should not itself pull an unpinned
+  # Docker action. The digest below is the one the release publishes alongside
+  # the tarball, and it is the exact binary whose verdict was reproduced
+  # locally (advisories ok, bans ok, licenses ok, sources ok). Bumping the
+  # version means bumping the digest in the same edit.
+  supply-chain:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_DENY_VERSION: "0.20.2"
+      CARGO_DENY_SHA256: "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"
+    steps:
+      - uses: actions/checkout@v4
+      - name: install cargo-deny (pinned)
+        run: |
+          set -euo pipefail
+          tarball="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl -sSfL -o "$tarball" \
+            "https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${tarball}"
+          echo "${CARGO_DENY_SHA256}  ${tarball}" | sha256sum -c -
+          tar xzf "$tarball" --strip-components=1 \
+            "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+          ./cargo-deny --version
+      # Config and rationale live in deny.toml. NEVER silence a finding here to
+      # make the gate green — upgrade, or record the decision in PLAN.md.
+      - run: ./cargo-deny --workspace --all-features check
+
   # The declared rust-version must actually build the shipped crates —
   # rust-toolchain.toml floats on stable, so nothing else exercises it.
   msrv:
@@ -88,3 +170,45 @@ jobs:
       # symmetry only).
       - run: cargo test --release -p rustprop-golden-tests --test acceptance_tabular -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test acceptance_svdsbtl -- --ignored --nocapture
+
+  # Keeps the `sweep` schedule from dying quietly.
+  #
+  # GitHub DISABLES a scheduled workflow after 60 days without repository
+  # activity, and this project is finished: months can pass between pushes. The
+  # failure mode is the bad kind — the weekly sweep simply stops running, the
+  # six heavy suites stop being checked, and nothing anywhere turns red. The
+  # only signal GitHub sends is one email to the last person who touched the
+  # workflow file, at the moment it disables.
+  #
+  # So this job turns silence into a red build while the schedule is still
+  # alive: it warns at 30 days of inactivity and FAILS at 45, both of which
+  # land with 15+ days of margin before the 60-day cutoff. Deliberately no
+  # dummy-commit trick (the usual keepalive) — a bot committing to main to
+  # fool an activity counter is worse than an alarm that asks a human for a
+  # push. Any push to any branch resets the clock; so does re-enabling the
+  # workflow by hand from the Actions tab.
+  #
+  # NOT VERIFIED LOCALLY: never executed. `pushed_at` and the arithmetic are
+  # inspectable, but the 60-day GitHub behaviour is documented, not measured.
+  schedule-keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: warn before GitHub disables the weekly sweep
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          pushed_at="$(gh api "repos/${REPO}" --jq .pushed_at)"
+          days=$(( ( $(date -u +%s) - $(date -u -d "$pushed_at" +%s) ) / 86400 ))
+          echo "last push to ${REPO}: ${pushed_at} (${days} days ago)"
+          if [ "$days" -ge 45 ]; then
+            echo "::error::${days} days since the last push. GitHub disables scheduled workflows at 60 days of inactivity, which would silently stop the weekly sweep over the six heavy suites. Push anything to main (or re-enable CI from the Actions tab) to reset the clock."
+            exit 1
+          fi
+          if [ "$days" -ge 30 ]; then
+            echo "::warning::${days} days since the last push; this job fails at 45 and GitHub disables the schedule at 60."
+          fi

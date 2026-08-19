@@ -2638,6 +2638,39 @@ Append-only; newest last. Seeded entries:
   fan-out, plus the `rustprop-{wasm,cli}-*.tar.gz` archives that workflow packages at the
   repo root — all of which would otherwise land untracked in a release-rehearsal tree.
 
+- 2026-08-19 — **R10, part 2: the port is finally tested off Linux/x86-64, and the weekly
+  sweep can no longer die quietly.** Three jobs join `ci.yml`.
+  **`platform`** runs the golden suites on `macos-latest` (aarch64-apple-darwin) and
+  `windows-latest` (x86\_64-pc-windows-msvc) — the two targets `release.yml` has always
+  *built* a CLI for and never *tested*. The reasoning for the subset is written into the
+  workflow: `cargo test --workspace --all-features` is the golden suites and nothing else,
+  because the six heavy sweeps are `#[ignore]`d and the default set skips them by
+  construction; goldens are hand-placed where agreement is hard (critical region, saturation
+  edges, phase boundaries) while the seeded sweeps buy breadth on a platform already covered
+  weekly. A build-only matrix would have been worthless here — the risk is that Apple's and
+  MSVC's libm return different last bits for `exp`/`log`/`pow` than glibc, which a compile
+  cannot see and which every Helmholtz term is built out of. Both profiles run on pushes to
+  `main` (they are the two gates the project enforces, and they have already disagreed once
+  — the 42-ulp `heos_pt` density, `d5a7331`); pull requests run debug only. `fail-fast` is
+  off so a macOS break and a Windows break stay separate facts.
+  **`.gitattributes`** landed with it: the Windows runner checks out with
+  `core.autocrlf=true`, and although Rust's `str::lines()` happens to strip the `\r`, 41,629
+  oracle records should not rest on "happens to".
+  **`supply-chain`** runs cargo-deny (see part 1). **`schedule-keepalive`** answers a
+  failure mode nothing else would have caught: GitHub disables a scheduled workflow after
+  60 days of repository inactivity, and this project is finished — months can pass between
+  pushes — so the weekly `sweep` over the six heavy suites would simply stop, with no red
+  build anywhere and one easily-missed email as the only signal. The job reads
+  `repos/{owner}/{repo}`'s `pushed_at` on each scheduled run, warns at 30 days and **fails**
+  at 45, both with margin before the 60-day cutoff. Deliberately NOT the usual keepalive
+  trick of committing a dummy change from a bot: fooling an activity counter is worse than
+  an alarm that asks a human for a push.
+  **None of these three jobs has ever executed** — they were written on a Linux box that
+  cannot run a macOS or Windows runner, and neither this branch nor `main` has been pushed.
+  Each carries a `NOT VERIFIED LOCALLY` comment saying so, and a first-run failure in
+  `platform` should be read as information about the platform before it is read as a bug in
+  the YAML.
+
 ---
 
 ## Status: all fifteen phases complete
