@@ -2537,6 +2537,28 @@ Append-only; newest last. Seeded entries:
   siblings stay at 1e-12) and `validity`'s 1e-12 on the T = 1e30 PT density (bitwise today,
   and the residual is ideal-gas conditioned there) are all correctly placed.
 
+- 2026-08-19 — **Wave-4b integration, part 1: the two document numbers R12 moved and did not
+  re-measure.** Merging R12 and then re-deriving every number the tree's documents assert
+  found both of them stale. (1) `WASM-SIZES.md`, refreshed at `b0de3ab` — one commit before
+  R12 — no longer describes the tree: re-running `tools/wasm-size-table.sh` moves six of its
+  nine rows. `heos + Water` 340,597 → 347,425 B, refrigerants 419,017 → 425,845, `pcsaft +
+  heos` 441,299 → 448,104, `heos + all 130 fluids` 3,714,726 → 3,721,564, `all-backends`
+  4,360,609 → 4,367,371 (all +6.8 KB), and `humid-air` 244,527 → 258,265 (+13.7 KB, roughly
+  double, because that bundle links the saturation path twice over). The three rows that do
+  NOT move — `if97`, `cubics`, `incompressible`, byte-identical — are the control that says
+  the build environment is unchanged and the deltas are real code. Attribution is
+  unambiguous: R12's only shipped-code diff is `crates/rustprop-heos/src/saturation.rs` in
+  `b0ffc1f`, so +6.8 KB is what calling the ported TOMS748 from the superancillary inverse
+  costs every HEOS-linking bundle. That is the price of the fidelity win and it is worth
+  paying; what is not acceptable is a size table that does not describe the artifact. The
+  README's two prose sizes (332.6 → 339.3 KB, "333 KB" → "339 KB") follow it. (2) R12 added
+  175 records, one fixture and one suite, and its own report says "41,454 → 41,629" — but the
+  counter that says so appears in THREE documents and none was updated. Measured now:
+  41,629 records in 123 fixtures read by 35 suites (`CLAUDE.md`, `NEXT-STEPS.md`,
+  `README.md`). The lesson generalizes past this round: a number that lives in more than one
+  file needs all of them touched in the commit that moves it, and the cheap way to catch a
+  miss is to re-derive rather than re-read.
+
 ---
 
 ## Status: all fifteen phases complete

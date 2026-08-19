@@ -19,7 +19,7 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | 41,454 in 122 committed fixtures, read by 34 suites — every fixture is now consumed by a test (Wave-3 R9) |
+| Oracle records | 41,629 in 123 committed fixtures, read by 35 suites — every fixture is now consumed by a test (Wave-3 R9) |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 

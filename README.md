@@ -28,7 +28,7 @@ Fidelity is the rule: the same algorithms and the same fluid data as upstream Co
 
 Engine and fluid selection is a compile-time choice, so a bundle carries only what
 the application asked for. Measured bytes per feature set are in
-[WASM-SIZES.md](WASM-SIZES.md) — IF97 alone is 127.8 KB, HEOS with Water 332.6 KB,
+[WASM-SIZES.md](WASM-SIZES.md) — IF97 alone is 127.8 KB, HEOS with Water 339.3 KB,
 and everything at once 4.2 MB. Regenerate with `tools/wasm-size-table.sh`.
 
 ```bash
@@ -70,8 +70,8 @@ Facade features (`default = []`):
 ## Project status
 
 All fifteen phases of `PLAN.md` are complete — every engine ported and
-golden-verified against the CoolProp 8.0.0 oracle wheel (41,454 committed
-oracle records in 122 fixtures), CI green:
+golden-verified against the CoolProp 8.0.0 oracle wheel (41,629 committed
+oracle records in 123 fixtures), CI green:
 
 - **IF97**: 356 records at rtol 1e-11; all IAPWS published check tables pass.
 - **HEOS**: all 130 superancillary pure fluids plus the 6 pseudo-pure blends,
@@ -108,7 +108,7 @@ $ cargo run -p rustprop-cli -- props H T 300 P 101325 IF97::Water
 ```
 
 or from Rust (features select the engines and, per fluid, the data your binary carries —
-`heos` + `rustprop-data/water` is a 333 KB wasm-pack bundle, see [WASM-SIZES.md](WASM-SIZES.md)):
+`heos` + `rustprop-data/water` is a 339 KB wasm-pack bundle, see [WASM-SIZES.md](WASM-SIZES.md)):
 
 ```rust
 // Equivalent to PropsSI("Dmolar", "T", 300, "P", 101325, "Water")

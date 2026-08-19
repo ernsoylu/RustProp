@@ -7,11 +7,11 @@ i.e. what a browser actually downloads.
 | feature set | bytes | KB |
 |---|---:|---:|
 | if97 | 130908 | 127.8 |
-| heos + Water | 340597 | 332.6 |
-| heos + refrigerants (R134a, R32, R125, R1234yf) | 419017 | 409.2 |
-| humid-air | 244527 | 238.8 |
+| heos + Water | 347425 | 339.3 |
+| heos + refrigerants (R134a, R32, R125, R1234yf) | 425845 | 415.9 |
+| humid-air | 258265 | 252.2 |
 | cubics (116 fluids) | 172177 | 168.1 |
 | incompressible (126 fluids) | 187595 | 183.2 |
-| pcsaft (180 fluids) + heos | 441299 | 431.0 |
-| heos + all 130 fluids | 3714726 | 3627.7 |
-| all-backends | 4360609 | 4258.4 |
+| pcsaft (180 fluids) + heos | 448104 | 437.6 |
+| heos + all 130 fluids | 3721564 | 3634.3 |
+| all-backends | 4367371 | 4265.0 |
