@@ -3085,6 +3085,58 @@ def gen_validity():
     return rows
 
 
+def gen_px_refusal_parity():
+    """R12: refusal-vs-answer parity on the (P, caloric) flash, at the two
+    places a full-registry scan found interesting.
+
+    **The Air low-quality band.** Wave-3's F8 saw the port refuse `(P, Hmass)`
+    for Air in a low-quality window and declined to call that upstream parity
+    without checking. It is: bisecting the classification boundary on both
+    sides puts the flip points within 1e-11 relative of each other at every
+    pressure from 1 bar to 0.9999*pcrit. The band exists because upstream's
+    `HSU_P_flash` hands `HSU_P_flash_singlephase_Brent` a gas-branch bracket
+    [Tsat(p), 1.5*Tmax] whose residual does not change sign, and the ladder
+    that follows — Halley from the better endpoint, then the
+    near-critical/supercritical 2-D Newton — never rescues it. The MESSAGES do
+    differ (upstream quotes whichever of those two failed; the port stops at
+    the bracket test), which is the PY-flash text divergence already in
+    NEXT-STEPS; only the classification is asserted.
+
+    **The MethylLinoleate knife-edge.** Three of the 157,374 states in the
+    scan disagree, all the same state. See the pinned test for the mechanism;
+    the control rows here are the proof — nudge the wheel's own saturated
+    liquid value down 10,000 ulp and the WHEEL refuses with the same message
+    the port gives at the unnudged value, nudge it up and both answer."""
+    rows = []
+    # --- Air (P, X): a fixed quality ladder straddling the band at every
+    # pressure drawn (measured band: [9.4e-5, 0.036] at 1 bar, widening to
+    # [0.051, 0.434] at 0.999*pcrit).
+    qs = [0.0, 1e-6, 1e-5, 1e-4, 3e-4, 1e-3, 0.01, 0.03, 0.05,
+          0.08, 0.15, 0.25, 0.45, 0.6, 1.0]
+    pcrit_air = PropsSI("pcrit", "Air")
+    for p in [1e5, 2e5, 5e5, 7e5, 20e5, 0.95 * pcrit_air, 0.999 * pcrit_air]:
+        keys = ["Hmass", "Smass", "Umass"] if p in (1e5, 0.999 * pcrit_air) else ["Hmass"]
+        for key in keys:
+            for q in qs:
+                value = PropsSI(key, "P", p, "Q", q, "HEOS::Air")
+                rows.append(parity_record("T", "P", p, key, value, "HEOS::Air"))
+    # --- MethylLinoleate at 1.001 * ptriple: below the superancillary p
+    # curve's own minimum p(Tmin) = 1.4986339506653618e-06 Pa, so T(p) is an
+    # EXTRAPOLATION of the inverted-pressure expansion on both sides.
+    fl = "HEOS::MethylLinoleate"
+    p = 1.001 * PropsSI("ptriple", "MethylLinoleate")
+    assert p == 1.312561985443192e-06, p
+    rows.append(parity_record("T", "P", p, "Q", 0.0, fl))
+    for key in ["Hmass", "Smass", "Umass"]:
+        v0 = PropsSI(key, "P", p, "Q", 0.0, fl)
+        for n in [0, -10_000, 10_000]:
+            v = v0
+            for _ in range(abs(n)):
+                v = math.nextafter(v, -math.inf if n < 0 else math.inf)
+            rows.append(parity_record("T", "P", p, key, v, fl))
+    return rows
+
+
 def write_jsonl(name, rows):
     (FIXTURES / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
     WRITTEN.append(name)
@@ -3171,6 +3223,7 @@ def main():
     write_jsonl("acceptance_svdsbtl.jsonl", gen_acceptance_svdsbtl())
     write_jsonl("conductivity.jsonl", gen_conductivity())
     write_jsonl("validity.jsonl", gen_validity())
+    write_jsonl("px_refusal_parity.jsonl", gen_px_refusal_parity())
     param_rows = dump_parameters()
     write_jsonl("parameters.jsonl", param_rows)
     write_jsonl("param_aliases.jsonl", dump_param_names(param_rows))

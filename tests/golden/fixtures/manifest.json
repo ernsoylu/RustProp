@@ -111,6 +111,7 @@
     "phases.jsonl",
     "props_si.jsonl",
     "pseudo_pure.jsonl",
+    "px_refusal_parity.jsonl",
     "surface_tension.jsonl",
     "viscosity.jsonl",
     "water_propssi_smoke.jsonl"

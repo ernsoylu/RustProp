@@ -93,7 +93,9 @@ fn humid_air_error_conditions() {
     }
     // Out-of-range input.
     assert!(ha_props_si("H", "T", 700.0, "P", 101325.0, "R", 0.5).is_err());
-    // Trivial echo happens BEFORE validation (upstream's order).
+    // Trivial echo happens BEFORE validation (upstream's order). Bitwise is
+    // the whole point: the echo route hands the input back without solving,
+    // so any deviation at all would mean it had solved something.
     assert_eq!(
         ha_props_si("H", "H", 5.0, "T", 300.0, "W", 0.01).unwrap(),
         5.0

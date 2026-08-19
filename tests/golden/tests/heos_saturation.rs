@@ -74,6 +74,10 @@ fn saturation_guards() {
     assert!(sa.qt_flash(650.0, 0.0).is_err());
     assert!(sa.pq_flash(23e6, 0.0).is_err());
     // Mixture density at intermediate quality follows the inverse mixing rule.
+    // Bitwise is legitimate: this is an algebraic identity, not an oracle
+    // comparison. `qt_flash` evaluates this same expression from the same two
+    // doubles it hands back, so anything but bit-equality would mean the
+    // mixing rule had changed shape.
     let sat = sa.qt_flash(400.0, 0.5).unwrap();
     let expected = 1.0 / (0.5 / sat.rho_v + 0.5 / sat.rho_l);
     assert_eq!(sat.rhomolar, expected);
