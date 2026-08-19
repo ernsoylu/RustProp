@@ -82,9 +82,11 @@ oracle records in 123 fixtures), CI green:
 - **Tabular (TTSE/bicubic) and SVDSBTL**: low-level APIs only, exactly as
   upstream (`available_in_high_level()` is false there too).
 
-See **[NEXT-STEPS.md](NEXT-STEPS.md)** for current status, known divergences
-from upstream, and what to work on next. The porting plan, fidelity rules, and
-upstream mapping live in `CLAUDE.md` and `PLAN.md`.
+**[CHANGELOG.md](CHANGELOG.md)** is the consumer-facing summary: what v0.1.0
+ships, what is deliberately not ported, and which divergences from CoolProp you
+can actually reach. **[NEXT-STEPS.md](NEXT-STEPS.md)** carries the current
+status, the full divergence table, and what to work on next; the porting plan,
+fidelity rules and upstream mapping live in `CLAUDE.md` and `PLAN.md`.
 
 ## Building
 

@@ -2600,6 +2600,167 @@ Append-only; newest last. Seeded entries:
   `cp312-abi3-manylinux_2_17_x86_64`, `__gitrevision__` `ae81610e…`) — every golden in the
   tree came from that one binary, and `requirements.txt` pins only `CoolProp==8.0.0`.
 
+- 2026-08-19 — **R10, part 1: the supply-chain gate, and the two loose ends it sits next
+  to.** `deny.toml` is an exact licence **allowlist**, not a category filter
+  (`allow-osi-fsf-free` and friends), so that a licence appearing in the graph for the first
+  time fails the gate and gets a human decision instead of being waved through by a
+  category. The resolved graph is 29 external crates and every one is permissive: the six
+  distinct terms are `0BSD`, `Apache-2.0`, `MIT`, `Unicode-3.0` (unicode-ident's tables),
+  `Unlicense` (memchr, dual with MIT) and `Zlib` (miniz_oxide, triple with MIT/Apache-2.0).
+  Advisories: **zero**, checked against RustSec's advisory-db on the day. `bans` allows the
+  one genuine duplicate — `syn` 2.x (proc-macro2/quote) alongside 3.x (serde\_derive) — with
+  the reason recorded inline, because both are proc-macro-only and no shipped crate links
+  either. `sources` denies git and non-crates.io registries outright, which is structural
+  rather than aspirational: a published crate cannot depend on either.
+  **CI installs cargo-deny by pinned tarball + sha256 rather than using
+  `EmbarkStudios/cargo-deny-action`**, on the grounds that a supply-chain gate should not
+  itself introduce an unpinned Docker action, and that the pinned binary
+  (`0.20.2-x86_64-unknown-linux-musl`, sha256 `9f12ed4c…`, matching the digest the release
+  publishes alongside it) is the exact binary whose verdict was reproduced locally.
+  Two real findings came out of the first run, both fixed at source rather than silenced:
+  `tools/dbg-pcsaft` carried **no licence field** and three **wildcard path dependencies**
+  (`path = …` with no `version`), because it was the one crate in the workspace that never
+  got the workspace-inherited metadata treatment. It now inherits version/edition/licence/
+  repository/lints like every other tool crate; the edition moved 2021 → 2024 in the process
+  and it still compiles clean under `-D warnings`.
+  Alongside, the two loose ends: **`manifest.json`'s drift is fixed at the generator.** The
+  manifest listed 111 of 123 fixtures because its `files` key came from `WRITTEN`, the
+  in-process list of files that particular run touched — so the documented one-file
+  regeneration recipe silently *shrank* the manifest, and the twelve heavy generators'
+  outputs had never been in a run that also rewrote it. `write_manifest()` now scans
+  `FIXTURES.glob("*.jsonl")`, which cannot under-report, and is callable on its own so the
+  manifest can be refreshed without rebuilding the ~100 s tabular tables. It also records
+  the oracle's identity now — `oracle_sha256` (the compiled extension module,
+  `05d85591…`), `coolprop_gitrevision` and the Python version — so every future
+  regeneration says which binary answered. And `.gitignore` gained
+  `/crates/rustprop-wasm/pkg-*`, which subsumes the three hand-listed `pkg-node`/`pkg-size`
+  entries and covers `release.yml`'s five-preset × three-target `pkg-<preset>-<target>`
+  fan-out, plus the `rustprop-{wasm,cli}-*.tar.gz` archives that workflow packages at the
+  repo root — all of which would otherwise land untracked in a release-rehearsal tree.
+
+- 2026-08-19 — **R10, part 2: the port is finally tested off Linux/x86-64, and the weekly
+  sweep can no longer die quietly.** Three jobs join `ci.yml`.
+  **`platform`** runs the golden suites on `macos-latest` (aarch64-apple-darwin) and
+  `windows-latest` (x86\_64-pc-windows-msvc) — the two targets `release.yml` has always
+  *built* a CLI for and never *tested*. The reasoning for the subset is written into the
+  workflow: `cargo test --workspace --all-features` is the golden suites and nothing else,
+  because the six heavy sweeps are `#[ignore]`d and the default set skips them by
+  construction; goldens are hand-placed where agreement is hard (critical region, saturation
+  edges, phase boundaries) while the seeded sweeps buy breadth on a platform already covered
+  weekly. A build-only matrix would have been worthless here — the risk is that Apple's and
+  MSVC's libm return different last bits for `exp`/`log`/`pow` than glibc, which a compile
+  cannot see and which every Helmholtz term is built out of. Both profiles run on pushes to
+  `main` (they are the two gates the project enforces, and they have already disagreed once
+  — the 42-ulp `heos_pt` density, `d5a7331`); pull requests run debug only. `fail-fast` is
+  off so a macOS break and a Windows break stay separate facts.
+  **`.gitattributes`** landed with it: the Windows runner checks out with
+  `core.autocrlf=true`, and although Rust's `str::lines()` happens to strip the `\r`, 41,629
+  oracle records should not rest on "happens to".
+  **`supply-chain`** runs cargo-deny (see part 1). **`schedule-keepalive`** answers a
+  failure mode nothing else would have caught: GitHub disables a scheduled workflow after
+  60 days of repository inactivity, and this project is finished — months can pass between
+  pushes — so the weekly `sweep` over the six heavy suites would simply stop, with no red
+  build anywhere and one easily-missed email as the only signal. The job reads
+  `repos/{owner}/{repo}`'s `pushed_at` on each scheduled run, warns at 30 days and **fails**
+  at 45, both with margin before the 60-day cutoff. Deliberately NOT the usual keepalive
+  trick of committing a dummy change from a bot: fooling an activity counter is worse than
+  an alarm that asks a human for a push.
+  **None of these three jobs has ever executed** — they were written on a Linux box that
+  cannot run a macOS or Windows runner, and neither this branch nor `main` has been pushed.
+  Each carries a `NOT VERIFIED LOCALLY` comment saying so, and a first-run failure in
+  `platform` should be read as information about the platform before it is read as a bug in
+  the YAML.
+
+- 2026-08-19 — **R10, part 3: the oracle is identified, pinned by hash, and archived.**
+  `requirements.txt` pinned `CoolProp==8.0.0`, which names a *release*; the fixtures came
+  from a *build*, and the distinction is load-bearing precisely because this port follows
+  the shipped wheel where it contradicts the `v8.0.0` tag source. The chain was verified
+  end to end from this machine rather than assumed: the PyPI artifact
+  `coolprop-8.0.0-cp312-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl` (sha256
+  `8ca1aefd…`, 10,814,565 bytes) was downloaded fresh and its inner `CoolProp.abi3.so`
+  hashes to `05d85591…` — bit for bit the module in `tools/golden-gen/.venv`, i.e. the
+  binary that answered all 41,629 golden calls. `requirements.txt` now carries the eight
+  abi3 + sdist digests for a `--require-hashes` install; `ORACLE.md` records the full
+  identity, the licence position and a cold-start walkthrough; `verify-oracle.sh` answers
+  "is this THE oracle" instead of "is CoolProp 8.0.0 importable", reading its expected
+  digest out of `manifest.json` (which the generator now writes) so it cannot go stale, and
+  telling a *wrong build* apart from a *different platform* — on a non-`Linux-x86_64` host
+  the digest cannot match by construction, and the script says so rather than crying wolf.
+  **On archiving the wheel in-repo: done, and in its own commit.** The case for is that the
+  fixtures are unreproducible without this exact file and cannot be rebuilt from CoolProp's
+  own source (that is the whole wheel-vs-tag finding), so an upstream URL that stops
+  resolving would quietly make the project unverifiable. The case against is 10.3 MB of
+  binary in a 64 MB `.git`, forever. 16% once, for reproducibility, is worth it — and the
+  licence is unambiguous (MIT, with the wheel carrying its own `LICENSE`), while
+  `tools/golden-gen` is `exclude`d from the workspace so nothing published, tarballed or
+  compiled to wasm carries a byte of it. It is a separate commit ("Archive the oracle wheel
+  in-repo") specifically so the judgement is reversible before the branch is pushed: drop
+  that commit and the hash pinning, `ORACLE.md` and `verify-oracle.sh` all still stand —
+  only this paragraph's archival sentences and `ORACLE.md`'s "Archived in-repo" section
+  would need deleting, along with the `vendor/` fallback in its cold-start step 3b.
+
+- 2026-08-19 — **R10, part 4: `RELEASE-CHECKLIST.md`, and the rate limit that would have
+  half-published the project.** Writing the checklist turned up a defect in the release
+  design that no amount of testing the *tree* could have found: crates.io rate-limits
+  **new-crate** creation per user at a burst of **5**, refilling one per 10 minutes
+  (`rust-lang/crates.io`, `rate_limiter.rs`, `LimitedAction::PublishNew` —
+  `default_burst() = 5`, `default_rate_seconds() = 600`). This workspace publishes
+  **twelve** crates, all twelve new, and `cargo publish` does not retry an HTTP 429. So
+  `cargo publish --workspace` on the first tag would have uploaded about five crates, been
+  refused for the sixth, and stopped — leaving a permanent partial publish with the facade
+  `rustprop` (the crate anyone would actually depend on, 11th in the upload order) among
+  the casualties. Nothing can undo that; a crates.io version can be yanked but never
+  replaced.
+  The fix is **a preflight in the `crates-io` job, before the first upload**: it derives the
+  publishable set from `cargo metadata` (no hand-maintained list), counts how many are
+  absent from crates.io, and fails if that exceeds `vars.CRATES_IO_NEW_CRATE_BURST`
+  (default 5). It runs where the irreversible action lives rather than in `verify`, so it
+  cannot block the recommended `workflow_dispatch` rehearsal, and its only possible effect
+  is to REFUSE a publish. Verified against the live registry from here: 12 of 12 new,
+  allowance 5, refuses — the exact state a tag today would have hit. The publish step
+  itself is deliberately unchanged; the recommended remedy is an override from the
+  crates.io team *before* tagging, which keeps the pipeline the single thing that publishes.
+  The checklist itself is written for someone who is not the author: the owner-only acts in
+  order (token → name re-check → tag), with pushing `main` and a dispatch rehearsal as
+  preconditions ahead of them, and the rehearsal's safety argument quoting the `crates-io`
+  job's `startsWith(github.ref, 'refs/tags/v')` gate plus the consequence that
+  `github-release` is skipped along with it. The **resume story** is the part that needed
+  real evidence, and it is built on the actual upload order from
+  `cargo publish --dry-run --workspace` (core, data, heos, if97, pcsaft, svdsbtl, cubics,
+  humid-air, incompressible, tabular, rustprop, rustprop-wasm — which is NOT the packaging
+  order cargo prints first), what is live at each failure point, `--exclude` as the resume
+  mechanism, why re-running the job as-is cannot work, why single-crate `-p` publishes work
+  *after* the first upload even though the NEXT-STEPS pitfall says they cannot before it,
+  and why a tag is never moved to retry. Two smaller corrections it records: crates.io has
+  no name-reservation mechanism at all, so "claim the names" is a re-check immediately
+  before tagging rather than an action; and `rustprop-cli` being `publish = false` means
+  `cargo install rustprop-cli` will not work — the CLI reaches users only as a release
+  asset. A closing section names everything the checklist could not verify from this
+  machine, which is most of `release.yml`.
+
+- 2026-08-19 — **R10, part 5: `CHANGELOG.md`, and the docs realigned.** The project had no
+  changelog at all, and a fidelity port needs one shaped differently from the usual: for a
+  consumer, "Added" matters far less than *where this library will not agree with CoolProp*,
+  because that is the only kind of surprise it can hand them. So the v0.1.0 entry splits the
+  divergences three ways — **API-shaped** ones they will hit immediately (`Result` instead
+  of `+inf`-with-a-global, `cargo install rustprop-cli` not working because the CLI is
+  `publish = false`, derivative output strings unparsed, the pseudo-pure pair subset,
+  `(Dmolar,P)` below the triple point), **numerical** ones only a digit-by-digit comparison
+  shows (the PT last-trial-iterate 5.0e-8, the three mixture pins, SVDSBTL's few ulp, the
+  single MethylLinoleate state, R507A's 0.995·pmax needle, the refusal-text rows), and
+  **behavioural** ones (no tabular disk cache — the ~100 s LogPH build a consumer actually
+  feels; PC-SAFT `WATER` refusing). The "not ported by design" list is stated as decisions
+  with reasons rather than as a gap list, including the two principled ones: upstream's
+  Emscripten wrapper, replaced on purpose, and any answer that is an artifact of upstream's
+  own mutable backend state, which a stateless port would have to serve knowingly worse
+  numbers to reproduce. Counts in it were measured on the tree, not copied: 41,629 records /
+  123 fixtures / 35 suites / 134 tests across 71 binaries.
+  `NEXT-STEPS.md` was updated rather than left to rot: its (b) section now reads as *landed*
+  instead of *open*, the rate-limit hazard sits in a block quote at the top of Release
+  readiness, item (a) leads with clearing that limit and corrects "claim the names" to a
+  re-check (crates.io has no reservation mechanism), and the gate list gained `cargo deny`.
+  The README points at the changelog for the consumer-facing account.
+
 ---
 
 ## Status: all fifteen phases complete

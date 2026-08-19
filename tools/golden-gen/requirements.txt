@@ -1,1 +1,35 @@
-CoolProp==8.0.0
+# The verification oracle, pinned BY HASH.
+#
+# Every one of the 41,629 golden records in tests/golden/fixtures/ was produced
+# by one specific compiled binary, and this project deliberately ports the
+# WHEEL where it disagrees with the v8.0.0 tag source (see NEXT-STEPS.md,
+# "Wheel-vs-tag discoveries"). So `CoolProp==8.0.0` alone does NOT identify the
+# oracle: it names a release, not a build. The hashes below do.
+#
+# Install with hash checking enforced (pip demands --require-hashes for the
+# whole file once any requirement carries one, so every artifact is pinned):
+#
+#   python3.12 -m venv tools/golden-gen/.venv
+#   tools/golden-gen/.venv/bin/pip install --require-hashes \
+#       -r tools/golden-gen/requirements.txt
+#
+# Then confirm the binary is the one the fixtures came from:
+#
+#   tools/golden-gen/verify-oracle.sh
+#
+# Full provenance, the cold-start walkthrough, and what to do if PyPI no longer
+# serves these files: tools/golden-gen/ORACLE.md.
+#
+# CoolProp 8.0.0. The digests below are the ones PyPI served on 2026-08-19 for
+# the abi3 wheels plus the sdist; the manylinux_2_17 x86_64 abi3 wheel (the
+# FIRST hash) is the one every committed golden came from, and its archived
+# copy sits in tools/golden-gen/vendor/.
+CoolProp==8.0.0 \
+    --hash=sha256:8ca1aefd1873b14f3e7e9122a08a32fe8c62ac03a1fc4496512a31a3bba8f611 \
+    --hash=sha256:113fc0e97f2b64617141d453ddc0439987b32aa3f6f4a45b928b2030c68292fa \
+    --hash=sha256:46de36f51330ce8c7f8384a7360e1058739d20604736158aac6bd2abf6ae26bd \
+    --hash=sha256:939803aa9d849961e76512d4c3d60b15c25802c75cbecc801892edb3b023f200 \
+    --hash=sha256:d65e4eae9958740d2039dea7246c3d9ca50fb290de597c2f8ac1f7ea50c89b47 \
+    --hash=sha256:f1f78a2ee9ce703c496a42a68cde9bd6f22b2b964375c2abba39d6dc879918d3 \
+    --hash=sha256:166657921047d094f5ebed6d4a135268df817cd42c79cd67a0d594f37aaa5085 \
+    --hash=sha256:fb77fff0acf1623a25eb84963020b4f9d0b36d9431a8d8ae4221271effc30457
