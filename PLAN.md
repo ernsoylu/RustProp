@@ -2671,6 +2671,34 @@ Append-only; newest last. Seeded entries:
   `platform` should be read as information about the platform before it is read as a bug in
   the YAML.
 
+- 2026-08-19 — **R10, part 3: the oracle is identified, pinned by hash, and archived.**
+  `requirements.txt` pinned `CoolProp==8.0.0`, which names a *release*; the fixtures came
+  from a *build*, and the distinction is load-bearing precisely because this port follows
+  the shipped wheel where it contradicts the `v8.0.0` tag source. The chain was verified
+  end to end from this machine rather than assumed: the PyPI artifact
+  `coolprop-8.0.0-cp312-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl` (sha256
+  `8ca1aefd…`, 10,814,565 bytes) was downloaded fresh and its inner `CoolProp.abi3.so`
+  hashes to `05d85591…` — bit for bit the module in `tools/golden-gen/.venv`, i.e. the
+  binary that answered all 41,629 golden calls. `requirements.txt` now carries the eight
+  abi3 + sdist digests for a `--require-hashes` install; `ORACLE.md` records the full
+  identity, the licence position and a cold-start walkthrough; `verify-oracle.sh` answers
+  "is this THE oracle" instead of "is CoolProp 8.0.0 importable", reading its expected
+  digest out of `manifest.json` (which the generator now writes) so it cannot go stale, and
+  telling a *wrong build* apart from a *different platform* — on a non-`Linux-x86_64` host
+  the digest cannot match by construction, and the script says so rather than crying wolf.
+  **On archiving the wheel in-repo: done, and in its own commit.** The case for is that the
+  fixtures are unreproducible without this exact file and cannot be rebuilt from CoolProp's
+  own source (that is the whole wheel-vs-tag finding), so an upstream URL that stops
+  resolving would quietly make the project unverifiable. The case against is 10.3 MB of
+  binary in a 64 MB `.git`, forever. 16% once, for reproducibility, is worth it — and the
+  licence is unambiguous (MIT, with the wheel carrying its own `LICENSE`), while
+  `tools/golden-gen` is `exclude`d from the workspace so nothing published, tarballed or
+  compiled to wasm carries a byte of it. It is a separate commit ("Archive the oracle wheel
+  in-repo") specifically so the judgement is reversible before the branch is pushed: drop
+  that commit and the hash pinning, `ORACLE.md` and `verify-oracle.sh` all still stand —
+  only this paragraph's archival sentences and `ORACLE.md`'s "Archived in-repo" section
+  would need deleting, along with the `vendor/` fallback in its cold-start step 3b.
+
 ---
 
 ## Status: all fifteen phases complete
