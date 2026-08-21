@@ -8,6 +8,19 @@ on:
   schedule:
     - cron: "17 4 * * 1" # weekly all-fluids sweep (Mondays 04:17 UTC)
 
+# Third-party actions are pinned by commit SHA, not by tag. A tag like `@v4` is
+# a mutable pointer: whoever controls the action repository can move it, and
+# these workflows run with a token that can write to this repository — and, in
+# release.yml's case, will hold the crates.io publish token. The trailing
+# comment records which tag the SHA was resolved from, so the pin stays
+# readable. To update one deliberately:
+#
+#   gh api repos/<owner>/<repo>/commits/<tag> --jq .sha
+#
+# Note the pins are what `@v4`-style tags pointed at on 2026-08-21; several of
+# these actions have much newer majors, and moving to them is a separate change
+# with its own verification.
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -15,11 +28,11 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       # rustup auto-installs the toolchain from rust-toolchain.toml (which
       # floats on the stable channel — it is not pinned to a version),
       # including the wasm32-unknown-unknown target and clippy/rustfmt.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
@@ -32,7 +45,7 @@ jobs:
       - run: cargo run -p rustprop-cli -- props T P 101325 Q 0 IF97::Water
       # The JS deliverable: build it, then check it from Node against the
       # same oracle fixtures the Rust suite uses.
-      - uses: jetli/wasm-pack-action@v0.4.0
+      - uses: jetli/wasm-pack-action@0d096b08b4e5a7de8c28de67e11e945404e9eefa # v0.4.0
         with:
           version: "v0.13.1"
       - name: wasm-pack build + Node smoke
@@ -97,8 +110,8 @@ jobs:
           - os: windows-latest # x86_64-pc-windows-msvc, as release.yml ships
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # --no-fail-fast, unlike the `ci` job: cargo otherwise stops at the FIRST
       # failing test binary, and off-Linux divergences are independent facts
       # scattered across suites. The first run of this job proved the cost —
@@ -131,7 +144,7 @@ jobs:
       CARGO_DENY_VERSION: "0.20.2"
       CARGO_DENY_SHA256: "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: install cargo-deny (pinned)
         run: |
           set -euo pipefail
@@ -151,9 +164,9 @@ jobs:
   msrv:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: rustup toolchain install 1.88 --profile minimal
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo +1.88 check -p rustprop --features all-backends
       - run: cargo +1.88 check -p rustprop-wasm --features all-backends
 
@@ -163,8 +176,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo test -p rustprop-golden-tests --test heos_all_smoke -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test mixtures mixture_sweep -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test tabular_state tabular_pairs -- --ignored --nocapture
