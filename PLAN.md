@@ -2931,6 +2931,41 @@ each — a whole round trip lost to a default. The matrix already sets
 one level down.
 
 
+### 2026-08-21, later — a tag should produce binaries even when it cannot publish
+
+`v0.1.0` exposed a wiring assumption. `github-release` declared
+`needs: [crates-io, wasm-bundles, cli-binaries]`, so when the rate-limit
+preflight refused to publish into a limit that would have half-uploaded the
+workspace, the release job skipped behind it — every bundle and binary built
+and uploaded as run artifacts, and no release existed to attach them to. They
+were attached by hand.
+
+That coupling was wrong in principle, not just inconvenient. crates.io
+publication is irreversible and gated on an override the owner has to obtain
+from a third party; whether it happens says nothing about whether the build is
+good. `github-release` now requires `wasm-bundles` and `cli-binaries` to
+SUCCEED — a broken build must never be released — while `crates-io` stays in
+`needs` for ORDERING only, so the release appears once the publish attempt has
+concluded rather than racing it.
+
+One trap in making that change, worth recording because it would have been a
+silent regression: the job had no tag guard of its own. It inherited one,
+because `crates-io` is tag-gated and a skipped dependency skips its dependents,
+which is exactly how `workflow_dispatch` rehearsals avoided creating releases.
+Removing the success requirement removes that inheritance, so a dispatch run —
+which has no tag — would have reached the job and tried to publish a release
+from a branch ref. The guard is now explicit in the job's own `if`, alongside
+`!cancelled()`.
+
+`RELEASE-CHECKLIST.md` was corrected in the same commit: four passages
+described the old coupling, including the job graph and the resume procedure.
+
+Unrelated but noted while in the file: the actions in both workflows are pinned
+by tag (`@v4`, `@v2`, `@v0.4.0`), not by SHA. `release.yml` is the workflow that
+will hold the publish token, so pinning them by digest is worth doing before
+that token exists. Not done here — it is a separate change with its own
+verification, and this one had to stay reviewable.
+
 ---
 
 ## Status: all fifteen phases complete

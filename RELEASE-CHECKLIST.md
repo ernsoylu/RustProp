@@ -53,8 +53,9 @@ cause one.
   first five. Then the tag's preflight sees zero new crates and passes, and
   `cargo publish --workspace` has nothing left to do — *except* that it will
   fail on "crate version already uploaded". If you take this route, expect the
-  `crates-io` job to fail and to need the §6 resume treatment, and understand
-  that `github-release` will not run until it succeeds.
+  `crates-io` job to fail and to need the §6 resume treatment. The release
+  itself still lands: since 2026-08-21 `github-release` no longer requires
+  `crates-io` to succeed, only to have finished.
 
 The preferred route is preferred precisely because it keeps the pipeline the
 single thing that publishes.
@@ -167,9 +168,11 @@ gh run watch -R ernsoylu/RustProp
 ```
 
 A `workflow_dispatch --ref main` gives `github.ref = refs/heads/main`, so
-`crates-io` is **skipped**. `github-release` declares
-`needs: [crates-io, wasm-bundles, cli-binaries]`, and a job whose dependency was
-skipped is skipped too — so no GitHub release is created either. What the
+`crates-io` is **skipped**, and `github-release` skips too — it carries its own
+`startsWith(github.ref, 'refs/tags/v')` guard, so a dispatch cannot publish a
+release from a branch ref. (That guard is explicit as of 2026-08-21. It used to
+be inherited from `crates-io` being skipped; decoupling the two made it load
+bearing, so it is spelled out in the job.) What the
 rehearsal *does* exercise is everything expensive and untested: `verify` (fmt,
 clippy, the release-profile suite, the dry-run), all five wasm presets × three
 targets, and CLI builds for linux-x64 / macos-arm64 / windows-x64. The
@@ -234,10 +237,16 @@ git push origin v0.1.0
 ## 5. What the tag runs
 
 ```
-verify ──┬── crates-io ─────┐
-         ├── wasm-bundles ──┼── github-release
-         └── cli-binaries ──┘
+verify ──┬── crates-io ─────╌┐   (ordering only — success not required)
+         ├── wasm-bundles ───┼── github-release   (tags only)
+         └── cli-binaries ───┘
 ```
+
+`github-release` waits for `crates-io` to finish but does not require it to
+pass: publication is gated on a rate-limit override the owner has to obtain,
+which says nothing about whether the build is good, and a tag should still
+produce downloadable binaries. It does require `wasm-bundles` and
+`cli-binaries` to succeed — a broken build must not be released.
 
 | Job | Does | Irreversible? |
 |---|---|---|
@@ -321,8 +330,9 @@ Single-crate publishes work *after* the first upload — the pitfall in
 nothing is on the index yet, because packaging has to resolve each crate's
 `rustprop-*` dependencies against crates.io.
 
-**Then get `github-release` to run.** It needs `crates-io` to succeed. Once the
-registry is complete, re-run the failed jobs:
+**Then re-run to finish the publish.** `github-release` will already have run
+(it does not wait on `crates-io` succeeding), so the release and its assets
+exist; what is missing is the registry. Once you are ready:
 
 ```bash
 gh run rerun <run-id> --failed -R ernsoylu/RustProp
