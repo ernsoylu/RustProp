@@ -62,13 +62,24 @@ const MIXING_MARGIN: f64 = 2.0;
 /// and the release profile, which is why an earlier `--release`-only gate run
 /// saw 218 of 218 and CI's debug run does not.
 ///
-/// 1e-13 is eleven times the observed worst and five orders below the 1e-8
+/// The profile split above is the small version of this effect. The first CI
+/// run that ever executed these suites off Linux/x86-64 (2026-08-21, the
+/// `platform` job's debut) found the large one: the same straddle, driven by
+/// the host `libm` rather than by codegen. macOS-arm64 and Windows-x64 differ
+/// from glibc in the last bits of `exp`/`log`/`pow`, every one of which feeds
+/// the ~50-term Helmholtz sum, so the root moves further. Measured worst,
+/// identical on both hosts: R22 `Dmolar(T=367.44852500798726,
+/// P=9980000.000913477)`, port 1.0972880797496031e4 against the wheel's
+/// 1.0972880797506805e4 — 9.82e-13 relative. Windows saw a second at
+/// 1.91e-13. Neither is a wrong root; both reproduce the requested pressure.
+///
+/// 1e-11 is ten times that observed worst and three orders below the 1e-8
 /// scale of `stale_cache_allowance`, so the premise that allowance is derived
 /// from survives intact, while a genuinely wrong root — a different branch of
 /// the cubic-like p(rho) curve — misses by 1e-3 or more and still fails here.
 /// The bitwise count is printed rather than asserted so any drift in how many
 /// records land exactly is visible without being load-bearing.
-const DENSITY_RTOL: f64 = 1e-13;
+const DENSITY_RTOL: f64 = 1e-11;
 
 fn stale_cache_allowance(flash: &PtFlash, t: f64, rho: f64, eval: impl Fn(f64) -> f64) -> f64 {
     let tau = flash.eos.t_reducing / t;

@@ -2825,6 +2825,41 @@ finding that crates.io has no reservation mechanism, and it is left as written
 because this log is append-only. `NEXT-STEPS.md`, which it defers to, carries the
 correction: that step is a re-check immediately before tagging, not an action.
 
+### 2026-08-21 — the first push, and what running off Linux actually found
+
+`main` was pushed (16 commits, `d5a7331..c89afcc`) and CI ran the three jobs
+R10 added. It went red, in two unrelated ways, and both are worth recording
+because neither was reachable from a workstation.
+
+**The `platform` job earned itself on its first run.** `heos_pt`'s
+`pt_states_match_upstream` failed on BOTH macOS-arm64 and Windows-x64 while
+passing on Linux, at exactly the assertion this project has now tightened and
+loosened twice. The cause is the one the job was built to catch: the host
+`libm` differs from glibc in the last bits of `exp`/`log`/`pow`, each of which
+feeds the ~50-term Helmholtz pressure sum, so the iterative PT density root
+lands a little further from the wheel's. Measured worst, identical on both
+hosts: R22 `Dmolar(T=367.44852500798726, P=9980000.000913477)`, port
+1.0972880797496031e4 against 1.0972880797506805e4 — 9.82e-13 relative, where
+the assertion allowed 1e-13. Windows saw a second at 1.91e-13.
+
+Neither density is a wrong root — the same straddle argument as the 2026-08-19
+debug/release split applies, one order larger. `DENSITY_RTOL` is now 1e-11: ten
+times the observed worst, still three orders below the 1e-8 scale
+`stale_cache_allowance` derives from, so that premise survives, and still four
+orders tighter than the 1e-3+ a genuinely different root would miss by. The
+full reasoning lives at the constant.
+
+**The `ci` job failed for a reason that has nothing to do with this port**, and
+is the more general lesson. `rust-toolchain.toml` floats on `stable`; the
+runner had 1.98 while this workstation still had 1.97.1, so clippy 1.98's new
+`chunks_exact_to_as_chunks` fired under `-D warnings` on code that had passed
+every local gate for weeks. Two changes: the lint is fixed at its site
+(`as_chunks::<8>()`, verified to compile on the 1.88 MSRV before being used),
+and a `clippy.toml` now declares `msrv = "1.88"` so clippy stops suggesting
+APIs the floor cannot take. The durable rule: a floating toolchain means the
+local gate is only as current as the last `rustup update` — run it before
+believing a green gate.
+
 ---
 
 ## Status: all fifteen phases complete

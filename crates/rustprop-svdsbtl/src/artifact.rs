@@ -88,8 +88,10 @@ impl<'a> Reader<'a> {
     fn f64s(&mut self, n: usize) -> Result<Vec<f64>> {
         let bytes = self.take(n.checked_mul(8).ok_or_else(|| short(self.at, n))?)?;
         Ok(bytes
-            .chunks_exact(8)
-            .map(|c| f64::from_le_bytes(c.try_into().expect("8 bytes")))
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|c| f64::from_le_bytes(*c))
             .collect())
     }
 }

@@ -1,0 +1,5 @@
+# The workspace ships a 1.88 MSRV (Cargo.toml `rust-version`), but
+# rust-toolchain.toml floats on stable, so clippy runs on whatever stable is
+# current and will otherwise suggest APIs newer than the MSRV. Telling it the
+# floor keeps `-D warnings` honest: a suggestion it makes is one we can take.
+msrv = "1.88"
