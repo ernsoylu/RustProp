@@ -50,8 +50,8 @@ driven by an external consumer (see below).
 | Bundle sizes | measured in `WASM-SIZES.md` — 128 KB (IF97) to 4.2 MB (all-backends) |
 
 **Blocked on the owner, and only on the owner**: claim the crates.io names, add
-the `CARGO_REGISTRY_TOKEN` secret, **push `main`** (CI has never built this
-tree), then tag `v0.1.0`. Publication is irreversible; nothing else stands
+the `CARGO_REGISTRY_TOKEN` secret, then tag `v0.1.0`. (`main` is pushed and CI
+is green on it as of run `32470882030` — that step is done.) Publication is irreversible; nothing else stands
 between the tree and a release. The full statement — what is green, what is
 still doable in a session, what is an accepted gap — is `NEXT-STEPS.md`'s
 **Release readiness** section.
@@ -128,8 +128,9 @@ Decisions log.
   integration round that re-measured all of it independently and restated the
   release readiness.
 - **R10 (release engineering)** — the golden suites finally run off
-  Linux/x86-64 (`ci.yml`'s `platform` job, macOS-arm64 + Windows-x64; never
-  executed yet), a `cargo-deny` supply-chain gate, the oracle pinned by sha256
+  Linux/x86-64 (`ci.yml`'s `platform` job, macOS-arm64 + Windows-x64 — since
+  2026-08-21 they HAVE run, red twice then green; see NEXT-STEPS.md's
+  **Platform-scoped assertions**), a `cargo-deny` supply-chain gate, the oracle pinned by sha256
   and archived in-repo, a `schedule-keepalive` alarm so the weekly sweep cannot
   die quietly, `RELEASE-CHECKLIST.md`, `CHANGELOG.md` — and the finding that
   matters most: **crates.io's new-crate rate limit (burst 5, one per 10 min)

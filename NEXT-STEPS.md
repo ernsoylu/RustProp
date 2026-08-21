@@ -147,13 +147,17 @@ upstream table.
 What could **not** be run here, and is therefore only ever green on a runner:
 the macOS and Windows CLI builds in `release.yml`'s `cli-binaries` matrix, the
 five-preset × three-target wasm bundle matrix, the crates.io upload itself, and
-— new with R10 — the `platform`, `supply-chain` and `schedule-keepalive` jobs
-*as jobs*. Note the distinction for `supply-chain`: its **content** is fully
-proven here (the pinned tarball was re-downloaded, its sha256 matched the digest
-`ci.yml` hard-codes, and that exact binary produced the verdict above) — only
-the YAML wrapping it is unexercised. For `platform` nothing is proven: whether
-the golden suites hold off Linux/x86-64 is genuinely unknown, and a first-run
-failure there is a finding about the port before it is a bug in the workflow.
+— new with R10 — the `schedule-keepalive` job *as a job* (it needs a `schedule`
+event). Note the distinction for `supply-chain`: its **content** was already
+fully proven here (the pinned tarball was re-downloaded, its sha256 matched the
+digest `ci.yml` hard-codes, and that exact binary produced the verdict above);
+only the YAML wrapping it was unexercised, and that ran green on 2026-08-21.
+
+**`platform` is no longer unknown — it has run, and it found things.** See
+*Platform-scoped assertions* below for what off-Linux/x86-64 execution actually
+established. As of run `32470882030` (commit `19003b8`) the whole workflow is
+green: `ci`, `msrv`, `supply-chain`, and `platform` on **macos-latest** and
+**windows-latest** in **both** profiles plus the CLI smoke.
 
 Read **`RELEASE-CHECKLIST.md`** before doing anything in (a) — it is the
 execution order, and it opens with a hazard that would otherwise half-publish
@@ -202,13 +206,13 @@ in order, with the checks and the resume story. The summary:
    will not work.)
 2. **Add the `CARGO_REGISTRY_TOKEN` repository secret** that
    `.github/workflows/release.yml` reads. `gh secret list` is still **empty**.
-3. **Push `main`.** A *precondition*, not a nicety: `origin/main` is still
-   `d5a7331` and local `main` is **16 commits ahead** of it (at this writing),
-   so CI has never seen this tree — the newest CI run on record built
-   `d5a7331`. Tagging without
-   pushing first would fire the release pipeline on code no CI run has ever
-   built, and would skip the first-ever run of the `platform` job, which is the
-   one that could still find something.
+3. **Push `main`. DONE, 2026-08-21** — and it earned its place on this list
+   twice over. The first push went red on `ci` (a floating toolchain: the
+   runner's clippy 1.98 against this box's 1.97.1) and on `platform` (three
+   separate off-Linux findings across two more rounds; see *Platform-scoped
+   assertions*). The tree that ships is now one CI has actually built: run
+   `32470882030`, commit `19003b8`, every job green. The rule stands for any
+   future tag — never tag a tree no CI run has built.
 4. **Tag `v0.1.0` and push the tag**, which runs verify → crates.io publish →
    five wasm presets × three targets → CLI binaries for linux-x64 /
    macos-arm64 / windows-x64 → GitHub release.
@@ -238,9 +242,9 @@ surface is exhausted: every command in "The gate" above, plus all six heavy
 suites, plus the MSRV checks, the node smoke and the cold-cache dry-run, are
 green on this tree. What is left cannot be reached from a workstation:
 
-- **The three new CI jobs need a runner, and a runner needs a push.** `platform`
-  needs macOS and Windows hosts; `schedule-keepalive` needs a `schedule` event.
-  Neither can be simulated here, and pushing is (a)'s step 3.
+- **`schedule-keepalive` still needs a `schedule` event**, which cannot be
+  simulated here. `platform` and `supply-chain` no longer belong on this list:
+  both have run, on the pushed tree, and both are green (run `32470882030`).
 - **`release.yml` needs a dispatch**, which is a workflow run — an owner action
   by policy, written out in `RELEASE-CHECKLIST.md` §3 rather than performed.
 - **Cross-compiling the off-Linux targets locally is not a substitute** even if
@@ -266,13 +270,14 @@ and what is left in each item:
   cargo-deny 0.20.2 from a sha256-pinned tarball rather than an unpinned Docker
   action. The first run found two real problems in `tools/dbg-pcsaft` (no
   licence field, three wildcard path deps), fixed at source.
-- **Platform coverage — jobs added, NEVER RUN.** `ci.yml`'s `platform` job runs
-  the golden suites on `macos-latest` and `windows-latest` — debug on every
-  event, release on pushes to `main`, plus a CLI smoke. `.gitattributes` pins
-  LF so the Windows checkout cannot mangle the fixtures. **Whether the suites
-  actually pass off Linux/x86-64 is still unknown**; that is the point of the
-  job, and a first-run failure there is a finding about the port before it is a
-  bug in the YAML.
+- **Platform coverage — jobs added; HAVE NOW RUN, and found three things.**
+  `ci.yml`'s `platform` job runs the golden suites on `macos-latest` and
+  `windows-latest` — debug on every event, release on pushes to `main`, plus a
+  CLI smoke. `.gitattributes` pins LF so the Windows checkout cannot mangle the
+  fixtures. It went red on its first two runs and is green on the third; what
+  it established is in *Platform-scoped assertions* below. It also gained
+  `--no-fail-fast`, because `cargo test` stops at the first failing test BINARY
+  and that hid a whole round's worth of findings behind one failure per host.
 - **Oracle archival — closed.** `requirements.txt` pins CoolProp by sha256 for
   `--require-hashes`; `tools/golden-gen/ORACLE.md` records the full identity
   and a cold-start walkthrough; `verify-oracle.sh` answers "is this THE oracle"
@@ -385,6 +390,41 @@ final pressure (compressed liquid with p > pc → supercritical_liquid) where
 the tag's `T_phase_determination` alone would say liquid (documented at
 `dmolar_t_state`). When source and wheel disagree, this project ports the
 wheel.
+
+---
+
+## Platform-scoped assertions
+
+These are NOT divergences from upstream — the port and the wheel agree on
+Linux/x86-64 at every state below. They are the places where a fixture cannot
+speak for a platform it was never generated on, and the suites say so
+explicitly rather than pretending.
+
+**The premise.** Every one of the 41,629 oracle records came from a
+**Linux/x86-64** CoolProp 8.0.0 wheel. Apple's, MSVC's and glibc's libm are
+each free to return different last bits for `exp`/`log`/`pow`/`sinh`/`asinh`,
+and nothing in this repo can say what CoolProp built against a different one
+would have answered. Where that decides the result, the honest scope of the
+assertion is the platform the oracle ran on.
+
+**What off-Linux execution has established so far** (`ci.yml`'s `platform`
+job, first run 2026-08-21):
+
+| Finding | Hosts | Resolution |
+|---|---|---|
+| `heos_pt`'s PT-density assertion was too tight at 1e-13; the host libm moves an iterative density root (worst: R22 `Dmolar(T=367.44852500798726, P=9980000.000913477)`, 9.82e-13 relative) | macOS-arm64 **and** Windows-x64 | `DENSITY_RTOL` relaxed to 1e-11 on every platform — 10x the observed worst, still three orders below the 1e-8 scale `stale_cache_allowance` derives from (`3a94971`) |
+| `PR::Propane` PT at T=1e30 and T=1e20, P=101325: the returned density is the rounding residue of a `-713.06...` cancellation, an integer number of ulps. Linux +4 ulp / Windows +2 ulp at 1e30; Linux exactly 0 (so `delta = 0`, so the alpha0 `ValidNumber` gate fires) / Windows +1 ulp (so it answers) at 1e20 | Windows-x64 | Per-STATE allowlist in `tests/golden/tests/validity.rs`, consulted only off Linux/x86-64, skip counts ASSERTED (132/48/6). The two `SRK::Propane` states at the same temperatures are listed too — Windows agreed there, but the measured margin is two ulps, and at T=1e20 the SIGN of the residue is what produces the refusal 31 records assert (`19003b8`) |
+| SES36 `(P, Smolar)` at P=2846151 (0.1% under `max_sat_p`): `t_l == t_v`, `rho_l`/`rho_v` 13 ulp apart, and the two entropies BITWISE EQUAL — so the lever rule is 0/0 = NaN and `post_update` refuses "T is not a valid number", exactly as the wheel does. macOS puts one ulp between them and answers the fixture's own neighbouring `(P, Umolar)` values | macOS-arm64 | Per-STATE allowlist in `tests/golden/tests/pseudo_pure.rs`, same mechanism, skip count ASSERTED (2) (`19003b8`) |
+
+**The rule the allowlists follow**, and the reason they are not a blanket
+skip: *keep asserting values everywhere; stop asserting knife-edge
+refusal-versus-answer classification off Linux/x86-64.* Each entry is one
+enumerated state carrying its measured evidence, `cfg!`-gated so Linux/x86-64
+skips nothing, and each test asserts its exact skip count — so a set that
+grows turns the suite red instead of quietly shrinking its coverage. Every
+other record in those fixtures (the HEOS alpha0 gates at T=1e30, the
+melting-line refusals, the negative-pressure `post_update` arm, the cubic
+states at 300 K and 500 K) keeps asserting on all three platforms.
 
 ---
 
