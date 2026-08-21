@@ -13,8 +13,60 @@
 //! they cross zero.
 
 use rustprop::props_si;
-use rustprop_golden_tests::load_jsonl;
+use rustprop_golden_tests::{GoldenRecord, load_jsonl};
 use std::path::Path;
+
+/// PLATFORM-SENSITIVE STATE — asserted on Linux/x86-64 ONLY, the platform the
+/// oracle wheel ran on. Same principle as `validity.rs`'s allowlist: where a
+/// last-bit property decides refusal-versus-answer, the fixture cannot speak
+/// for a libm it was never generated against, and asserting the
+/// classification off Linux asserts something it does not know.
+///
+/// SES36 at P = 2846151 Pa sits 0.1% below the pseudo-critical pressure
+/// (`max_sat_p` = 2849000 Pa), where the pseudo-pure PQ flash's two branches
+/// have collapsed onto each other. Measured on Linux/x86-64 by instrumenting
+/// `p_phase_determination_pseudo_pure`:
+///
+/// ```text
+/// t_l == t_v == 450.63254754597597   (SES36's pL and pV share coefficients)
+/// rho_l = 0x40a19c5eeb06c55d, rho_v = 0x40a19c5eeb06c56a   -> 13 ulp apart
+/// s(t_l, rho_l) and s(t_v, rho_v) are BITWISE EQUAL, 0x40744ada96ae60d6,
+///     and equal to the requested Smolar to the bit
+/// ```
+///
+/// so upstream's lever-rule quality is `q = (S - s_l)/(s_v - s_l)` = 0/0 =
+/// NaN, `T = q*t_v + (1-q)*t_l` is NaN, and `post_update` refuses "T is not a
+/// valid number" — exactly what the wheel does on the same platform.
+/// macOS-arm64 (run 32468378222) puts an ulp between the two entropies
+/// instead, `q` comes out an ordinary number, and the port ANSWERS
+/// T = 450.63254754597597 / Dmolar = 2254.185386859511. Those are, to the
+/// digit, the values this same fixture's `(P, Umolar)` records hold at the
+/// SAME pressure, so the macOS answer is not a wrong number — it just is not
+/// the wheel's Linux 0/0. Whether that denominator is exactly zero is a
+/// last-bit property of the Helmholtz entropy at two densities 13 ulp apart.
+const PLATFORM_SENSITIVE: &[(&str, f64, &str, f64)] =
+    &[("P", 2846151.0, "Smolar", 324.6783663570071)];
+
+/// True when `rec` sits on the allowlisted state AND this is not the platform
+/// the fixture was generated on. Always false on Linux/x86-64.
+fn platform_sensitive(rec: &GoldenRecord) -> bool {
+    !cfg!(all(target_os = "linux", target_arch = "x86_64"))
+        && rec.fluid == "SES36"
+        && PLATFORM_SENSITIVE.iter().any(|&(n1, v1, n2, v2)| {
+            rec.name1 == n1 && rec.val1 == v1 && rec.name2 == n2 && rec.val2 == v2
+        })
+}
+
+/// How many records the allowlist removes on THIS platform: none on
+/// Linux/x86-64, the enumerated count anywhere else. Asserted by its caller,
+/// so the skip set cannot grow unnoticed.
+fn expected_skips(off_linux: usize) -> usize {
+    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        0
+    } else {
+        off_linux
+    }
+}
 
 #[test]
 fn pseudo_pure_flashes_match_upstream() {
@@ -127,7 +179,12 @@ fn pseudo_pure_error_parity_matches_upstream() {
     );
 
     let mut failures = Vec::new();
+    let mut skipped = 0usize;
     for rec in &records {
+        if platform_sensitive(rec) {
+            skipped += 1;
+            continue;
+        }
         let got = props_si(
             &rec.out,
             &rec.name1,
@@ -150,6 +207,15 @@ fn pseudo_pure_error_parity_matches_upstream() {
             )),
         }
     }
+    println!(
+        "platform-sensitive records skipped: {skipped} of {}",
+        records.len()
+    );
+    assert_eq!(
+        skipped,
+        expected_skips(2),
+        "the platform-sensitive skip set is exactly the enumerated state"
+    );
     assert!(
         failures.is_empty(),
         "{} parity failures:\n{}",

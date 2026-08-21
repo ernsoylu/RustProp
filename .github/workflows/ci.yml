@@ -99,11 +99,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
+      # --no-fail-fast, unlike the `ci` job: cargo otherwise stops at the FIRST
+      # failing test binary, and off-Linux divergences are independent facts
+      # scattered across suites. The first run of this job proved the cost —
+      # macOS stopped at `pseudo_pure` and never reached `validity`, Windows
+      # stopped at `validity` and never reached `viscosity`, so neither host
+      # reported what it actually disagreed about until a second round. Same
+      # reasoning as `fail-fast: false` on the matrix above.
       - name: golden suites (debug)
-        run: cargo test --workspace --all-features
+        run: cargo test --workspace --all-features --no-fail-fast
       - name: golden suites (release)
         if: github.event_name != 'pull_request'
-        run: cargo test --workspace --all-features --release
+        run: cargo test --workspace --all-features --release --no-fail-fast
       # The CLI is the one deliverable release.yml builds for these two
       # platforms. Run the binary, not just its crate's tests.
       - name: CLI smoke

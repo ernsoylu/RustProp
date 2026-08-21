@@ -27,10 +27,10 @@
 //! density the port used to serve.
 
 use rustprop::props_si;
-use rustprop_golden_tests::{check, load_jsonl};
+use rustprop_golden_tests::{GoldenRecord, check, load_jsonl};
 use std::path::Path;
 
-fn fixture() -> Vec<rustprop_golden_tests::GoldenRecord> {
+fn fixture() -> Vec<GoldenRecord> {
     load_jsonl(&Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/validity.jsonl"))
 }
 
@@ -44,6 +44,132 @@ fn oracle_message(err: &str) -> &str {
     }
 }
 
+/// The input side of one fixture record, for matching against the allowlist.
+struct State {
+    backend: &'static str,
+    fluid: &'static str,
+    name1: &'static str,
+    val1: f64,
+    name2: &'static str,
+    val2: f64,
+}
+
+/// PLATFORM-SENSITIVE STATES — asserted on Linux/x86-64 ONLY.
+///
+/// Every fixture in this repo records what a LINUX/x86-64 CoolProp 8.0.0
+/// wheel answered. Nothing here can say what CoolProp built against Apple's
+/// or MSVC's libm would have answered, because the oracle was never run
+/// there. So where the last bits of a libm call decide refusal-versus-answer,
+/// asserting that classification off Linux asserts something the fixture
+/// cannot support. This list is per-STATE and enumerated by hand; everything
+/// else in this 1,626-record fixture — the HEOS alpha0 gates at T=1e30, the
+/// melting-line refusals, the negative-pressure `post_update` arm, the cubic
+/// states at 300 K and 500 K — keeps asserting on every platform, and the
+/// skip counts below are ASSERTED so the set cannot grow unnoticed.
+///
+/// WHAT MAKES THESE FOUR DIFFERENT. All four are a cubic PT flash at a
+/// temperature twenty-plus orders of magnitude outside any physical range,
+/// and there the density that comes back is not a converged root at all — it
+/// is the rounding residue of a cancellation. `solve_cubic`'s one-real-root
+/// branch (`rustprop-heos/src/solvers.rs`) returns `x = t0 - b/(3a)` with
+/// `t0 = -2*sqrt(p/3)*sinh(asinh(z)/3)`; for PR::Propane at T = 1e30 K both
+/// terms are -713.06352787061..., while the physical root p/(R*T) = 1.2e-26
+/// sits THIRTEEN orders of magnitude below ulp(713.06) =
+/// 1.1368683772161603e-13. What survives the subtraction is therefore an
+/// integer number of ulps, and which integer is decided by the last bits of
+/// `sinh`/`asinh` — libm calls, not IEEE-mandated operations. Every other
+/// number at the state follows deterministically from that density
+/// (`rho_reducing = 1` for the cubics, so `delta` IS the density), which is
+/// why the whole state is skipped rather than a hand-picked subset of its 33
+/// records.
+const PLATFORM_SENSITIVE: &[State] = &[
+    // Root = +4 ulp: Dmolar 4.547473508864641e-13 on Linux/x86-64 (wheel and
+    // port agree bitwise there), +2 ulp = 2.2737367544323206e-13 on
+    // Windows-x64 (run 32468378222). The ideal-gas delta-derivatives inherit
+    // the factor exactly, which is the tell:
+    //   dalpha0_ddelta   =  1/delta    2.199023255552e12     vs 4.398046511104e12      (2x)
+    //   d2alpha0_ddelta2 = -1/delta^2 -4.835703278458517e24  vs -1.9342813113834067e25 (4x)
+    //   d3alpha0_ddelta3 =  2/delta^3  2.1267647932558654e37 vs 1.7014118346046923e38  (8x)
+    State {
+        backend: "PR",
+        fluid: "Propane",
+        name1: "T",
+        val1: 1e30,
+        name2: "P",
+        val2: 101325.0,
+    },
+    // Root = 0 ulp on Linux/x86-64: Dmolar is EXACTLY zero, so `delta` is
+    // zero, so `calc_alpha0_deriv_nocache` returns +-inf for every
+    // nDelta >= 1 and upstream's ValidNumber gate throws — 22 of this state's
+    // 33 records are refusals for that reason. Windows-x64 lands one ulp away
+    // (1.1368683772161603e-13), the gate never fires, and the port ANSWERS
+    // (8.796093022208e12 for dalpha0_ddelta, 1e0 for PIP). One ulp of a
+    // -713.0634277389405 cancellation decides the whole state's
+    // classification.
+    State {
+        backend: "PR",
+        fluid: "Propane",
+        name1: "T",
+        val1: 1e20,
+        name2: "P",
+        val2: 101325.0,
+    },
+    // Root = +2 ulp of ulp(-3211.738769906704) = 4.547473508864641e-13, i.e.
+    // Dmolar 9.094947017729282e-13. Windows-x64 AGREED here (run 32468378222
+    // reported PR::Propane and nothing else); listed anyway because the
+    // mechanism is the same one, measured: two ulps of a cancellation, not a
+    // root.
+    State {
+        backend: "SRK",
+        fluid: "Propane",
+        name1: "T",
+        val1: 1e30,
+        name2: "P",
+        val2: 101325.0,
+    },
+    // Root = -2 ulp: Dmolar -9.094947017729282e-13, a NEGATIVE density, so
+    // `post_update` refuses "rhomolar is less than zero" for 31 of this
+    // state's 33 records. The SIGN of the residue — and with it the entire
+    // state's refuse-versus-answer classification — is two ulps of a
+    // -3211.7387504776398 cancellation. Windows-x64 agreed; the margin is two
+    // ulps.
+    State {
+        backend: "SRK",
+        fluid: "Propane",
+        name1: "T",
+        val1: 1e20,
+        name2: "P",
+        val2: 101325.0,
+    },
+];
+
+/// True when `rec` sits on an allowlisted state AND this is not the platform
+/// the fixture was generated on. Always false on Linux/x86-64, where every
+/// record keeps asserting exactly as it did before.
+fn platform_sensitive(rec: &GoldenRecord) -> bool {
+    !cfg!(all(target_os = "linux", target_arch = "x86_64"))
+        && PLATFORM_SENSITIVE.iter().any(|s| {
+            s.backend == rec.backend
+                && s.fluid == rec.fluid
+                && s.name1 == rec.name1
+                && s.val1 == rec.val1
+                && s.name2 == rec.name2
+                && s.val2 == rec.val2
+        })
+}
+
+/// How many records the allowlist removes on THIS platform: none on
+/// Linux/x86-64, the enumerated count anywhere else. Every caller asserts its
+/// number, so a skip set that grows — a new knife edge, or a stale entry —
+/// turns the suite red instead of quietly shrinking its coverage.
+fn expected_skips(off_linux: usize) -> usize {
+    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        0
+    } else {
+        off_linux
+    }
+}
+
 #[test]
 fn validity_refusal_parity_matches_upstream() {
     let records = fixture();
@@ -52,7 +178,12 @@ fn validity_refusal_parity_matches_upstream() {
     assert_eq!(refusals, 450, "oracle refusals pinned");
 
     let mut failures = Vec::new();
+    let mut skipped = 0usize;
     for rec in &records {
+        if platform_sensitive(rec) {
+            skipped += 1;
+            continue;
+        }
         let got = props_si(
             &rec.out,
             &rec.name1,
@@ -89,6 +220,15 @@ fn validity_refusal_parity_matches_upstream() {
             )),
         }
     }
+    println!(
+        "platform-sensitive records skipped: {skipped} of {}",
+        records.len()
+    );
+    assert_eq!(
+        skipped,
+        expected_skips(132),
+        "the platform-sensitive skip set is exactly the four enumerated states"
+    );
     assert!(
         failures.is_empty(),
         "{} parity failures:\n{}",
@@ -106,12 +246,17 @@ fn validity_refusal_parity_matches_upstream() {
 fn alpha0_messages_name_the_same_derivative() {
     let records = fixture();
     let mut checked = 0;
+    let mut skipped = 0usize;
     let mut failures = Vec::new();
     for rec in &records {
         let Some(oracle) = rec.error.as_deref().map(oracle_message) else {
             continue;
         };
         if !oracle.starts_with("calc_alpha0_deriv_nocache") {
+            continue;
+        }
+        if platform_sensitive(rec) {
+            skipped += 1;
             continue;
         }
         checked += 1;
@@ -131,7 +276,13 @@ fn alpha0_messages_name_the_same_derivative() {
             )),
         }
     }
-    assert_eq!(checked, 264, "alpha0-gated refusals pinned");
+    println!("platform-sensitive alpha0-gated refusals skipped: {skipped}");
+    assert_eq!(checked + skipped, 264, "alpha0-gated refusals pinned");
+    assert_eq!(
+        skipped,
+        expected_skips(48),
+        "the platform-sensitive skip set is exactly the four enumerated states"
+    );
     assert!(
         failures.is_empty(),
         "{} message mismatches:\n{}",
@@ -157,7 +308,12 @@ fn boundary_gate_refusals_carry_an_empty_message() {
         empties.iter().any(|r| r.out == "Smolar"),
         "the Smolar witness is in the fixture"
     );
+    let mut skipped = 0usize;
     for rec in empties {
+        if platform_sensitive(rec) {
+            skipped += 1;
+            continue;
+        }
         let err = props_si(
             &rec.out,
             &rec.name1,
@@ -169,6 +325,12 @@ fn boundary_gate_refusals_carry_an_empty_message() {
         .expect_err("the oracle refuses this state");
         assert_eq!(err.to_string(), "", "{} {}", rec.fluid, rec.id());
     }
+    println!("platform-sensitive empty-message refusals skipped: {skipped}");
+    assert_eq!(
+        skipped,
+        expected_skips(6),
+        "the platform-sensitive skip set is exactly the four enumerated states"
+    );
 }
 
 /// The witness from the R11 handoff, spelled out: one call, three outcomes
