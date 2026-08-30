@@ -165,36 +165,412 @@ jobs:
           name: wasm-${{ matrix.preset }}
           path: rustprop-wasm-${{ matrix.preset }}.tar.gz
 
-  cli-binaries:
+  # ---------------------------------------------------------------------------
+  # Native SDK: the C/C++ library, per target triple and per instruction-set
+  # baseline. This is what a desktop, server or embedded consumer links.
+  #
+  # WHAT AN ENTRY MEANS. `run: native` is a runner that executes the code it
+  # just built, so the golden suites and the C/C++ smoke programs actually run
+  # there. `run: build` is a cross-compile with no runner to execute on — the
+  # artifact is built and its symbols checked, and BUILD-INFO.txt says so in
+  # as many words. Shipping an unrun binary is a decision, not an oversight,
+  # and the consumer is told which kind they have.
+  #
+  # WHY THE MICROARCHITECTURE VARIANTS ARE TESTED, NOT JUST BUILT. This port
+  # asserts agreement with the CoolProp 8.0.0 oracle at 1e-12 and tighter,
+  # much of it bitwise. `-C target-cpu` changes which instructions LLVM may
+  # emit — vector forms, and on x86-64-v3 and up the FMA that fuses a multiply
+  # and an add into one rounding instead of two. Whether that moves any of
+  # these numbers is a question with an empirical answer, so each variant runs
+  # the golden suites on a machine that can execute it, and none ships on the
+  # assumption that "it should be fine".
+  #
+  # NOT VERIFIED LOCALLY: the aarch64, musl, armv7 and Windows-arm64 entries
+  # were written on a Linux/x86-64 box and have never executed. A first-run
+  # failure on one of them is INFORMATION — read the failing step before
+  # assuming the YAML is wrong. The x86-64 entries, including all four
+  # microarchitecture baselines, were run locally before this landed.
+  sdk:
     needs: verify
     strategy:
+      fail-fast: false # a break on one target says nothing about the others
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
+          # --- Linux x86-64, one entry per microarchitecture baseline -------
+          # Unsuffixed runs on any x86-64 made since 2003; the numbered ones
+          # need progressively newer processors and are a speed/reach trade
+          # the consumer makes, not us.
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, run: native }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, cpu: x86-64-v2, run: native }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, cpu: x86-64-v3, run: native }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, cpu: x86-64-v4, run: native }
+          # musl: one static library that runs on any Linux, glibc or not —
+          # the shape a container image or a scratch-based cloud deploy wants.
+          # STATIC ONLY, and deliberately: rustc drops the `cdylib` crate type
+          # for musl because the target defaults to `crt-static`, which is the
+          # very property that makes musl worth shipping. The package records
+          # its linkage in BUILD-INFO.txt so nobody hunts for a missing .so.
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, run: native, apt: musl-tools }
+          # --- Linux arm64, on a native arm64 runner ------------------------
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, run: native }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, run: native, apt: musl-tools }
+          # --- Linux armv7 (32-bit, hard-float): Raspberry Pi and friends ---
+          # Cross-compiled: there is no 32-bit ARM runner. Note this target
+          # has a 32-bit usize, which `ci.yml`'s i686 step already exercises
+          # for the overflow class that bites there.
+          - { os: ubuntu-latest, target: armv7-unknown-linux-gnueabihf, run: build, apt: gcc-arm-linux-gnueabihf }
+          # --- macOS --------------------------------------------------------
+          - { os: macos-latest, target: aarch64-apple-darwin, run: native }
+          - { os: macos-13, target: x86_64-apple-darwin, run: native }
+          # --- Windows ------------------------------------------------------
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, run: native }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, run: native }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: sdk-${{ matrix.target }}-${{ matrix.cpu || 'baseline' }}
+
+      - name: install cross toolchain
+        if: matrix.apt != ''
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ${{ matrix.apt }}
+
       - run: rustup target add ${{ matrix.target }}
-      - run: cargo build -p rustprop-cli --release --target ${{ matrix.target }} --features rustprop/all-backends
-      - name: package
+
+      # RUSTFLAGS carries the baseline for every cargo invocation below, so the
+      # library, the CLI and the tests are all built for the same one. An
+      # entry with no `cpu` leaves it empty and gets the target's default.
+      - name: select instruction-set baseline
         shell: bash
         run: |
-          bin=target/${{ matrix.target }}/release/rustprop-cli
-          [ -f "$bin.exe" ] && bin="$bin.exe"
-          tar czf "rustprop-cli-${{ matrix.target }}.tar.gz" -C "$(dirname "$bin")" "$(basename "$bin")"
+          if [ -n "${{ matrix.cpu }}" ]; then
+            echo "RUSTFLAGS=-C target-cpu=${{ matrix.cpu }}" >> "$GITHUB_ENV"
+          fi
+
+      # armv7 needs its own linker; the others link with the host's.
+      - name: point cargo at the cross linker
+        if: matrix.target == 'armv7-unknown-linux-gnueabihf'
+        run: |
+          echo "CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc" \
+            >> "$GITHUB_ENV"
+
+      # Can THIS runner execute what we are about to build? The x86-64-v4
+      # answer genuinely varies: GitHub's Linux pool mixes Intel Ice Lake
+      # (AVX-512, so yes) with AMD Zen 3 (no AVX-512, so no), and which one a
+      # job lands on is not ours to choose. Rather than let the matrix be
+      # flaky, ask the processor and record the answer — the artifact still
+      # ships, and BUILD-INFO.txt says whether it was executed or only built.
+      - name: can this runner execute the target
+        id: exec
+        shell: bash
+        run: |
+          set -euo pipefail
+          runnable="${{ matrix.run }}"
+          if [ "$runnable" = "native" ] && [ -n "${{ matrix.cpu }}" ] && [ -r /proc/cpuinfo ]; then
+            need=""
+            case "${{ matrix.cpu }}" in
+              x86-64-v2) need="sse4_2 popcnt" ;;
+              x86-64-v3) need="avx2 fma bmi2" ;;
+              x86-64-v4) need="avx512f avx512bw avx512cd avx512dq avx512vl" ;;
+            esac
+            for flag in $need; do
+              if ! grep -qw "$flag" /proc/cpuinfo; then
+                echo "::warning::this runner lacks $flag, so ${{ matrix.cpu }} cannot be executed here; the artifact will be built and shipped unrun"
+                runnable="build"
+                break
+              fi
+            done
+          fi
+          echo "run=$runnable" >> "$GITHUB_OUTPUT"
+          echo "runner will: $runnable"
+
+      # THE FIDELITY GATE. The reason each baseline is a separate matrix entry
+      # rather than a build flag: the goldens must hold at the instruction set
+      # the artifact was compiled for, on hardware that can run it.
+      - name: golden suites at this baseline
+        if: steps.exec.outputs.run == 'native'
+        run: cargo test -p rustprop-golden-tests --release --target ${{ matrix.target }} --no-fail-fast
+
+      - name: build the C library
+        shell: bash
+        run: |
+          cargo build -p rustprop-capi --features all-backends \
+            --profile release-capi --target ${{ matrix.target }}
+
+      # Compile a real C and C++ translation unit against the hand-written
+      # header and link the artifact just built. This is what keeps the header
+      # honest, and it is the same script a contributor runs locally.
+      - name: C and C++ against the built library
+        if: steps.exec.outputs.run == 'native' && runner.os != 'Windows'
+        run: crates/rustprop-capi/ctest.sh all-backends ${{ matrix.target }}
+
+      # A cross-compiled artifact cannot be run, but it can still be asked
+      # whether it exports what the header promises — GNU nm reads foreign
+      # ELF perfectly well. This is the part of ctest.sh that does not need a
+      # runner, so a build-only target is not shipped completely unexamined.
+      - name: exported symbols (build-only targets)
+        if: steps.exec.outputs.run != 'native' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          lib="target/${{ matrix.target }}/release-capi/librustprop.so"
+          declared="$(sed -n 's/^RUSTPROP_API [^(]* \**\(rustprop_[a-z0-9_]*\)(.*/\1/p' \
+            crates/rustprop-capi/include/rustprop.h | sort -u)"
+          exported="$(nm -D --defined-only "$lib" | awk '$2 == "T" {print $3}' \
+            | grep '^rustprop_' | sort -u)"
+          diff <(echo "$declared") <(echo "$exported") \
+            || { echo "::error::header and library disagree on the exported surface"; exit 1; }
+          echo "all $(echo "$declared" | wc -l) declared symbols exported by $lib"
+
+      # The MSVC equivalent: cl.exe against the import library. Separate
+      # because the compiler driver, the flags and the artifact names all
+      # differ, and one script doing both would be harder to read than two
+      # that each do one.
+      - name: C and C++ against the built library (MSVC)
+        if: steps.exec.outputs.run == 'native' && runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || ^
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set OUT=target\${{ matrix.target }}\release-capi
+          cl /nologo /W3 /I crates\rustprop-capi\include crates\rustprop-capi\examples\smoke.c ^
+             %OUT%\rustprop.dll.lib /Fe:smoke.exe || exit /b 1
+          copy %OUT%\rustprop.dll . >nul
+          smoke.exe || exit /b 1
+          cl /nologo /W3 /EHsc /std:c++17 /I crates\rustprop-capi\include ^
+             crates\rustprop-capi\examples\smoke.cc %OUT%\rustprop.dll.lib /Fe:smoke_cc.exe || exit /b 1
+          smoke_cc.exe || exit /b 1
+
+      # The CLI, for the same target. It is the project's example application
+      # and the quickest way for someone to check a number without writing code.
+      - name: build the CLI
+        run: cargo build -p rustprop-cli --release --target ${{ matrix.target }}
+
+      - name: package the SDK
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A Rust staticlib records nothing about the system libraries it
+          # needs, so ask the toolchain and hand the answer to both the .pc
+          # file and the CMake static target.
+          export RUSTPROP_NATIVE_LIBS="$(cargo rustc -p rustprop-capi \
+            --features all-backends --profile release-capi \
+            --target ${{ matrix.target }} --crate-type staticlib -- \
+            --print native-static-libs 2>&1 \
+            | sed -n 's/^note: native-static-libs: //p' | tail -1)"
+          export TARGET_CPU="${{ matrix.cpu }}"
+          dir="$(crates/rustprop-capi/package.sh ${{ matrix.target }} dist all-backends)"
+
+          # Record what was actually established about THIS artifact, so the
+          # consumer does not have to infer it from the file name.
+          if [ "${{ steps.exec.outputs.run }}" = "native" ]; then
+            echo "verification    golden suites and the C/C++ smoke programs RAN on this target" >> "$dir/BUILD-INFO.txt"
+          else
+            echo "verification    BUILT ONLY — no runner executes this target, so nothing here was run" >> "$dir/BUILD-INFO.txt"
+          fi
+
+          # The CLI ships twice, on purpose. Inside the SDK because
+          # BUILD-INFO.txt points at it as the way to check a number without
+          # writing code, and standalone because somebody who wants only the
+          # CLI should not download a 25 MB SDK to get a 5 MB binary. Same
+          # build either way — same target, same instruction-set baseline.
+          mkdir -p "$dir/bin"
+          cli="target/${{ matrix.target }}/release/rustprop-cli"
+          [ -f "$cli.exe" ] && cli="$cli.exe"
+          cp "$cli" "$dir/bin/"
+
+          name="$(basename "$dir")"
+          tar czf "$name.tar.gz" -C dist "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          cliname="rustprop-cli-${name#rustprop-}"
+          tar czf "$cliname.tar.gz" -C "$dir/bin" "$(basename "$cli")"
+          echo "cliname=$cliname" >> "$GITHUB_OUTPUT"
+          echo "packaged $name and $cliname"
+
+      # Build four downstream consumers out of the extracted tree — two through
+      # pkg-config, two through find_package — with no reference to this
+      # repository. The generated .pc and CMake config are the parts most
+      # likely to be wrong, and they are wrong in ways only a real consumer
+      # sees.
+      - name: consume the packaged SDK
+        if: steps.exec.outputs.run == 'native' && runner.os != 'Windows'
+        run: crates/rustprop-capi/consumer-test.sh dist/${{ steps.package.outputs.name }}
+
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: cli-${{ matrix.target }}
-          path: rustprop-cli-${{ matrix.target }}.tar.gz
+          name: sdk-${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.name }}.tar.gz
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cli-${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.cliname }}.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Rust consumers.
+  #
+  # The primary channel is crates.io — `cargo add rustprop --features if97` —
+  # and the `crates-io` job above feeds it. This job serves the consumers
+  # crates.io does not: an air-gapped build, a vendored tree, a distribution
+  # that will not fetch at build time, or anyone archiving the exact sources a
+  # tag was cut from.
+  #
+  # WHAT IS IN THE BUNDLE, AND WHY BOTH. The `.crate` files are the archival
+  # copy — byte-for-byte what `cargo publish` uploads, produced by the same
+  # code path. They are NOT, on their own, something you can build from
+  # offline: `cargo package` rewrites each path dependency into a registry
+  # dependency, so an unpacked `rustprop-0.1.0` asks crates.io for
+  # `rustprop-core 0.1.0` and an offline build stops there. (Measured, not
+  # assumed — that is also why `cargo package -p rustprop` fails in this
+  # workspace today while `--workspace` succeeds.)
+  #
+  # So the bundle also carries the workspace source tree, where the path
+  # dependencies are intact and `CARGO_NET_OFFLINE=true cargo build` just
+  # works. The step below builds a consumer against it to prove it.
+  #
+  # WHY THERE IS NO PREBUILT RUST LIBRARY. Rust has no stable ABI, and an
+  # `.rlib` additionally encodes the compiler version and the resolved feature
+  # set: one built here would link only against an identical rustc and fail
+  # confusingly against anything else. Shipping one would offer a guarantee
+  # the language does not make. For a prebuilt binary any Rust version can
+  # call, the C ABI from the `sdk` job is the honest answer — `extern "C"` is
+  # the one interface Rust does keep stable, and Rust calls it as readily as C.
+  rust-sources:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      # The same `.crate` files `cargo publish` would upload, from the same
+      # code path. `--workspace` is required, not stylistic: it resolves the
+      # inter-crate dependencies against the local members, where packaging a
+      # single crate would look for its siblings on crates.io.
+      - name: package every publishable crate
+        run: cargo package --workspace
+
+      - name: assemble the bundle
+        id: bundle
+        run: |
+          set -euo pipefail
+          version="$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "rustprop") | .version')"
+          name="rustprop-${version}-rust-sources"
+          mkdir -p "$name/crates"
+
+          # Only the crates that are actually published — the CLI, the test
+          # harness and the codegen tools are `publish = false` and have no
+          # business in a consumer's vendor directory.
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.publish == null) | .name' | sort \
+            | while read -r c; do cp "target/package/${c}-${version}.crate" "$name/crates/"; done
+
+          # The workspace source tree, which is the half that builds offline.
+          # `git archive` rather than a copy of the working directory: it emits
+          # exactly what the tag contains, with no target/ and no stray files.
+          mkdir -p "$name/source"
+          git archive HEAD | tar x -C "$name/source"
+
+          cp LICENSE "$name/"
+
+          cat > "$name/README-OFFLINE.md" <<'DOC'
+          # rustprop — Rust sources for offline and vendored builds
+
+          Online you need none of this:
+
+              cargo add rustprop --features if97
+
+          ## `source/` — the workspace, for building offline
+
+          The full workspace with its path dependencies intact. Point a
+          dependency at the crate you want and build with no network:
+
+              [dependencies]
+              rustprop = { path = "../rustprop-VERSION-rust-sources/source/crates/rustprop", \
+                           features = ["if97"] }
+
+              CARGO_NET_OFFLINE=true cargo build
+
+          This is the route that works with nothing else installed, and CI
+          builds a consumer this way on every release.
+
+          ## `crates/` — the published `.crate` files, for archival
+
+          One per published crate, byte-for-byte what crates.io received for
+          this tag. Useful for mirroring into a private registry, or for
+          keeping a record of exactly what a release contained.
+
+          They do NOT build offline by themselves: `cargo package` rewrites
+          path dependencies into registry dependencies, so an unpacked
+          `rustprop` asks a registry for `rustprop-core`. For a vendor
+          directory Cargo will accept, use `cargo vendor` on a machine with
+          network and carry the result across — or use `source/` above.
+
+          ## Choosing features
+
+          Every engine and every fluid is opt-in and the defaults are empty;
+          that is what keeps a build small (128 KB for IF97 alone, 4.2 MB for
+          everything). The feature tables are in README.md. In short:
+
+              rustprop = { version = "VERSION", features = ["if97"] }   # self-contained
+              rustprop = { version = "VERSION", features = ["heos"] }   # then pick fluids:
+              rustprop-data = { version = "VERSION", features = ["water", "r134a"] }
+
+          ## No prebuilt Rust libraries
+
+          Rust has no stable ABI, so a prebuilt `.rlib` would link only against
+          the exact compiler that produced it. If you want a binary artifact
+          rather than sources, take the C ABI SDK from this same release —
+          `extern "C"` is stable, and Rust can call it as readily as C can.
+          DOC
+          sed -i "s/VERSION/${version}/g" "$name/README-OFFLINE.md"
+
+          tar czf "$name.tar.gz" "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          du -sh "$name"/*
+
+      # A bundle nobody can build from is worse than no bundle. Unpack it
+      # somewhere else, build a real consumer against the unpacked sources with
+      # the network switched off, and check the number it prints.
+      - name: build a consumer from the bundle, offline
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          tar xzf "${{ steps.bundle.outputs.name }}.tar.gz" -C "$work"
+          src="$work/${{ steps.bundle.outputs.name }}/source"
+
+          mkdir -p "$work/app/src"
+          cat > "$work/app/src/main.rs" <<'EOF'
+          fn main() {
+              let h = rustprop::props_si("H", "T", 300.0, "P", 101325.0, "IF97::Water")
+                  .expect("IF97 water enthalpy");
+              // The golden the README quotes, reached from the bundle alone.
+              assert!(((h - 112665.04341853978) / h).abs() < 1e-11, "got {h}");
+              println!("offline build ok: CoolProp {}, H = {h}", rustprop::UPSTREAM_VERSION);
+          }
+          EOF
+          cat > "$work/app/Cargo.toml" <<EOF
+          [package]
+          name = "offline-consumer"
+          version = "0.0.0"
+          edition = "2024"
+
+          [dependencies]
+          rustprop = { path = "${src}/crates/rustprop", features = ["if97"] }
+          EOF
+          CARGO_NET_OFFLINE=true cargo run --manifest-path "$work/app/Cargo.toml"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rust-sources
+          path: ${{ steps.bundle.outputs.name }}.tar.gz
 
   github-release:
-    needs: [crates-io, wasm-bundles, cli-binaries]
+    needs: [crates-io, wasm-bundles, sdk, rust-sources]
     # crates.io publication is irreversible and gated on a new-crate rate-limit
     # override the owner has to obtain (RELEASE-CHECKLIST.md section 0), so
     # `crates-io` can legitimately refuse for a reason that says nothing about
@@ -213,11 +589,23 @@ jobs:
     # skipped with it. Once success is no longer required, that inheritance is
     # gone, and a dispatch run — which has no tag to release — would otherwise
     # reach this job and try to publish a release from a branch ref.
+    #
+    # EVERY `sdk` MATRIX ENTRY MUST PASS. A matrix reports one aggregate
+    # result, so this cannot say "the important targets" — and it should not
+    # want to. Each entry either ran the golden suites on its own hardware or
+    # is honestly labelled build-only in BUILD-INFO.txt, and a release whose
+    # asset list quietly lost a platform because its job went red is worse
+    # than one that did not happen. If a target turns out to be unshippable —
+    # a runner image that no longer exists, a tier-2 triple that stops
+    # building — DELETE IT FROM THE MATRIX in a commit that says why. Do not
+    # relax this condition to route around it; that trades a loud failure for
+    # a silent gap in what the release claims to cover.
     if: >-
       !cancelled()
       && startsWith(github.ref, 'refs/tags/v')
       && needs.wasm-bundles.result == 'success'
-      && needs.cli-binaries.result == 'success'
+      && needs.sdk.result == 'success'
+      && needs.rust-sources.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4

@@ -144,6 +144,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustprop-capi"
+version = "0.1.0"
+dependencies = [
+ "rustprop",
+ "rustprop-data",
+]
+
+[[package]]
 name = "rustprop-cli"
 version = "0.1.0"
 dependencies = [

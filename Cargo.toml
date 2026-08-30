@@ -54,3 +54,16 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+# The profile the C/C++ artifacts are built with: `release` in every respect
+# that touches the numbers, but unwinding.
+#
+# `panic = "abort"` is right for wasm — there is no host process to protect,
+# and abort is smaller. It is wrong for a shared library loaded into somebody
+# else's application, where a panic would take the host down with it and the
+# `catch_unwind` at each `extern "C"` entry point (rustprop-capi) could never
+# run. Nothing else changes, so a value computed here is the value the
+# `release` profile computes.
+[profile.release-capi]
+inherits = "release"
+panic = "unwind"

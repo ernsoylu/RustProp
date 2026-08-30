@@ -26,7 +26,7 @@ phase gate has passed, and CI is green. What exists:
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
 | Oracle records | 41,629 in 123 committed fixtures, read by 35 suites — every fixture is now consumed by a test (Wave-3 R9) |
-| Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `release.yml`, CI |
+| Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `rustprop-capi` (C/C++ SDK), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
 The last work done (2026-08-16) was the post-completion audit that the
@@ -114,6 +114,65 @@ decision D8). Three waves have landed, each with the full gate green:
   and were re-measured (see the Decisions log).
 
 ---
+
+## The native SDK (2026-08-30, R11)
+
+rustprop is no longer WebAssembly-only. `crates/rustprop-capi` exports a C ABI
+and `release.yml` builds it for twelve targets, so the library is consumable
+from C, C++, and from Rust on desktop and server as well as in a browser.
+
+**What to know before touching it:**
+
+- **The header is the contract, and it is hand-written.** `include/rustprop.h`
+  and `src/lib.rs` are edited together, always. Nothing regenerates either.
+  What catches a mismatch is `crates/rustprop-capi/ctest.sh` — it compiles
+  `examples/smoke.c` and `examples/smoke.cc` against the header, links them to
+  the real shared *and* static library, runs them, and diffs the header's
+  declarations against the `.so`'s dynamic symbol table in both directions.
+  Run it before committing anything in that crate.
+
+- **Every symbol is exported by every build.** A call into an absent engine
+  returns `RUSTPROP_UNAVAILABLE`; it does not `#[cfg]` away the way the wasm
+  bindings do. If you add an entry point, it must exist in a build with no
+  features at all — and `cargo test -p rustprop-capi` with no features is what
+  proves it, because the tests for that path are `cfg(not(...))`.
+
+- **`--profile release-capi`, not `--profile release`.** The C artifacts need
+  `panic = "unwind"` so the `catch_unwind` at each boundary can turn a panic
+  into a status instead of aborting the host application. Same numbers as
+  `release`; only the panic strategy differs.
+
+- **`unsafe_code` is allowed in this crate alone** among shipped crates, and
+  the allowance should stay minimal — every `unsafe` block there carries a
+  `SAFETY:` note naming the caller obligation it relies on.
+
+**Instruction-set variants are settled, and the finding is worth keeping.**
+The question was whether `-C target-cpu` moves any number, since `-v3` and up
+permit FMA. Measured on an i7-1185G7 (supports all four baselines): the full
+suite passes at `x86-64`, `-v2`, `-v3` and `-v4`, and a 29,848-value sweep
+through the built shared library returns **byte-identical** output at all four.
+So the variants are a reach/speed trade with no fidelity cost. If the toolchain
+or the profile ever changes materially, re-run that sweep rather than assuming
+the result carries — it is the evidence, and the FMA reasoning is only the
+explanation.
+
+**What is and is not verified locally.** Verified: all four x86-64 baselines
+(full suite, plus a byte-identical 29,848-value sweep), the whole C/C++ path
+through `ctest.sh` and `consumer-test.sh`, a `cargo check` for aarch64, armv7
+and musl, a full musl build, and the static-only tree through CMake. NOT
+verified: nothing has ever linked or run on aarch64, armv7 or Windows. Treat a
+first-run failure there as information about the target rather than proof the
+YAML is wrong.
+
+**musl packages are static-only.** rustc drops the `cdylib` crate type for musl
+because the target defaults to `crt-static`. That is the right deliverable, not
+a gap — `BUILD-INFO.txt` records the linkage, and the CMake config defines only
+`rustprop::rustprop_static` when there is no shared library.
+
+**One consequence to remember:** the workspace now publishes thirteen crates,
+not twelve. That is one more against crates.io's new-crate burst of five. See
+`RELEASE-CHECKLIST.md` §0.
+
 
 ## Release readiness
 
@@ -363,13 +422,14 @@ heal. Do not "fix" one without checking the assertion that pins it.
 
 | Divergence | Where | Why it stands |
 |---|---|---|
+| HS flash refuses where the wheel answers, for targets only the sub-triple compressed-liquid corner reaches | `crates/rustprop/tests/hs_flash_validity.rs` (`sub_triple_hs_target_is_never_answered_wrongly`, `every_hs_answer_reproduces_its_inputs`) | AUDIT 2026-08-30. `hmolar_smolar_state`'s legacy leg was the one leg not gated on `reproduces()`, and it ANSWERED WRONGLY: Water at h = 0.5 J/kg, s = -1 J/kg/K returned T = 275.5032 K, a state whose enthalpy is 9880 J/kg. The wheel returns T = 273.094065 K, which does reproduce the inputs. That root is 0.066 K BELOW Ttriple: the melting-caloric leg cannot seed it (target h = 0.009008 J/mol falls just under the melting curve's own range, [0.011021, 34163.6]) and `hs_legacy`'s scan starts at `sat_min_liquid.t`, so no bracket this port searches contains it. The leg is now gated, so the port refuses instead of answering wrongly — the right failure mode, but NOT parity. Closing it needs the leg that reaches sub-triple roots; upstream's route to that root is not visible from the wheel alone. NOTE this also disproves the neighbouring pseudo-pure row's "dead code for the 130 superancillary fluids": the legacy leg is live for Water. |
 | THREE pinned mixture records where the port answers and the wheel's recorded value is provably not the wheel's own equilibrium (mixture HSU_P shared-state corruption ×2; shallow-TPD metastable root ×1) | `acceptance.rs` `mixture_divergences`, each pinned to the PORT's value with heal detection | Upstream's HSU_P residual mutates the shared backend (a Tmax-endpoint PT evaluation corrupts SatL/SatV and disables the two-phase split for the rest of the solve); a fresh wheel PT flash at the port's converged T reproduces the port BITWISE. The corruption is history-dependence the port's stateless flashes deliberately cannot express |
 | Upstream's `PT_flash` serves every property off the density solver's LAST TRIAL, not the root it returns; the port evaluates at the root, so its density matches BITWISE while h/s/cp/w differ by up to 5.0e-8 near the critical point | `heos_pt.rs::stale_cache_allowance` — a per-record bound, `\|dX/dln ρ\| · ftol/\|dln p/dln ρ\|`, replacing the old blanket 1e-8 tier for Cp/A; the 218 density records are asserted to 1e-13 (`DENSITY_RTOL`), the premise the bound is derived from. Not bitwise: a PT root is not a single double — Ammonia at T=425.838 K, P=17.045 MPa lands 42 ulp away in a debug build and neither density is wrong, so the bitwise COUNT is printed (217/218 debug, 218/218 release) rather than asserted (`d5a7331`) | `FlashRoutines.cpp:336` assigns `_rhomolar` and nothing else, while `SolverTPResid::call` (`HelmholtzEOSMixtureBackend.cpp:2803`) mutated the same backend at every trial; the calculators then recompute `_delta` fresh but read `dalphar_*` from those caches, so a wheel PT state is internally inconsistent. Reproducing it would mean threading a stale-iterate cache through a stateless port to serve knowingly worse numbers — same ruling as the mixture rows above |
 | The imposition-clear channel of the same corruption (upstream's stability feed fallback permanently clears SatL's constructor liquid imposition for the backend instance): the wheel's Nitrogen[0.97]&Water[0.03] sweep-pair inversions contradict its own forward flashes by up to 1.7 K or error outright | `hsu_p_imposition_clear_divergence_pinned` in `tests/golden/tests/mixtures.rs`, asserting the port's self-consistent inversions | Only observable through sweep-pair flashes (scalar PT builds a fresh backend per call); reproducing it would make PS/HP flashes history-dependent — same ruling as the row above. Full mechanism in the 2026-08-17 Decisions entries |
 | `HAPropsSI` errors return `Result` instead of upstream's `+inf`-with-a-global | humid-air suite | A global error slot is not a thing a WASM library should have |
 | PC-SAFT `WATER` PT/DT errors loudly | PC-SAFT suite, error parity asserted | Upstream computes on children whose sigma is still the −1 sentinel and returns garbage densities |
 | Tabular msgpack+zlib disk cache under `~/.CoolProp/Tabular` not ported | documented in `PLAN.md` | No home directory in WASM. Cost: a LogPH table build runs ~100 s per process (40k HP flashes) — exactly the cost upstream's cache exists to avoid |
-| Pseudo-pure fluids serve PT/PQ/QT plus the classic-ancillary (H,P)/(P,S)/(P,U)/(D,P) flashes (Wave-2 R6, goldened over six regions by R7); the remaining pairs (DmolarT, HS, DQ, HSU_D, ...) are loud `NotImplemented` | pseudo-pure suite (665 records: 654 value at 1e-8, 11 error-parity), verbatim error parity | Upstream routes the rest through legacy solvers that are dead code for the 130 superancillary fluids |
+| Pseudo-pure fluids serve PT/PQ/QT plus the classic-ancillary (H,P)/(P,S)/(P,U)/(D,P) flashes (Wave-2 R6, goldened over six regions by R7); the remaining pairs (DmolarT, HS, DQ, HSU_D, ...) are loud `NotImplemented` | pseudo-pure suite (665 records: 654 value at 1e-8, 11 error-parity), verbatim error parity | Upstream routes the rest through legacy solvers. Those are dead code for the 130 superancillary fluids ONLY where the superancillary cascade succeeds — see the HS row above: for Water the ported `hs_legacy` leg is reached whenever the cascade cannot reproduce the request |
 | R507A gas-classified caloric (P,X) states at p = 0.995·max_sat_p error loudly where the wheel converges | PLAN.md 2026-08-17 R6 entry | Both implementations fire the same gas stability retry from 1e-6 at the Tmin probe (TVanc−0.01, 0.24 K below Tcrit); the retry trajectory is chaotic through the vdW loop and only bitwise alphar arithmetic would reproduce the wheel's lucky convergence (EOS sums agree at 1e-13). A needle: 0.9925·pmax and 0.9975·pmax both agree at ≤2e-9 |
 | Pseudo-pure PY-flash refusal MESSAGES are the port's own bracket diagnostic, not upstream's "unable to solve 1phase PY flash with Tmin=…, Tmax=… due to error: …" wrapper | `pseudo_pure_error_parity_matches_upstream` (refusal-vs-answer asserted for all 11 error records; oracle text carried in each record's `error` field) | The wrapper is `HSU_P_flash`'s catch around the single-phase solve and what it quotes is the INNER diagnostic. R8 closed the bisection stand-in (the inner solve is upstream's own TOMS748 now), but the no-bracket derivative path and the 2-D Newton fallback a refusal falls through to are still unported, so the text a refusal carries is still the port's bracket diagnostic. `post_update` and `solver_rho_Tp` refusals in the same suite ARE verbatim |
 | Upstream's `post_update` validity gate is ported for the HEOS pure/pseudo-pure arm only, not for `mixture_update` | `props_api.rs::post_update` | No reachable NaN mixture state has been observed, and the 10f divergence pins would need re-validating; a gate without evidence is an invented guard |
@@ -478,6 +538,25 @@ cargo build -p rustprop --features all-backends --target wasm32-unknown-unknown 
 cargo publish --dry-run --workspace
 cargo deny --workspace --all-features check    # licences + advisories (deny.toml)
 node tests/wasm-smoke/smoke.mjs        # after a wasm-pack --target nodejs build
+```
+
+Plus, for anything touching `crates/rustprop-capi` — `cargo test` cannot check
+a C ABI, so these are not optional there:
+
+```bash
+cargo test -p rustprop-capi --features all-backends
+cargo test -p rustprop-capi                       # NO features: the only build
+                                                  # where the UNAVAILABLE path
+                                                  # is compiled at all
+crates/rustprop-capi/ctest.sh                     # C and C++, shared + static,
+                                                  # + header/symbol-table diff
+# then package it and build four downstream consumers out of the result:
+export RUSTPROP_NATIVE_LIBS="$(cargo rustc -p rustprop-capi \
+  --features all-backends --profile release-capi --crate-type staticlib -- \
+  --print native-static-libs 2>&1 \
+  | sed -n 's/^note: native-static-libs: //p' | tail -1)"
+crates/rustprop-capi/consumer-test.sh \
+  "$(crates/rustprop-capi/package.sh x86_64-unknown-linux-gnu dist all-backends)"
 ```
 
 > **Run the test suite in BOTH profiles, every time.** `ci.yml` runs debug and

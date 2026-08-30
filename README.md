@@ -20,6 +20,7 @@ Fidelity is the rule: the same algorithms and the same fluid data as upstream Co
 | `crates/rustprop-humid-air` | Humid air / psychrometrics (`HAPropsSI`). |
 | `crates/rustprop` | Facade: `PropsSI`-style API; every engine behind a Cargo feature, `default = []`. |
 | `crates/rustprop-wasm` | wasm-bindgen bindings: JS-facing `props_si` / `ha_props_si` plus a `Float64Array` batch path. |
+| `crates/rustprop-capi` | C ABI: `librustprop.so` / `.a` / `.dll` plus a hand-written header, for C, C++ and any FFI host. |
 | `apps/rustprop-cli` | Example CLI exposing the libraries and calculations over stdout. |
 | `tools/rustprop-datagen` | Codegen: upstream CoolProp JSON → Rust data modules in `rustprop-data`. |
 | `tools/rustprop-svdgen` | Converts upstream `.svd.bin.z` surfaces into the flat `.svds` blobs `rustprop-svdsbtl` reads. |
@@ -66,6 +67,68 @@ Facade features (`default = []`):
 | `tabular` | TTSE / bicubic tables — low-level API, pulls `heos` |
 | `svdsbtl` | SVD-compressed tabular lookup — low-level API |
 | `all-backends` | Every engine plus all 130 HEOS fluids |
+
+## Using it from C, C++, and other languages
+
+`rustprop-capi` exports a C ABI, so anything that can call a C function can
+use rustprop: C, C++, Python (ctypes/cffi), C#, Go, Julia, MATLAB, Fortran.
+Prebuilt SDKs are attached to each release for every target in the table
+below; each carries the shared and static library, the header, pkg-config and
+CMake files, worked examples, and the CLI.
+
+```c
+#include "rustprop.h"
+
+double d;
+if (rustprop_props_si("Dmolar", "T", 300, "P", 101325, "Water", &d) == RUSTPROP_OK)
+    printf("%.15g\n", d);        /* 55317.3527735012 */
+```
+
+```cmake
+find_package(rustprop REQUIRED)
+target_link_libraries(myapp PRIVATE rustprop::rustprop)
+```
+
+Every function is exported by every build, whichever engines it carries — a
+call into one that is absent returns `RUSTPROP_UNAVAILABLE` rather than
+failing to link, and `rustprop_backends()` says what you have. Every entry
+point is safe to call from any number of threads. Details, including the
+static-linking and pkg-config routes, are in
+[crates/rustprop-capi/README-C.md](crates/rustprop-capi/README-C.md).
+
+To build it yourself:
+
+```bash
+cargo build -p rustprop-capi --features all-backends --profile release-capi
+crates/rustprop-capi/ctest.sh          # compiles C and C++ against it and runs them
+```
+
+## Released binaries
+
+| Platform | Targets |
+|---|---|
+| Linux x86-64 | `gnu` and `musl`; plus `x86-64-v2`, `-v3`, `-v4` instruction-set baselines |
+| Linux arm64 | `gnu` and `musl` |
+| Linux armv7 | `gnueabihf` (32-bit, Raspberry Pi) — cross-compiled, see below |
+| macOS | arm64 (Apple silicon) and x86-64 |
+| Windows | x86-64 and arm64 (MSVC) |
+| WebAssembly | `web`, `nodejs` and `bundler` bundles, per feature preset |
+
+The unsuffixed x86-64 artifact runs on anything since 2003; `-v2`/`-v3`/`-v4`
+need progressively newer processors. Every one of them is checked against the
+CoolProp oracle on hardware that can execute it before it ships — the golden
+suites pass identically at all four baselines, and the answers are bit-for-bit
+the same, so the choice is purely about which machines the binary will run on.
+
+`BUILD-INFO.txt` inside each SDK records its target, its baseline, and whether
+it was executed or only built (armv7 has no runner, so it is built and its
+symbols checked, and it says so).
+
+Rust consumers use crates.io; a `rust-sources` bundle is attached to each
+release for air-gapped and vendored builds. There is deliberately no prebuilt
+`.rlib` — Rust has no stable ABI, so one would link only against the exact
+compiler that produced it. If you want a prebuilt binary from Rust, call the
+C ABI.
 
 ## Project status
 

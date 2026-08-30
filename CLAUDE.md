@@ -8,7 +8,13 @@ rustprop is a from-scratch port of **CoolProp 8** — the C++ thermophysical pro
 
 The defining constraint is **modularity for WASM binary size**: all CoolProp data and algorithms get ported, but as independently selectable calculation engines (workspace crates / Cargo features), so application logic compiles in only the specific parts a calculation needs — never a monolithic all-fluids, all-backends binary. Fluid *data* selection matters as much as algorithm selection here: per-fluid JSON data dominates size and must be opt-in too.
 
-- Pure Rust only — no C/C++ FFI (would defeat modular WASM compilation).
+- Pure Rust only — rustprop never *consumes* C/C++ (linking upstream CoolProp,
+  or any C dependency, would defeat modular WASM compilation and is still
+  forbidden). **Exporting** a C ABI is the opposite direction and is allowed:
+  `rustprop-capi` is a leaf binding crate that nothing else depends on, exactly
+  as `rustprop-wasm` is, so the wasm builds and the engine crates are untouched
+  by its existence. It is the only shipped crate with `unsafe_code` allowed —
+  a C ABI cannot be written without it — and the allowance stops at that crate.
 - Primary compile target is `wasm32-unknown-unknown`; keep every dependency wasm-compatible (no threads, filesystem, or clock assumptions in core crates). Native targets remain useful for tests.
 - **Fidelity is a hard requirement**: implement exactly the algorithms CoolProp 8 implements — no reformulations or "improvements" — and carry over all fluid/mixture data unchanged. Upstream is the correctness oracle; comprehensive tests must validate the ported data and computed property values against upstream results.
 
@@ -17,7 +23,9 @@ The defining constraint is **modularity for WASM binary size**: all CoolProp dat
 1. The modular engine crates (the core of the project).
 2. Comprehensive test suites validating ported data and calculation results against upstream CoolProp values.
 3. An example CLI application that makes the libraries and calculations available over stdout.
-4. Releases published both as source code and as prebuilt binaries for consumption by other WASM applications.
+4. Releases published both as source code and as prebuilt binaries — for other
+   WASM applications, and (since the native-SDK wave) for C/C++ and native Rust
+   consumers across x86-64, arm64 and armv7, per instruction-set baseline.
 5. CI/CD pipelines covering build, lint, the full test suite, and release packaging — GitHub Actions. Both exist: `.github/workflows/ci.yml` (every push, plus a weekly `sweep` job for the `#[ignore]`d heavy suites) and `.github/workflows/release.yml` (fires on a `vX.Y.Z` tag).
 
 ## Implementation rules
@@ -46,7 +54,7 @@ driven by an external consumer (see below).
 | Engines | HEOS (pure, pseudo-pure, mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
 | Oracle records | 41,629 in 123 committed fixtures, read by 35 suites (`cat tests/golden/fixtures/*.jsonl \| wc -l`) |
-| Deliverables | engine crates, `rustprop-cli`, `rustprop-wasm`, `release.yml`, CI |
+| Deliverables | engine crates, `rustprop-cli`, `rustprop-wasm`, `rustprop-capi` (C/C++ SDK), `release.yml`, CI |
 | Bundle sizes | measured in `WASM-SIZES.md` — 128 KB (IF97) to 4.2 MB (all-backends) |
 
 **Blocked on the owner, and only on the owner**: claim the crates.io names, add
@@ -72,7 +80,12 @@ file goes stale the moment it duplicates them.
   confined to dev tooling and the unpublished test harness. `wasm-bindgen` (in
   `rustprop-wasm`) is the only external dependency in any shipped crate.
 - Workspace lints deny `unsafe_code`; the release profile uses fat LTO,
-  `panic = "abort"`, symbol stripping.
+  `panic = "abort"`, symbol stripping. Two crates opt out of the deny with a
+  crate-level `allow`: `tools/wasm-size-probe` (never shipped) and
+  `crates/rustprop-capi` (the C ABI, which cannot exist without it). The C
+  artifacts build under `release-capi` — `release` plus `panic = "unwind"` —
+  because a shared library must not abort somebody else's process, and
+  `catch_unwind` at each `extern "C"` entry point cannot run under `abort`.
 - Golden fixtures are generated ONLY by `tools/golden-gen/gen_fixtures.py` and
   committed. Never hand-edit one; regenerate through its generator.
 
