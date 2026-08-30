@@ -1,0 +1,70 @@
+[package]
+name = "rustprop-capi"
+description = "C ABI for rustprop — PropsSI / HAPropsSI for C, C++ and any FFI host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# `name = "rustprop"` so the artifacts are the ones a C toolchain expects to
+# find: librustprop.so / librustprop.a / rustprop.dll, linked as -lrustprop.
+# No `rlib`: the facade crate already owns `librustprop.rlib` in the shared
+# target directory, and a second producer of that exact filename is a cargo
+# output collision. Rust callers want `rustprop` itself, never this crate —
+# so the tests here are unit tests in src/, and the real ABI check is a C
+# program that links the built library (see `ctest.sh`).
+[lib]
+name = "rustprop"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+rustprop.workspace = true
+# Present only so per-fluid data features are addressable from here, exactly
+# as rustprop-wasm does it; the facade pulls the real dependency.
+rustprop-data = { workspace = true, optional = true }
+
+# Engine selection is a COMPILE-time choice here as everywhere else. What
+# differs from rustprop-wasm: the exported symbol set does NOT change with
+# the feature set. One header describes every build; a call into an engine
+# this binary was not built with answers RUSTPROP_UNAVAILABLE rather than
+# failing to link. A prebuilt shared library whose symbols come and go is
+# unusable to a C consumer, who has only the header to go on.
+[features]
+default = []
+heos = ["rustprop/heos"]
+heos-mixtures = ["rustprop/heos-mixtures"]
+cubics = ["rustprop/cubics"]
+if97 = ["rustprop/if97"]
+incompressible = ["rustprop/incompressible"]
+pcsaft = ["rustprop/pcsaft"]
+tabular = ["rustprop/tabular"]
+svdsbtl = ["rustprop/svdsbtl"]
+humid-air = ["rustprop/humid-air"]
+water = ["dep:rustprop-data", "rustprop-data/water"]
+all-fluids = ["dep:rustprop-data", "rustprop-data/all-fluids"]
+# The default shape for a distributed binary: a C consumer downloading a
+# release cannot recompile to add a fluid, so the shipped artifacts carry
+# everything. Source consumers keep the full per-engine, per-fluid choice.
+all-backends = [
+    "heos",
+    "heos-mixtures",
+    "cubics",
+    "if97",
+    "incompressible",
+    "pcsaft",
+    "tabular",
+    "svdsbtl",
+    "humid-air",
+    "all-fluids",
+    "rustprop/all-backends",
+]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+features = ["all-backends"]

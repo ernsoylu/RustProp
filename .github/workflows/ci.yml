@@ -70,6 +70,73 @@ jobs:
               "$(stat -c %s target/wasm32-unknown-unknown/release/rustprop_wasm_size_probe.wasm)"
           done
 
+  # The C/C++ deliverable, on every push.
+  #
+  # WHY IT IS NOT PART OF THE `ci` JOB. `cargo test` cannot check this. The
+  # header is hand-written, so what keeps it agreeing with `src/lib.rs` is a C
+  # translation unit compiled against it and linked to the real artifact —
+  # and what keeps the generated pkg-config and CMake files honest is a
+  # downstream project built out of the packaged tree. Both need a C
+  # toolchain, a linker and a package manager, none of which `cargo test`
+  # touches. Everything below therefore runs the same scripts a contributor
+  # runs locally, so a red build here is reproducible in one command.
+  capi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      # The Rust-side unit tests, at BOTH extremes of the feature set. The
+      # extremes are the point: `all-backends` exercises the calculation
+      # paths, while a build with no engines at all is the only place the
+      # RUSTPROP_UNAVAILABLE contract — every symbol exported by every build —
+      # can actually be tested, because the tests for it are `cfg(not(...))`.
+      - run: cargo test -p rustprop-capi --features all-backends
+      - run: cargo test -p rustprop-capi
+      # Two single-engine builds, because they are what a size-conscious
+      # consumer actually compiles and each one gates a different half of the
+      # exported surface.
+      - run: cargo test -p rustprop-capi --features if97
+      - run: cargo test -p rustprop-capi --features humid-air
+
+      - run: cargo clippy -p rustprop-capi --all-targets --all-features -- -D warnings
+
+      # C and C++, shared and static, against the built library — plus the
+      # check that every symbol the header declares is really exported.
+      - name: C and C++ link and run
+        run: crates/rustprop-capi/ctest.sh all-backends
+
+      # Then package it and build four downstream consumers out of the
+      # extracted tree: two through pkg-config, two through CMake
+      # find_package, static and shared each. The generated .pc and CMake
+      # config are the files most likely to be quietly wrong.
+      - name: package and consume
+        run: |
+          set -euo pipefail
+          export RUSTPROP_NATIVE_LIBS="$(cargo rustc -p rustprop-capi \
+            --features all-backends --profile release-capi --crate-type staticlib -- \
+            --print native-static-libs 2>&1 \
+            | sed -n 's/^note: native-static-libs: //p' | tail -1)"
+          dir="$(crates/rustprop-capi/package.sh x86_64-unknown-linux-gnu dist all-backends)"
+          crates/rustprop-capi/consumer-test.sh "$dir"
+
+      # A shared library that exports more than it means to is a maintenance
+      # liability: every accidental symbol is one somebody can come to depend
+      # on. The header declares twelve functions; the library should export
+      # those and no other `rustprop_*` name.
+      - name: no unintended exports
+        run: |
+          set -euo pipefail
+          declared="$(sed -n 's/^RUSTPROP_API [^(]* \**\(rustprop_[a-z0-9_]*\)(.*/\1/p' \
+            crates/rustprop-capi/include/rustprop.h | sort -u)"
+          exported="$(nm -D --defined-only target/release-capi/librustprop.so \
+            | awk '$2 == "T" {print $3}' | grep '^rustprop_' | sort -u)"
+          if ! diff <(echo "$declared") <(echo "$exported"); then
+            echo "::error::the header and the library disagree about the exported surface (< header, > library)"
+            exit 1
+          fi
+          echo "exported surface matches the header exactly ($(echo "$declared" | wc -l) functions)"
+
   # Off-Linux platform tests.
   #
   # WHY THIS JOB EXISTS. Until it landed, every number this port has ever been
@@ -159,6 +226,110 @@ jobs:
       # make the gate green — upgrade, or record the decision in PLAN.md.
       - run: ./cargo-deny --workspace --all-features check
 
+  # Safety and memory gates for the classes the 2026-08-30 audit found.
+  #
+  # WHY THIS JOB EXISTS. The `ci` job already runs the new regression suites,
+  # because `cargo test --workspace --all-features` picks them up. What it
+  # cannot give them is DEPTH or the profiles and targets where these defects
+  # actually live, and every one of them was invisible to the default gate:
+  #
+  #   * The `.svds` reader turned a 24-byte header into a 16 GB reservation.
+  #     Nothing in the golden fixtures feeds the reader a malformed blob —
+  #     fixtures are all well-formed by construction — so no suite looked.
+  #   * `nx * rank` overflows only where `usize` is 32 bits. On x86-64 the
+  #     product cannot overflow, so a Linux-only gate can never see it, and
+  #     wasm32 — the primary target — is exactly where it bites.
+  #   * `bisect_bits`' bracket assertion fired on a non-finite request. It is
+  #     a `debug_assert!`, so the release gate compiles it out and only a
+  #     DEBUG sweep can reach it.
+  #   * The HS legacy leg answered with a state that did not reproduce its own
+  #     inputs. Correct on every golden; wrong just off the fixture grid.
+  #
+  # The numbers below are TARGETS THIS GATE HOLDS, not floors to relax when
+  # the job goes red. A regression here is a defect until proven otherwise —
+  # if a sweep depth genuinely needs to come down for runner minutes, say so
+  # in PLAN.md's Decisions log rather than editing the number quietly.
+  safety:
+    runs-on: ubuntu-latest
+    env:
+      # Seeded sweep depth. Release buys breadth cheaply; debug is slower per
+      # call but carries `overflow-checks`, which is the only way arithmetic
+      # that wraps silently in the shipped profile shows up at all.
+      FUZZ_N_RELEASE: "100000"
+      FUZZ_N_DEBUG: "25000"
+      # Humid air is cheap per call, so it gets a much deeper draw.
+      FUZZ_N_HA: "1000000"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+
+      # Malformed-input handling for the one hand-rolled parser in the tree,
+      # and the degenerate-slice guards on the tabular bisections.
+      - name: reader and bisection hardening
+        run: cargo test -p rustprop-svdsbtl -p rustprop-tabular --all-features
+
+      # Release, because both budgets in this suite are profile-sensitive: a
+      # debug build is slow enough to blur the four-orders-of-magnitude gap
+      # between the cascade and the legacy leg that the budget separates.
+      - name: HS flash validity and time budgets
+        run: cargo test -p rustprop --features all-backends --release --test hs_flash_validity
+
+      # `props_si` must not panic: the release profile is `panic = "abort"`
+      # and the target is wasm32, so a panic is not a catchable JS exception,
+      # it is a dead module.
+      - name: panic sweep (release, depth)
+        run: |
+          FUZZ_N="$FUZZ_N_RELEASE" \
+            cargo test -p rustprop --features all-backends --release \
+              --test props_si_panic_sweep
+
+      - name: panic sweep (debug, overflow-checks + debug_assert)
+        run: |
+          FUZZ_N="$FUZZ_N_DEBUG" \
+            cargo test -p rustprop --features all-backends \
+              --test props_si_panic_sweep
+
+      # The OTHER public entry point. The audit's own sweep covered only
+      # `props_si`, which was a gap in its coverage rather than a finding.
+      # Psychrometrics has no Helmholtz cascade, so a much larger draw count
+      # costs almost nothing — 2M draws run in ~7 s and resolve ~250k real
+      # solves.
+      - name: humid-air panic sweep (both profiles)
+        run: |
+          FUZZ_N="$FUZZ_N_HA" \
+            cargo test -p rustprop --features all-backends \
+              --test ha_props_si_panic_sweep
+          FUZZ_N="$FUZZ_N_HA" \
+            cargo test -p rustprop --features all-backends --release \
+              --test ha_props_si_panic_sweep
+
+      # 32-BIT TARGET. This is the point of the job that no other gate covers.
+      # `wasm32-unknown-unknown` has no test runner here, but it shares the
+      # property that matters — a 32-bit `usize` — with i686, which DOES run
+      # natively on this runner. Any `nx * rank`-shaped overflow in the reader
+      # is reachable here and nowhere else in CI.
+      - name: 32-bit target (usize is 32 bits, as on wasm32)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-multilib
+          rustup target add i686-unknown-linux-gnu
+          cargo test -p rustprop-svdsbtl -p rustprop-tabular --all-features \
+            --target i686-unknown-linux-gnu
+
+      # The shipped profile has `overflow-checks` off, so arithmetic that
+      # wraps there is silent. Running the release-shaped build WITH the
+      # checks on turns that silence into a failure.
+      - name: release profile with overflow checks
+        env:
+          RUSTFLAGS: "-C overflow-checks=on"
+        run: cargo test --workspace --all-features --release
+
+      # NOTE no wasm32 build step here: the `ci` job already builds
+      # `-p rustprop --features all-backends` for wasm32-unknown-unknown, and
+      # `all-backends` includes svdsbtl. What that job cannot do is RUN
+      # anything on a 32-bit target, which is what the i686 step above is for.
+
   # The declared rust-version must actually build the shipped crates —
   # rust-toolchain.toml floats on stable, so nothing else exercises it.
   msrv:
@@ -169,6 +340,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo +1.88 check -p rustprop --features all-backends
       - run: cargo +1.88 check -p rustprop-wasm --features all-backends
+      - run: cargo +1.88 check -p rustprop-capi --features all-backends
 
   # All-fluids sweep: the #[ignore]d 130-fluid smoke suite (~1,900 oracle
   # records). Runs on manual dispatch and weekly — not on every push.

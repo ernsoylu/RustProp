@@ -2966,6 +2966,296 @@ will hold the publish token, so pinning them by digest is worth doing before
 that token exists. Not done here — it is a separate change with its own
 verification, and this one had to stay reviewable.
 
+### 2026-08-30 — external audit: what a malformed blob and a seeded sweep found
+
+An external review of the tree turned up nine findings. Five carried a running
+proof, and the two that mattered were in places no golden fixture can reach.
+
+**The `.svds` reader turned a 24-byte header into a 16 GB reservation.**
+`load()` passed `n_props` straight from the header to `Vec::with_capacity`
+before reading a single property, so the count was validated only by the loop
+that came after the allocation. Measured through `/proc/self/status`: 24 bytes
+in, 16,384 MB of address space reserved. Linux overcommit absorbs that and the
+call still returns `Err`, which is exactly why nothing noticed; on wasm32,
+where `usize` is 32 bits and linear memory is bounded, the request cannot be
+satisfied and `panic = "abort"` turns it into a dead module. `Reader::count`
+now bounds any wire count against the bytes that remain, before anything
+reserves for it.
+
+The fidelity rule does not reach this code and that is worth stating plainly:
+the `.svds` container, its reader and `rustprop-svdgen` are this project's own
+invention — upstream caches msgpack and `artifact.rs` deliberately does not
+parse it at runtime — so there is no upstream behaviour to be faithful to and
+refusing malformed input costs nothing.
+
+**The HS flash answered wrongly, and the wheel does not.** `hmolar_smolar_state`
+runs three legs that each gate on `reproduces()` and then falls through to
+`hs_legacy`, which was never gated. For Water at h = 0.5 J/kg, s = -1 J/kg/K it
+returned T = 275.5032 K — a state whose enthalpy is 9880 J/kg, not 0.5. The
+oracle wheel returns T = 273.094065 K, and that state does reproduce the
+request, so this was not a matter of an unanswerable input.
+
+Diagnosis, instrumented: the root sits 0.066 K BELOW Ttriple. Leg 4 exists for
+exactly that corner and has the right floor (melt_tmin = 251.17 K), but
+`seed_for_hs` cannot seed it — the target h = 0.009008 J/mol falls just under
+the melting curve's own range of [0.011021, 34163.6], because the state is not
+on the melting curve. `hs_legacy` then scans upward from `sat_min_liquid.t`, so
+no bracket this port searches contains the root. The EOS itself is fine: at the
+wheel's (T, rho) this port returns h = 0.5000000090, s = -1.0000000000.
+
+The leg is now gated like every other. That converts a plausible wrong number
+into a refusal, which is the right failure mode for a property library, but it
+is a DIVERGENCE and not parity — recorded as such in NEXT-STEPS.md. Closing it
+needs the leg that reaches sub-triple roots, and upstream's route to that root
+is not visible from the wheel alone; only the binary is vendored.
+
+Two documentation claims fell out of this. NEXT-STEPS.md and CHANGELOG.md both
+said upstream's legacy solvers are "dead code for the 130 superancillary
+fluids". They are not: the ported legacy leg is live for Water whenever the
+cascade cannot reproduce the request. Both were corrected.
+
+**A `debug_assert!` made debug builds panic where release answers.**
+`bisect_bits` asserted `fa * fb <= 0.0`. A non-finite request —
+`props_si("Q", "S", NaN, "Hmass", -inf, "R134a")` — makes that product NaN,
+which fails the comparison. Release compiles the assertion out and returns the
+interval midpoint, so a consumer building in dev profile saw crashes the
+shipped profile does not have. Found by running the seeded sweep in DEBUG,
+which is the only profile that can see it; the release sweep had already run
+150,000 calls clean. The assertion now applies only where "same sign" is
+meaningful.
+
+The rest were narrower: caller-supplied `region_idx` indexed rather than
+checked in two `SvdSurface` methods that already return `Result`; the
+shared-grid invariant that `eval_with_region_multi` relies on documented but
+never enforced, so the two public entry points could disagree; `n - 1` on a
+possibly-empty slice in both tabular bisections; `nx * rank` unchecked, which
+matters only where `usize` is 32 bits; `AxisTransform::make` dead code, its
+guards unreachable on the one path that reads untrusted bytes; three
+`partial_cmp().unwrap()` sorts, the same shape the seeded acceptance sweep
+already caught once in `rustprop-cubics`; a `u16` bucket index; an unbounded
+geometric scan; and a scaling factor that can reach infinity in
+`balance_matrix`.
+
+**What went into CI, and why the existing gate could not have caught any of
+this.** A `safety` job now runs the regression suites at depth, in both
+profiles, and on `i686-unknown-linux-gnu`. The 32-bit target is the point:
+wasm32 has no test runner here, but i686 shares the property that matters and
+runs natively, so the `nx * rank` class is reachable in CI for the first time.
+That step was verified to have teeth — reverting the `checked_mul` makes it
+fail on i686 release with the wrapped length, and only there. The debug sweep
+carries `overflow-checks` and `debug_assert!`, which is how the `bisect_bits`
+finding surfaced at all, and a release run with `-C overflow-checks=on` turns
+the shipped profile's silent wrapping into a failure.
+
+One more gap closed while verifying the above, and it was the audit's own:
+its sweep covered `props_si` and never touched `ha_props_si`, the other public
+entry point. Swept now — 2,000,000 draws resolving ~252,000 real psychrometric
+solves, clean in both profiles — and kept as
+`ha_props_si_panic_sweep.rs`. Psychrometrics has no Helmholtz cascade, so that
+depth costs about 7 s. The test carries a floor on how many draws must resolve
+to a real computation: random name triples are mostly rejected on sight, and a
+sweep that only exercises input validation proves nothing while still passing.
+
+Post-fix confirmation runs, none of which found anything further: 250,000
+`props_si` draws in debug (714 s), 150,000 in release, 2,000,000 `ha_props_si`
+draws in debug.
+
+The sweep depths in that job are targets the gate holds, not floors to lower
+when it goes red. If runner minutes ever force one down, it belongs here.
+
+This is the same lesson already recorded under "randomized and unread coverage
+finds what hand-chosen goldens do not", with one addition: the profile and the
+target are part of the coverage. 150,000 release calls on x86-64 found nothing
+that 2,000 debug calls found immediately.
+
+---
+
+## 2026-08-30 — R11: the native SDK (C ABI, multi-architecture releases)
+
+Driven by a consumer requirement the project had not served: use rustprop from
+**C and C++**, and from Rust on **64-bit desktop and cloud targets**, not only
+from WebAssembly.
+
+### The rule this appears to break, and why it does not
+
+CLAUDE.md said "Pure Rust only — no C/C++ FFI (would defeat modular WASM
+compilation)". That rule is about **consuming** C: linking upstream CoolProp,
+or any C dependency, would make the wasm builds impossible and is still
+forbidden. **Exporting** a C ABI is the opposite arrow. `rustprop-capi` is a
+leaf, exactly as `rustprop-wasm` is — nothing depends on it, no engine crate
+knows it exists, and every wasm bundle is byte-identical with or without it.
+The rule has been reworded rather than waived.
+
+### Whether `-C target-cpu` moves the numbers — measured, not assumed
+
+This was the question that decided the shape of the release matrix, because
+this port asserts agreement with the 8.0.0 oracle at 1e-12 and tighter, much
+of it bitwise. `x86-64-v3` and up permit FMA, which fuses a multiply and an
+add into a single rounding instead of two, and every Helmholtz term and solver
+iterate is built out of those.
+
+Two independent checks, both on this box (i7-1185G7, which supports all four
+baselines including AVX-512):
+
+1. The full workspace suite at each of `x86-64`, `-v2`, `-v3`, `-v4`:
+   **168 passed, 0 failed** at every one.
+2. A 29,848-value sweep through the built shared library — ten fluids across
+   HEOS/IF97/SRK/PR, nine outputs, single-phase and saturation and quality
+   states, plus humid air — printing the raw bit pattern of every answer.
+   **All four baselines produced byte-identical output** (28,134 successes,
+   28,061 distinct values, same md5).
+
+So the microarchitecture variants are a pure reach/speed trade with no
+fidelity cost, and they ship. Had the sweep differed anywhere, the honest
+outcome would have been to ship the baseline alone; the point of measuring
+first was to not have to guess.
+
+The reason the answer is "no difference" is that rustc leaves LLVM's
+`fp-contract` off, so scalar `a*b + c` is not fused without an explicit
+`f64::mul_add`, and the libm calls that dominate these paths are the platform's
+either way. That is the explanation, not the evidence — the evidence is the
+sweep, and the sweep is what a future toolchain change would have to re-run.
+
+### The C ABI, and where it deliberately differs from the JS bindings
+
+`rustprop-wasm` `#[cfg]`s its exports away when an engine is absent, which is
+fine for a JS caller who finds out by catching a `TypeError`. A C caller has
+only the header, and a missing symbol is a link failure — or, for a `dlopen`ed
+module, a crash. So **every function is exported by every build**, and a call
+into an absent engine returns `RUSTPROP_UNAVAILABLE` with a message saying how
+to get one that has it. `rustprop_backends()` / `rustprop_has_backend()` /
+`rustprop_fluid_count()` / `rustprop_fluid_name()` exist because a prebuilt
+binary is otherwise opaque about compile-time choices that are the whole point
+of the project.
+
+Three further decisions:
+
+- **`panic = "unwind"` for the shipped C artifacts**, via a new `release-capi`
+  profile. Unwinding out of `extern "C"` is UB, so each entry point wraps its
+  body in `catch_unwind`; under the wasm-correct `panic = "abort"` that guard
+  can never run and a panic would take the host application down. Nothing else
+  differs from `release`, so the numbers are the `release` numbers. This is ABI
+  hygiene, not one of the invented guards the fidelity rules forbid: it
+  constrains no thermodynamic path and fires only where the alternative is UB
+  in someone else's process.
+- **The header is hand-written, not generated.** cbindgen would have been a
+  build dependency on a shipped crate for a twelve-function, scalar-only
+  surface, and would have produced worse documentation. What keeps it honest is
+  stronger than a diff: `examples/smoke.c` and `examples/smoke.cc` compile
+  against the header and link the real artifact, `ctest.sh` runs both against
+  the shared and the static library, and CI additionally diffs the header's
+  declarations against the `.so`'s dynamic symbol table in both directions, so
+  an accidental export fails the build too.
+- **Thread safety is claimed because the compiler already proved it.** The
+  per-fluid caches in `props_api` live in `static`s, and a `static` requires
+  `Sync`; the per-solve derivative memos are stack locals. The C and C++ smoke
+  programs still run eight threads over the same states and demand bit-identical
+  answers, because a claim in a header is worth having a test behind.
+
+### One defect the C ABI's own tests found
+
+The first shape of the argument marshalling evaluated all four string
+arguments and chose a status from the result tuple afterwards. `str_arg`
+records into the thread's last-error slot as it goes, so with two bad
+arguments the LAST failure won the message while the FIRST won the returned
+code: `rustprop_props_si` returned `RUSTPROP_INVALID_UTF8` (101) for `output`
+while `rustprop_last_error_code()` said `RUSTPROP_NULL_ARGUMENT` (100) and the
+message named `fluid`. A caller doing the only sensible thing — check the
+code, then read the message — was told about two different arguments.
+
+Fixed by short-circuiting on the first bad argument (`str_args!`), and pinned
+by `status_and_message_describe_the_same_argument`, which was written to fail
+against the old shape before the fix went in. Worth recording because the
+class generalises: any boundary that both returns a code and stashes a
+message has to make them describe the same event, and evaluating everything
+before deciding is how that gets broken.
+
+### Releases
+
+`release.yml` grew an `sdk` matrix of twelve entries: Linux x86-64 (gnu and
+musl) at all four instruction-set baselines, Linux arm64 (gnu and musl) on a
+native arm64 runner, armv7 hard-float cross-compiled, macOS arm64 and x86-64,
+Windows x86-64 and arm64. An entry either runs the golden suites and the C/C++
+smoke programs on its own hardware, or is labelled BUILT ONLY in the
+`BUILD-INFO.txt` inside the artifact. armv7 is the only build-only entry today,
+because no runner executes it; the AVX-512 entry degrades to build-only by
+itself when it lands on an AMD runner, since GitHub's Linux pool is mixed and
+which host a job gets is not ours to choose.
+
+The old three-target `cli-binaries` job is gone: the `sdk` matrix builds the
+CLI for all twelve targets and ships it both inside the SDK and standalone, so
+keeping a second job that did the same thing for three of them was duplication.
+
+`github-release` requires **every** `sdk` entry to succeed. A matrix reports one
+aggregate result, so this cannot be selective — and should not be. If a target
+becomes unshippable, delete it from the matrix in a commit that says why,
+rather than relaxing the condition and shipping a release whose asset list
+quietly lost a platform.
+
+### Rust consumers
+
+crates.io remains the primary channel. The new `rust-sources` artifact serves
+air-gapped and vendored builds, and carries **both** the published `.crate`
+files and the workspace source tree — because the `.crate` files alone do not
+build offline. `cargo package` rewrites every path dependency into a registry
+dependency, so an unpacked `rustprop` asks crates.io for `rustprop-core`.
+(Measured: `cargo package -p rustprop` fails outright in this workspace today
+for exactly that reason, while `--workspace` succeeds.) The source tree keeps
+its path dependencies, and CI builds a consumer against it with
+`CARGO_NET_OFFLINE=true` to prove it.
+
+No prebuilt `.rlib` ships. Rust has no stable ABI and an `.rlib` also encodes
+the compiler version and resolved features, so one built here would link only
+against an identical rustc. For a prebuilt binary callable from any Rust
+version, the C ABI is the honest answer.
+
+### Consequence for the first release
+
+The workspace now publishes **thirteen** crates, not twelve. That directly
+worsens the R10 finding: crates.io's new-crate burst is 5, and
+`release.yml`'s preflight counts new crates against
+`CRATES_IO_NEW_CRATE_BURST`. `RELEASE-CHECKLIST.md` §0 is updated, and its
+crate list is now read from `cargo metadata` rather than retyped, since the
+count has already changed once.
+
+### What was and was not verified locally
+
+Verified on this box, before any of it landed:
+
+- All four x86-64 baselines: full suite green, and the 29,848-value sweep
+  byte-identical across them.
+- The whole C/C++ path — `ctest.sh` (C and C++, shared and static, plus the
+  header-vs-symbol-table diff) and `consumer-test.sh` (pkg-config and CMake
+  consumers, static and shared, and the version gate refusing 99.0).
+- `cargo check` for `aarch64-unknown-linux-gnu`,
+  `armv7-unknown-linux-gnueabihf` and `x86_64-unknown-linux-musl`: all compile.
+- A full musl build, which is what turned up the linkage finding below.
+- The static-only tree through CMake, by removing the `.so` from a package and
+  confirming `find_package` defines only `rustprop::rustprop_static` and that a
+  consumer still builds and runs.
+
+NOT verified, and to be read as such: nothing has ever *linked or run* on
+aarch64, armv7 or Windows (either architecture). Those matrix entries were
+written blind. A first-run failure there is information about the target, not
+necessarily a defect in the YAML — the same footing `ci.yml`'s `platform` job
+started from, which went red twice before it went green.
+
+### musl is static-only, deliberately
+
+The local musl build produced `librustprop.a` and no `.so`, with
+`warning: dropping unsupported crate type 'cdylib' for target
+x86_64-unknown-linux-musl`. rustc refuses a cdylib there because the target
+defaults to `crt-static` — which is the property that makes musl worth
+shipping at all: one binary with nothing to load at run time.
+
+Left as-is rather than forced with `-C target-feature=-crt-static`. What the
+finding changed is the honesty of the package: `package.sh` now writes a
+`linkage` line into `BUILD-INFO.txt`, the CMake config already degrades to
+defining only `rustprop::rustprop_static` (checked, by deleting a `.so` from a
+package and building a consumer against the result), and both the workflow and
+`README-C.md` say so. A consumer hunting for a missing `.so` is a bad hour;
+the file that would have told them costs one line.
+
 ---
 
 ## Status: all fifteen phases complete

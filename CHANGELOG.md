@@ -6,10 +6,65 @@ are not "Added" and "Fixed" but **Divergences from upstream** and **Not
 ported** — a difference from CoolProp is the only kind of surprise this library
 can hand you.
 
+## [Unreleased]
+
+### Added — a native SDK for C, C++ and desktop/cloud Rust
+
+rustprop was built WebAssembly-first. It now ships for native targets too,
+without giving up the modularity that motivated the project.
+
+- **`rustprop-capi`: a C ABI.** `librustprop.so` / `.dylib` / `.a` /
+  `rustprop.dll` with a hand-written `rustprop.h`, so C, C++, Python (ctypes),
+  C#, Go, Julia, MATLAB and Fortran can call `PropsSI` and `HAPropsSI`
+  directly. Twelve functions: the two calculations, a batch form, per-thread
+  error reporting, and introspection.
+
+  Unlike the JS bindings, **every function is exported by every build**. A
+  call into an engine your copy was not compiled with returns
+  `RUSTPROP_UNAVAILABLE` rather than failing to link, so one header works
+  against any build — and `rustprop_backends()`, `rustprop_has_backend()`,
+  `rustprop_fluid_count()` and `rustprop_fluid_name()` tell you what you have,
+  which a prebuilt binary otherwise cannot say.
+
+  Every entry point is safe to call concurrently from any number of threads,
+  with no initialisation call and nothing to free.
+
+- **Prebuilt SDKs for twelve targets**, each with the shared and static
+  library, the header, pkg-config and CMake package files, worked examples and
+  the CLI: Linux x86-64 (gnu + musl), Linux arm64 (gnu + musl), Linux armv7,
+  macOS arm64 and x86-64, Windows x86-64 and arm64.
+
+- **Instruction-set variants for x86-64**: `x86-64-v2`, `-v3` and `-v4`
+  alongside the portable baseline. These change only which processors the
+  binary runs on. The numbers are identical — verified, not assumed: the full
+  suite passes at all four baselines, and a 29,848-value sweep across every
+  engine returns byte-identical results from each.
+
+- **A `rust-sources` bundle** for air-gapped and vendored Rust builds,
+  carrying both the published `.crate` files and the workspace source tree.
+  crates.io remains the normal route. No prebuilt `.rlib` ships: Rust has no
+  stable ABI, so one would link only against the exact compiler that built it
+  — use the C ABI if you need a prebuilt binary.
+
+### Changed
+
+- The CLI is now built for all twelve targets instead of three, and ships both
+  standalone and inside each SDK.
+- The workspace publishes **thirteen** crates rather than twelve, which raises
+  the crates.io new-crate count that `release.yml`'s preflight checks against.
+  See `RELEASE-CHECKLIST.md` §0.
+
+### Unchanged
+
+- The WebAssembly bundles, the engines and every computed value. `rustprop-capi`
+  is a leaf crate with no external dependencies that nothing else depends on,
+  so no existing consumer's build is affected by its arrival.
+
 ## [0.1.0] — 2026-08-21
 
 Tagged and released on GitHub with prebuilt wasm bundles and CLI binaries.
 crates.io publication is deferred: the workspace creates twelve new crates
+(thirteen as of Unreleased, above)
 against crates.io's new-crate rate limit (burst 5, one per 10 minutes), so
 `release.yml`'s preflight refuses to publish until a limit override is in
 place — see `RELEASE-CHECKLIST.md` §0. Until then, depend on the tag:
@@ -91,8 +146,10 @@ the subset a consumer can actually reach.
 - **Pseudo-pure fluids serve a subset of input pairs.** `PT`, `PQ`, `QT` and
   the four classic-ancillary caloric pairs `(H,P)` / `(P,S)` / `(P,U)` /
   `(D,P)` work; `DmolarT`, `HS`, `DQ`, `HSU_D` and the rest raise a loud
-  `NotImplemented`. Upstream routes those through legacy solvers that are dead
-  code for the 130 superancillary fluids.
+  `NotImplemented`. Upstream routes those through legacy solvers, which are
+  dead code for the 130 superancillary fluids only where the superancillary
+  cascade succeeds — the ported `HS` legacy leg is reachable for Water when it
+  does not (see the HS divergence in NEXT-STEPS.md).
 - **`(Dmolar, P)` below the triple-point pressure** raises `NotImplemented`
   where upstream answers (148 states in a systematic scan). Not reachable at
   physical inputs.

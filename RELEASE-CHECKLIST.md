@@ -21,8 +21,17 @@ a bug in the tree.**
 crates.io rate-limits the creation of *new* crates per user: a burst of **5**,
 refilling **one per 10 minutes**
 ([`rate_limiter.rs`](https://github.com/rust-lang/crates.io/blob/main/src/rate_limiter.rs),
-`LimitedAction::PublishNew`). This workspace publishes **twelve** crates, all
-twelve of which are new. `cargo publish` does not retry an HTTP 429.
+`LimitedAction::PublishNew`). This workspace publishes **thirteen** crates, all
+thirteen of which are new. `cargo publish` does not retry an HTTP 429.
+
+**Changed 2026-08-30**: it was twelve until `rustprop-capi` (the C ABI) landed.
+The count is not a constant — read it from the tree rather than from this
+sentence, because the preflight does:
+
+```bash
+cargo metadata --no-deps --format-version 1 \
+  | jq -r '.packages[] | select(.publish == null) | .name' | sort
+```
 
 So a naive `cargo publish --workspace` on the tag would upload roughly five
 crates, be refused for the sixth, and stop — leaving a **partial, permanent**
@@ -30,14 +39,14 @@ publish, with the facade `rustprop` (the crate anyone would actually depend on)
 among the ones that did not make it.
 
 `release.yml`'s `crates-io` job now refuses to start in that state: a preflight
-step counts how many of the twelve are new and fails *before the first upload*
+step counts how many of the thirteen are new and fails *before the first upload*
 if that exceeds the allowance. It can only ever refuse to publish; it cannot
 cause one.
 
 **Do one of these before tagging:**
 
 - **Preferred — get an override.** Ask the crates.io team to raise your
-  `PublishNew` limit, saying you are releasing a 12-crate workspace in one
+  `PublishNew` limit, saying you are releasing a 13-crate workspace in one
   shot. The current route is an issue on
   [`rust-lang/crates.io`](https://github.com/rust-lang/crates.io/issues) using
   their rate-limit-increase template, or `help@crates.io`. Allow days, not
@@ -45,10 +54,10 @@ cause one.
   were given, which disarms the preflight:
 
   ```bash
-  gh variable set CRATES_IO_NEW_CRATE_BURST --body 12 -R ernsoylu/RustProp
+  gh variable set CRATES_IO_NEW_CRATE_BURST --body 13 -R ernsoylu/RustProp
   ```
 
-- **Or publish by hand, paced, then tag.** Publish the twelve yourself from a
+- **Or publish by hand, paced, then tag.** Publish the thirteen yourself from a
   clean checkout in the order in §6, waiting ~10 minutes between each after the
   first five. Then the tag's preflight sees zero new crates and passes, and
   `cargo publish --workspace` has nothing left to do — *except* that it will
@@ -189,7 +198,7 @@ tag-version check also skips itself on a non-tag ref, by design.
 repository secrets as of 2026-08-19.
 
 Create a scoped token at <https://crates.io/settings/tokens> — scopes
-`publish-new` and `publish-update`, no crate-name restriction (the twelve
+`publish-new` and `publish-update`, no crate-name restriction (the thirteen
 crates do not exist yet, so they cannot be named in a scope), then:
 
 ```bash
@@ -201,22 +210,24 @@ gh secret set CARGO_REGISTRY_TOKEN -R ernsoylu/RustProp
 ### 4b. The names
 
 crates.io has **no reservation mechanism** — a name is claimed by the first
-successful publish. "Claiming" is therefore a check, not an action. All twelve
+successful publish. "Claiming" is therefore a check, not an action. All thirteen
 returned 404 on 2026-08-19 (with `serde` at 200 as the control). Re-check
 immediately before tagging, because someone else claiming `rustprop` in the
 interim is the one failure this checklist cannot recover from:
 
 ```bash
-for c in rustprop rustprop-core rustprop-data rustprop-heos rustprop-if97 \
-         rustprop-cubics rustprop-incompressible rustprop-pcsaft \
-         rustprop-tabular rustprop-svdsbtl rustprop-humid-air rustprop-wasm; do
+# Read the list from the tree rather than retyping it — the count has already
+# changed once (twelve to thirteen, when rustprop-capi landed) and a hand-kept
+# list is exactly the thing that rots between releases.
+for c in $(cargo metadata --no-deps --format-version 1 \
+             | jq -r '.packages[] | select(.publish == null) | .name' | sort); do
   printf '%s  %s\n' \
     "$(curl -sS -o /dev/null -w '%{http_code}' -A "rustprop-release-check" \
        "https://crates.io/api/v1/crates/$c")" "$c"
 done
 ```
 
-- [ ] all twelve return 404
+- [ ] every one of them returns 404
 
 (`rustprop-cli` is `publish = false`. It is the example app, not a deliverable
 crate — which also means **`cargo install rustprop-cli` will not work**. The
@@ -361,7 +372,7 @@ Yank does not free the version number. The next release is `0.1.1`, always.
 
 ## 7. After a successful release
 
-- [ ] all twelve crates resolve: `cargo search rustprop`
+- [ ] every published crate resolves: `cargo search rustprop`
 - [ ] a scratch project builds against the registry, not the path deps:
       `cargo new /tmp/rp && cd /tmp/rp && cargo add rustprop --features if97 && cargo run`
 - [ ] `docs.rs` built each crate (check the badge on each crate page; a
