@@ -81,15 +81,22 @@ impl SvdDecomposition {
     /// the eval path can assume shapes and monotone grids.
     pub fn validate(&self) -> Result<()> {
         let (nx, ny, r) = (self.nx, self.ny, self.rank);
+        // Checked, not bare `nx * r`: on a 32-bit target the bare product
+        // wraps, and a wrapped 0 would match an empty coefficient vector and
+        // let an unusable decomposition pass this very check.
+        let (nx_r, ny_r) = (
+            crate::artifact::grid_len(nx, r)?,
+            crate::artifact::grid_len(ny, r)?,
+        );
         if nx < 2
             || ny < 2
             || r == 0
             || self.x_grid.len() != nx
             || self.y_grid.len() != ny
-            || self.u.len() != nx * r
-            || self.du_dx.len() != nx * r
-            || self.v_s.len() != ny * r
-            || self.dv_s_dy.len() != ny * r
+            || self.u.len() != nx_r
+            || self.du_dx.len() != nx_r
+            || self.v_s.len() != ny_r
+            || self.dv_s_dy.len() != ny_r
         {
             return Err(Error::Value(
                 "SVDEvaluator: SVDDecomposition has inconsistent dimensions".into(),

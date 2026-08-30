@@ -84,6 +84,29 @@ impl AxisTransform {
         })
     }
 
+    /// The invariants [`AxisTransform::make`] establishes, checked against an
+    /// already-built transform.
+    ///
+    /// The artifact reader builds this struct literally so the normalisation
+    /// keeps upstream's exact bits — recomputing `a_lo_t`/`inv_span_t` here
+    /// would defeat that. It can still check what `make` would have refused,
+    /// which is otherwise unreachable on the only path that reads untrusted
+    /// bytes.
+    pub fn validate(&self) -> Result<()> {
+        if !(self.a_hi > self.a_lo) {
+            return Err(Error::Value("AxisTransform: a_hi must exceed a_lo".into()));
+        }
+        if self.scale == AxisScale::Log && !(self.a_lo > 0.0) {
+            return Err(Error::Value("AxisTransform: LOG requires a_lo > 0".into()));
+        }
+        if !self.inv_span_t.is_finite() {
+            return Err(Error::Value(
+                "AxisTransform: inv_span_t must be finite".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// `a -> xi`. No clamping; out-of-range inputs map outside [0, 1].
     #[inline]
     pub fn forward(&self, a: f64) -> f64 {
@@ -132,7 +155,7 @@ pub struct CubicSpline {
     b_max: f64,
     /// `kBuckets / (a.last - a.first)` for the O(1) indexed search.
     inv_step: f64,
-    bucket_to_knot: Vec<u16>,
+    bucket_to_knot: Vec<u32>,
 }
 
 impl CubicSpline {
@@ -193,7 +216,7 @@ impl CubicSpline {
             while i + 1 < n - 1 && self.a[i + 1] <= a_bucket {
                 i += 1;
             }
-            self.bucket_to_knot[k] = i.min(max_seg) as u16;
+            self.bucket_to_knot[k] = i.min(max_seg) as u32;
         }
     }
 
@@ -320,6 +343,7 @@ impl Region {
                 "Region: secondary axis scale must be LINEAR or LOG".into(),
             ));
         }
+        primary.validate()?;
         // `compute_bbox`: the primary axis bounds, plus b_lo's MIN and
         // b_hi's MAX (not the union of both curves' ranges).
         let bbox = BBox {

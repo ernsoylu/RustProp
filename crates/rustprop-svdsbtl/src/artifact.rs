@@ -94,12 +94,43 @@ impl<'a> Reader<'a> {
             .map(|c| f64::from_le_bytes(*c))
             .collect())
     }
+
+    /// A count read from the artifact, checked against the bytes that are
+    /// actually left before anything reserves capacity for it. `elem` is the
+    /// smallest number of bytes one element can occupy on the wire, so the
+    /// bound is generous — it rejects only counts no remaining input could
+    /// ever satisfy, which is enough to keep a short header from naming a
+    /// multi-gigabyte allocation.
+    fn count(&self, n: u32, elem: usize) -> Result<usize> {
+        let n = n as usize;
+        let max = (self.b.len() - self.at) / elem;
+        if n > max {
+            return Err(Error::Value(format!(
+                "svds artifact declares {n} entries but only {max} can fit in the \
+                 {} bytes that remain",
+                self.b.len() - self.at
+            )));
+        }
+        Ok(n)
+    }
 }
 
 fn short(at: usize, want: usize) -> Error {
     Error::Value(format!(
         "svds artifact truncated: wanted {want} bytes at offset {at}"
     ))
+}
+
+/// `rows * rank`, refusing the overflow rather than wrapping into a length
+/// that would later index out of bounds. Shared by the reader and by
+/// [`SvdDecomposition::validate`] so the two cannot disagree.
+pub(crate) fn grid_len(rows: usize, rank: usize) -> Result<usize> {
+    rows.checked_mul(rank).ok_or_else(|| {
+        Error::Value(format!(
+            "svds artifact declares a {rows} x {rank} coefficient block, which \
+             overflows this target's usize"
+        ))
+    })
 }
 
 fn read_curve(r: &mut Reader) -> Result<BoundaryCurve> {
@@ -160,12 +191,19 @@ fn read_decomp(r: &mut Reader) -> Result<SvdDecomposition> {
     let out_transform = OutputTransform::from_index(r.u8()?)?;
     let slope_source = SlopeSource::from_index(r.u8()?)?;
     let _pad = r.take(2)?;
+    // `usize` is 32 bits on wasm32 — this port's primary target — and release
+    // builds have overflow-checks off, so these products must be checked here
+    // rather than left to `f64s`'s own guard: a wrapped argument reaches that
+    // guard already truncated. `SvdDecomposition::validate` re-derives the
+    // same products and so needs the same care.
+    let nx_rank = grid_len(nx, rank)?;
+    let ny_rank = grid_len(ny, rank)?;
     let x_grid = r.f64s(nx)?;
     let y_grid = r.f64s(ny)?;
-    let u = r.f64s(nx * rank)?;
-    let du_dx = r.f64s(nx * rank)?;
-    let v_s = r.f64s(ny * rank)?;
-    let dv_s_dy = r.f64s(ny * rank)?;
+    let u = r.f64s(nx_rank)?;
+    let du_dx = r.f64s(nx_rank)?;
+    let v_s = r.f64s(ny_rank)?;
+    let dv_s_dy = r.f64s(ny_rank)?;
     let s = r.f64s(rank)?;
     Ok(SvdDecomposition {
         nx,
@@ -192,9 +230,16 @@ pub fn load(fluid_name: &str, bytes: &[u8]) -> Result<SvdSurface> {
         ));
     }
     let input_pair = r.i32()?;
-    let n_props = r.u32()? as usize;
-    let n_regions = r.u32()? as usize;
+    // Both counts come straight off the wire and both size a `with_capacity`
+    // below, so they are bounded against the remaining input FIRST — a
+    // 24-byte header must not be able to name a multi-gigabyte reservation.
+    // A property is an i32 key; the smallest encodable region is 100 bytes
+    // (4 header + 5 f64 + two 28-byte constant curves).
+    let n_props_raw = r.u32()?;
+    let n_regions_raw = r.u32()?;
     let _reserved = r.u32()?;
+    let n_props = r.count(n_props_raw, 4)?;
+    let n_regions = r.count(n_regions_raw, 100)?;
 
     let mut properties = Vec::with_capacity(n_props);
     for _ in 0..n_props {

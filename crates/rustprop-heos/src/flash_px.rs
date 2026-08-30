@@ -816,7 +816,7 @@ impl PtFlash {
                 approx.xmax()
             )));
         }
-        solns.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        solns.sort_by(f64::total_cmp);
         let dedup_tol = 1e-6;
         let mut ts: Vec<f64> = Vec::with_capacity(solns.len());
         for t in solns {
@@ -991,7 +991,7 @@ impl PtFlash {
         let (d_l, d_v) = self.d_approxes();
         let mut tsats = d_l.get_x_for_y(rhomolar, 48, 100, 1e-13);
         tsats.extend(d_v.get_x_for_y(rhomolar, 48, 100, 1e-13));
-        tsats.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        tsats.sort_by(f64::total_cmp);
         let mut edges = vec![tmin_sa];
         for t in &tsats {
             if *t > tmin_sa && *t < tcrit {

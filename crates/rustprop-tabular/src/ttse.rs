@@ -39,6 +39,17 @@ use rustprop_core::{Error, Result};
 /// node value (3705.289), i.e. upstream mis-locates it identically.
 pub fn bisect_vector(vec: &[f64], val: f64) -> Result<usize> {
     let n = vec.len();
+    // Bracketing needs a cell, so it needs two nodes. Without this, `n - 1`
+    // underflows on an empty slice (release builds have overflow-checks off,
+    // so it wraps to usize::MAX and the panic lands on the index instead),
+    // and a one-element slice returns a bracket index whose `i + 1` node does
+    // not exist. No well-formed table reaches either state; refusing them
+    // cannot change a result that currently computes.
+    if n < 2 {
+        return Err(Error::Value(format!(
+            "bisect_vector: need at least 2 nodes to bracket a value, got {n}"
+        )));
+    }
     let (mut l, mut r) = (0usize, n - 1);
     while !valid_number(vec[r]) {
         if r == 1 {
@@ -428,7 +439,24 @@ pub fn invert_single_phase_y(
 /// it would bite a non-square grid.
 pub fn bisect_segmented_vector_slice(mat: &[Vec<f64>], j: usize, val: f64) -> Result<usize> {
     let invalid = || Error::Value("All the values in bisection vector are invalid".into());
+    // Same two-node floor as `bisect_vector`, plus the row itself has to
+    // exist: the quirk documented above means `r` indexes `mat` with a bound
+    // taken from row `j`'s length, so a short outer vector is reachable
+    // without this.
+    if j >= mat.len() {
+        return Err(Error::Value(format!(
+            "bisect_segmented_vector_slice: row {j} is out of range; the matrix has {} rows",
+            mat.len()
+        )));
+    }
     let n = mat[j].len();
+    if n < 2 || mat.len() < 2 {
+        return Err(Error::Value(format!(
+            "bisect_segmented_vector_slice: need at least 2 nodes to bracket a value, got \
+             {n} in row {j} of a {}-row matrix",
+            mat.len()
+        )));
+    }
     let (mut l, mut r) = (0usize, n - 1);
     let mut m = (l + r) / 2;
     while !valid_number(mat[r][j]) {

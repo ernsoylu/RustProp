@@ -136,7 +136,15 @@ fn balance_matrix(a: &mut [Vec<f64>]) {
                 r *= beta;
                 f /= beta;
             }
-            if c.powi(2) + r.powi(2) < 0.95 * s {
+            // `f` is a product of radix-2 steps, so an extreme row/column
+            // norm ratio can drive it to infinity (or to zero the other way)
+            // before the two while-loops balance out. Scaling by a non-finite
+            // or zero factor would write inf/NaN across a row and a column
+            // and hand `hqr` a matrix with no meaningful eigenvalues; leaving
+            // the row unscaled is what the existing non-finite c/r guard
+            // above already does in the same situation. Real coefficient data
+            // is nowhere near this range.
+            if c.powi(2) + r.powi(2) < 0.95 * s && f.is_finite() && f > 0.0 {
                 converged = false;
                 for k in 0..n {
                     a[k][i] *= f;
@@ -483,7 +491,21 @@ pub(crate) fn bisect_bits<F: FnMut(f64) -> f64>(
     bits: u32,
     max_iter: usize,
 ) -> f64 {
-    debug_assert!(fa * fb <= 0.0);
+    // The bracket check is a development aid for genuine bracketing bugs, so
+    // it only applies where "same sign" is meaningful. A non-finite residual
+    // reaches here from a non-finite REQUEST — `props_si("Q", "S", NaN,
+    // "Hmass", -inf, "R134a")` is one — and `fa * fb` is then NaN, which
+    // fails `<= 0.0` and fired the assertion. Release builds compile
+    // `debug_assert!` out and return the interval midpoint, so the bare form
+    // made a debug build panic where a release build answered: a consumer
+    // building in dev profile saw crashes the shipped profile does not have,
+    // and `ci.yml`'s debug gate was one seed away from catching it.
+    // Non-finite residuals are left to the loop, which handles them by
+    // returning a finite midpoint of a finite interval.
+    debug_assert!(
+        !(fa.is_finite() && fb.is_finite()) || fa * fb <= 0.0,
+        "bisect_bits called without a bracket: f(a) = {fa}, f(b) = {fb}"
+    );
     let eps = (2.0f64).powi(1 - bits as i32);
     let mut fb = fb;
     for _ in 0..max_iter {

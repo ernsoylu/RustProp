@@ -66,6 +66,32 @@ impl SvdSurface {
             for d in row {
                 d.validate()?;
             }
+            // `eval_with_region_multi` builds ONE context from `row[0]` and
+            // reuses it across the row, which is only sound if every property
+            // in a region really does share that region's grids. The artifact
+            // stores a grid per region x property, so nothing upstream of
+            // here enforces it — check it once at load rather than indexing
+            // one decomposition's coefficients with another's cell index.
+            if let Some((first, rest)) = row.split_first() {
+                for (p, d) in rest.iter().enumerate() {
+                    if d.nx != first.nx
+                        || d.ny != first.ny
+                        || d.x_grid != first.x_grid
+                        || d.y_grid != first.y_grid
+                    {
+                        return Err(Error::Value(format!(
+                            "SVDSurface::seal: region {i} property {} is on a {}x{} grid but \
+                             property 0 is on {}x{}; every property in a region must share \
+                             that region's grids",
+                            p + 1,
+                            d.nx,
+                            d.ny,
+                            first.nx,
+                            first.ny
+                        )));
+                    }
+                }
+            }
         }
         Ok(SvdSurface {
             fluid_name,
@@ -104,6 +130,22 @@ impl SvdSurface {
             })
     }
 
+    /// The decomposition row for a region. `region_idx` reaches the public
+    /// `eval_with_region*` entry points from the caller, so it is checked
+    /// rather than indexed — these return `Result` and should use it.
+    fn region_row(&self, region_idx: usize) -> Result<&[SvdDecomposition]> {
+        self.decomps
+            .get(region_idx)
+            .map(Vec::as_slice)
+            .ok_or_else(|| {
+                Error::Value(format!(
+                    "SVDSurface: region index {region_idx} is out of range; this surface has {} \
+                 regions",
+                    self.decomps.len()
+                ))
+            })
+    }
+
     /// `resolve(a, b)` — region dispatch plus normalisation, with the
     /// eta/xi -> x/y swap upstream applies.
     pub fn resolve(&self, a: f64, b: f64) -> Option<ResolvedPoint> {
@@ -134,7 +176,7 @@ impl SvdSurface {
         svd_y: f64,
     ) -> Result<f64> {
         let p = self.property_index(prop)?;
-        Ok(self.decomps[region_idx][p].eval(svd_x, svd_y))
+        Ok(self.region_row(region_idx)?[p].eval(svd_x, svd_y))
     }
 
     /// `eval_with_region_multi`: every property in one region shares that
@@ -152,7 +194,7 @@ impl SvdSurface {
                 "SVDSurface::eval_with_region_multi: output slice too short".into(),
             ));
         }
-        let row = &self.decomps[region_idx];
+        let row = self.region_row(region_idx)?;
         let ctx: Option<EvalContext> = row.first().map(|d| d.make_context(svd_x, svd_y));
         for (n, prop) in props.iter().enumerate() {
             let p = self.property_index(*prop)?;
