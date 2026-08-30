@@ -872,7 +872,7 @@ fn build_melting_caloric(flash: &PtFlash) -> Option<MeltingCaloric> {
             }
             expansions.extend(part);
         }
-        expansions.sort_by(|x, y| x.xmin.partial_cmp(&y.xmin).unwrap());
+        expansions.sort_by(|x, y| x.xmin.total_cmp(&y.xmin));
         Some(expansions)
     };
 
@@ -1075,10 +1075,48 @@ impl PtFlash {
                         return Ok(st);
                     }
                 }
-                Err(_) => return self.hs_legacy(h_t, s_t),
+                Err(_) => return self.checked_hs_legacy(h_t, s_t),
             }
         }
-        self.hs_legacy(h_t, s_t)
+        self.checked_hs_legacy(h_t, s_t)
+    }
+
+    /// [`Self::hs_legacy`] behind the same `reproduces` gate every other leg
+    /// of [`Self::hmolar_smolar_state`] already passes through.
+    ///
+    /// Ungated, the legacy leg can return a converged-looking state that does
+    /// not satisfy the requested (h, s) at all. The reachable case is the
+    /// sub-triple compressed-liquid corner: the melting-caloric leg cannot
+    /// seed it (the target enthalpy falls just below the melting curve's own
+    /// range) and the legacy T-scan starts at `sat_min_liquid.t`, so a root
+    /// below the triple point is outside every bracket this port searches.
+    /// For Water at h = 0.5 J/kg, s = -1 J/kg/K the wheel answers
+    /// T = 273.094065 K (0.066 K below Ttriple); ungated, this port answered
+    /// 275.5032 K — a state whose enthalpy is 9880 J/kg, not 0.5.
+    ///
+    /// This is a DIVERGENCE, recorded in NEXT-STEPS.md: upstream returns the
+    /// correct root here and the port now refuses. Refusing is the right
+    /// failure mode for a property library — a caller can retry or widen,
+    /// where a plausible wrong number is silently consumed — but it is not
+    /// parity, and closing it needs the leg that reaches sub-triple roots.
+    fn checked_hs_legacy(&self, h_t: f64, s_t: f64) -> Result<HeosState> {
+        let st = self.hs_legacy(h_t, s_t)?;
+        let hh = self.state_hmolar(&st);
+        let ss = self.state_smolar(&st);
+        if !hh.is_finite()
+            || !ss.is_finite()
+            || (hh - h_t).abs() > 1e-6 * h_t.abs() + 1e-3
+            || (ss - s_t).abs() > 1e-6 * s_t.abs() + 1e-5
+        {
+            return Err(Error::Solution(format!(
+                "HS flash: the legacy solver converged to T = {} K, rhomolar = {} \
+                 mol/m^3, but that state has hmolar = {hh} J/mol and smolar = {ss} \
+                 J/mol/K, not the requested {h_t} and {s_t}",
+                st.t(),
+                st.rhomolar(),
+            )));
+        }
+        Ok(st)
     }
 
     /// Upstream HS_flash's legacy "sad path": iterate on T with the

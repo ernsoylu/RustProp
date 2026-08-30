@@ -259,7 +259,17 @@ pub fn dhsu_t_flash_mixtures(
             let mut rho_prev = rho_max;
             let mut p_prev = model.pressure(z, t, rho_prev);
             let mut rho_scan = rho_max * 0.95;
-            while rho_scan > rho_reducing {
+            // The 0.95 decay reaches any positive `rho_reducing` in
+            // ln(rho_max / rho_reducing) / ln(1/0.95) steps — under 300 even
+            // for a millionfold span. A non-positive reducing density is
+            // never produced by real mixture data, but if one ever arrived
+            // the loop would only stop when `rho_scan` underflowed to zero,
+            // ~33,000 full Helmholtz pressure evaluations later. The cap is
+            // two orders of magnitude above anything reachable, so it cannot
+            // change a scan that currently terminates.
+            let mut steps = 0u32;
+            while rho_scan > rho_reducing && steps < 10_000 {
+                steps += 1;
                 let p_scan = model.pressure(z, t, rho_scan);
                 if p_prev > 0.0 && p_scan < 0.0 {
                     rho_pos = rho_prev;
