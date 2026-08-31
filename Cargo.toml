@@ -9,7 +9,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 # let-chains (e.g. rustprop-heos flash_hs) stabilized in 1.88; CI checks it.
 rust-version = "1.88"
@@ -22,17 +22,17 @@ keywords = ["thermodynamics", "coolprop", "properties", "wasm", "eos"]
 categories = ["science", "mathematics", "wasm"]
 
 [workspace.dependencies]
-rustprop-core = { path = "crates/rustprop-core", version = "0.1.0" }
-rustprop-data = { path = "crates/rustprop-data", version = "0.1.0" }
-rustprop-heos = { path = "crates/rustprop-heos", version = "0.1.0" }
-rustprop-cubics = { path = "crates/rustprop-cubics", version = "0.1.0" }
-rustprop-if97 = { path = "crates/rustprop-if97", version = "0.1.0" }
-rustprop-incompressible = { path = "crates/rustprop-incompressible", version = "0.1.0" }
-rustprop-pcsaft = { path = "crates/rustprop-pcsaft", version = "0.1.0" }
-rustprop-tabular = { path = "crates/rustprop-tabular", version = "0.1.0" }
-rustprop-svdsbtl = { path = "crates/rustprop-svdsbtl", version = "0.1.0" }
-rustprop-humid-air = { path = "crates/rustprop-humid-air", version = "0.1.0" }
-rustprop = { path = "crates/rustprop", version = "0.1.0" }
+rustprop-core = { path = "crates/rustprop-core", version = "0.1.1" }
+rustprop-data = { path = "crates/rustprop-data", version = "0.1.1" }
+rustprop-heos = { path = "crates/rustprop-heos", version = "0.1.1" }
+rustprop-cubics = { path = "crates/rustprop-cubics", version = "0.1.1" }
+rustprop-if97 = { path = "crates/rustprop-if97", version = "0.1.1" }
+rustprop-incompressible = { path = "crates/rustprop-incompressible", version = "0.1.1" }
+rustprop-pcsaft = { path = "crates/rustprop-pcsaft", version = "0.1.1" }
+rustprop-tabular = { path = "crates/rustprop-tabular", version = "0.1.1" }
+rustprop-svdsbtl = { path = "crates/rustprop-svdsbtl", version = "0.1.1" }
+rustprop-humid-air = { path = "crates/rustprop-humid-air", version = "0.1.1" }
+rustprop = { path = "crates/rustprop", version = "0.1.1" }
 # Test/dev tooling only — JSON parsing must stay out of shipped binaries (PLAN.md).
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }

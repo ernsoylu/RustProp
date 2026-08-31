@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "dbg-pcsaft"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
  "rustprop-data",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "rustprop"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
  "rustprop-cubics",
@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "rustprop-capi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop",
  "rustprop-data",
@@ -153,18 +153,18 @@ dependencies = [
 
 [[package]]
 name = "rustprop-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop",
 ]
 
 [[package]]
 name = "rustprop-core"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "rustprop-cubics"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
  "rustprop-data",
@@ -173,14 +173,14 @@ dependencies = [
 
 [[package]]
 name = "rustprop-data"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
 ]
 
 [[package]]
 name = "rustprop-datagen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -188,7 +188,7 @@ dependencies = [
 
 [[package]]
 name = "rustprop-golden-tests"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop",
  "rustprop-core",
@@ -204,14 +204,14 @@ dependencies = [
 
 [[package]]
 name = "rustprop-heos"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
 ]
 
 [[package]]
 name = "rustprop-humid-air"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
  "rustprop-heos",
@@ -220,14 +220,14 @@ dependencies = [
 
 [[package]]
 name = "rustprop-if97"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
 ]
 
 [[package]]
 name = "rustprop-incompressible"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
  "rustprop-heos",
@@ -235,14 +235,14 @@ dependencies = [
 
 [[package]]
 name = "rustprop-pcsaft"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
 ]
 
 [[package]]
 name = "rustprop-svdgen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "flate2",
  "rmpv",
@@ -251,14 +251,14 @@ dependencies = [
 
 [[package]]
 name = "rustprop-svdsbtl"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
 ]
 
 [[package]]
 name = "rustprop-tabular"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop-core",
  "rustprop-heos",
@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "rustprop-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop",
  "rustprop-data",
@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "rustprop-wasm-size-probe"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustprop",
  "rustprop-core",
