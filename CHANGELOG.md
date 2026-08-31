@@ -6,7 +6,7 @@ are not "Added" and "Fixed" but **Divergences from upstream** and **Not
 ported** — a difference from CoolProp is the only kind of surprise this library
 can hand you.
 
-## [Unreleased]
+## [0.1.1] — 2026-08-31
 
 ### Added — a native SDK for C, C++ and desktop/cloud Rust
 
@@ -88,7 +88,7 @@ without giving up the modularity that motivated the project.
 
 Tagged and released on GitHub with prebuilt wasm bundles and CLI binaries.
 crates.io publication is deferred: the workspace creates twelve new crates
-(thirteen as of Unreleased, above)
+(thirteen as of 0.1.1, above)
 against crates.io's new-crate rate limit (burst 5, one per 10 minutes), so
 `release.yml`'s preflight refuses to publish until a limit override is in
 place — see `RELEASE-CHECKLIST.md` §0. Until then, depend on the tag:
