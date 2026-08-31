@@ -253,7 +253,21 @@ jobs:
           - { os: ubuntu-latest, target: armv7-unknown-linux-gnueabihf, run: build, apt: gcc-arm-linux-gnueabihf }
           # --- macOS --------------------------------------------------------
           - { os: macos-latest, target: aarch64-apple-darwin, run: native }
-          - { os: macos-13, target: x86_64-apple-darwin, run: native }
+          # Intel macOS is CROSS-BUILT on the arm64 runner, not built on a
+          # `macos-13` Intel one. It was a `macos-13` native entry: the job sat
+          # queued for over half an hour on two consecutive rehearsals and
+          # never started, because that image is being retired and its runners
+          # are scarce. A release must not depend on a runner class that may
+          # never be scheduled.
+          #
+          # Apple's SDK is universal, so the cross-build is routine. What is
+          # lost is execution: the arm64 runners carry no Rosetta, so an x86-64
+          # binary cannot run there and the golden suites cannot be run for
+          # this target. It is therefore marked `build`, and BUILD-INFO.txt
+          # says BUILT ONLY — the same honesty armv7 gets. Intel Mac users get
+          # an artifact rather than nothing; what they do not get is the claim
+          # that it was executed.
+          - { os: macos-latest, target: x86_64-apple-darwin, run: build }
           # --- Windows ------------------------------------------------------
           - { os: windows-latest, target: x86_64-pc-windows-msvc, run: native, msvc_arch: x64 }
           - { os: windows-11-arm, target: aarch64-pc-windows-msvc, run: native, msvc_arch: arm64 }
@@ -342,14 +356,18 @@ jobs:
       # ELF perfectly well. This is the part of ctest.sh that does not need a
       # runner, so a build-only target is not shipped completely unexamined.
       - name: exported symbols (build-only targets)
-        if: steps.exec.outputs.run != 'native' && runner.os == 'Linux'
+        if: steps.exec.outputs.run != 'native' && runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           lib="target/${{ matrix.target }}/release-capi/librustprop.so"
+          [ -f "$lib" ] || lib="target/${{ matrix.target }}/release-capi/librustprop.dylib"
           declared="$(sed -n 's/^RUSTPROP_API [^(]* \**\(rustprop_[a-z0-9_]*\)(.*/\1/p' \
             crates/rustprop-capi/include/rustprop.h | sort -u)"
-          exported="$(nm -D --defined-only "$lib" | awk '$2 == "T" {print $3}' \
+          # ELF keeps the exports in the dynamic table (`nm -D`); Mach-O has no
+          # -D and lists them with -gU. Mach-O also prefixes an underscore.
+          exported="$( { nm -D --defined-only "$lib" 2>/dev/null || nm -gU "$lib"; } \
+            | awk '$2 == "T" {print $3}' | sed 's/^_//' \
             | grep '^rustprop_' | sort -u)"
           diff <(echo "$declared") <(echo "$exported") \
             || { echo "::error::header and library disagree on the exported surface"; exit 1; }

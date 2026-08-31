@@ -32,7 +32,10 @@ without giving up the modularity that motivated the project.
 - **Prebuilt SDKs for ten targets**, each with the shared and static library,
   the header, pkg-config and CMake package files, worked examples and the CLI:
   Linux x86-64 (four instruction-set baselines), Linux arm64, Linux armv7,
-  macOS arm64 and x86-64, Windows x86-64 and arm64.
+  macOS arm64 and x86-64, Windows x86-64 and arm64. Every target ran the full
+  golden suite on its own hardware before shipping, except Linux armv7 and
+  macOS x86-64, which are cross-built because no runner can execute them —
+  their `BUILD-INFO.txt` says `BUILT ONLY`.
 
   No musl artifact. It was in the matrix and was removed after the first
   release rehearsal: musl's libm disagrees with glibc's in the `validity`
