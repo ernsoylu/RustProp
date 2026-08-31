@@ -15,6 +15,9 @@ __pycache__/
 # here, and both ci.yml and release.yml package into it) and its tarballs.
 /dist
 /rustprop-0*.tar.gz
+# gfortran writes a .mod beside wherever it is invoked when it compiles the
+# Fortran binding example (crates/rustprop-capi/examples/bindings/rustprop.f90).
+*.mod
 # Alternate target dirs used when comparing -C target-cpu baselines, so the
 # four builds do not invalidate each other's cache. See PLAN.md's R11 entry.
 /target-*

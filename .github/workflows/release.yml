@@ -19,6 +19,20 @@ name: release
 # Note the pins are what `@v4`-style tags pointed at on 2026-08-21; several of
 # these actions have much newer majors, and moving to them is a separate change
 # with its own verification.
+# REHEARSE BEFORE YOU TAG.
+#
+# A `workflow_dispatch` run reaches `verify`, `sdk` and `rust-sources` but NOT
+# `crates-io` or `github-release` — both are gated on `refs/tags/v`. So a
+# dispatch builds and tests every artifact this workflow can produce, on every
+# runner, and publishes nothing. It is free to run and it cannot do damage:
+#
+#     gh workflow run release.yml --ref <branch>
+#
+# Do it before every tag. Twelve of the `sdk` matrix entries only ever execute
+# here or on a tag, several are on runner images this repository has never
+# used, and finding out that `windows-11-arm` is unavailable is much cheaper
+# on a dispatch than on an irreversible release. RELEASE-CHECKLIST.md makes it
+# a required step.
 on:
   push:
     tags: ["v*"]

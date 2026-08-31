@@ -13,7 +13,7 @@
 //! ```js
 //! import init, { props_si } from "./pkg/rustprop_wasm.js";
 //! await init();
-//! props_si("D", "T", 400, "P", 101325, "IF97::Water");  // 0.5548...
+//! props_si("D", "T", 400, "P", 101325, "IF97::Water");  // 0.55492158...
 //! ```
 //!
 //! Errors surface as thrown JS exceptions carrying rustprop's message, so

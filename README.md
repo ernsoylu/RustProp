@@ -68,6 +68,13 @@ Facade features (`default = []`):
 | `svdsbtl` | SVD-compressed tabular lookup — low-level API |
 | `all-backends` | Every engine plus all 130 HEOS fluids |
 
+## Documentation
+
+**[USAGE.md](USAGE.md) is the guide** — how to call rustprop from Rust, C, C++,
+Python, Go, Java, Fortran, JavaScript and anything else with a C FFI, which
+prebuilt artifact to take for your platform, containers, and troubleshooting.
+The examples in it are real programs that CI runs, not snippets.
+
 ## Using it from C, C++, and other languages
 
 `rustprop-capi` exports a C ABI, so anything that can call a C function can
@@ -93,7 +100,7 @@ Every function is exported by every build, whichever engines it carries — a
 call into one that is absent returns `RUSTPROP_UNAVAILABLE` rather than
 failing to link, and `rustprop_backends()` says what you have. Every entry
 point is safe to call from any number of threads. Details, including the
-static-linking and pkg-config routes, are in
+static-linking and pkg-config routes, are in [USAGE.md](USAGE.md) and
 [crates/rustprop-capi/README-C.md](crates/rustprop-capi/README-C.md).
 
 To build it yourself:

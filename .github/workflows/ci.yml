@@ -120,6 +120,22 @@ jobs:
           dir="$(crates/rustprop-capi/package.sh x86_64-unknown-linux-gnu dist all-backends)"
           crates/rustprop-capi/consumer-test.sh "$dir"
 
+      # The language bindings USAGE.md documents. FFI documentation drifts
+      # silently and expensively — a wrong ctypes `argtypes` line does not
+      # fail loudly, it passes garbage to a solver and returns a plausible
+      # number — so each binding is a real program checking real values, and
+      # this runs them.
+      #
+      # gfortran is not on the runner image by default. Java is: but FFM only
+      # became stable in 22 and the image ships 17/21, so the script SKIPS
+      # Java here and reports it. That binding is exercised locally (JDK 26);
+      # pulling a newer JDK would mean another third-party action to pin, for
+      # one example, and is not worth it.
+      - name: install binding toolchains
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gfortran
+      - name: language bindings (Python, Go, Java, Fortran)
+        run: crates/rustprop-capi/bindings-test.sh all-backends
+
       # A shared library that exports more than it means to is a maintenance
       # liability: every accidental symbol is one somebody can come to depend
       # on. The header declares twelve functions; the library should export
