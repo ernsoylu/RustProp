@@ -103,8 +103,14 @@ jobs:
 
       # C and C++, shared and static, against the built library — plus the
       # check that every symbol the header declares is really exported.
+      # The explicit host triple, everywhere in this job. Without it cargo
+      # builds into target/release-capi while package.sh looks in
+      # target/<triple>/release-capi, and the packaging step fails with
+      # "no library artifacts found" — which is exactly what the first CI run
+      # of this job did. Naming the triple keeps ctest.sh, bindings-test.sh
+      # and package.sh sharing one build directory, and one build.
       - name: C and C++ link and run
-        run: crates/rustprop-capi/ctest.sh all-backends
+        run: crates/rustprop-capi/ctest.sh all-backends x86_64-unknown-linux-gnu
 
       # Then package it and build four downstream consumers out of the
       # extracted tree: two through pkg-config, two through CMake
@@ -114,7 +120,8 @@ jobs:
         run: |
           set -euo pipefail
           export RUSTPROP_NATIVE_LIBS="$(cargo rustc -p rustprop-capi \
-            --features all-backends --profile release-capi --crate-type staticlib -- \
+            --features all-backends --profile release-capi \
+            --target x86_64-unknown-linux-gnu --crate-type staticlib -- \
             --print native-static-libs 2>&1 \
             | sed -n 's/^note: native-static-libs: //p' | tail -1)"
           dir="$(crates/rustprop-capi/package.sh x86_64-unknown-linux-gnu dist all-backends)"
@@ -134,7 +141,7 @@ jobs:
       - name: install binding toolchains
         run: sudo apt-get update -qq && sudo apt-get install -y -qq gfortran
       - name: language bindings (Python, Go, Java, Fortran)
-        run: crates/rustprop-capi/bindings-test.sh all-backends
+        run: crates/rustprop-capi/bindings-test.sh all-backends x86_64-unknown-linux-gnu
 
       # A shared library that exports more than it means to is a maintenance
       # liability: every accidental symbol is one somebody can come to depend
@@ -145,7 +152,8 @@ jobs:
           set -euo pipefail
           declared="$(sed -n 's/^RUSTPROP_API [^(]* \**\(rustprop_[a-z0-9_]*\)(.*/\1/p' \
             crates/rustprop-capi/include/rustprop.h | sort -u)"
-          exported="$(nm -D --defined-only target/release-capi/librustprop.so \
+          exported="$(nm -D --defined-only \
+            target/x86_64-unknown-linux-gnu/release-capi/librustprop.so \
             | awk '$2 == "T" {print $3}' | grep '^rustprop_' | sort -u)"
           if ! diff <(echo "$declared") <(echo "$exported"); then
             echo "::error::the header and the library disagree about the exported surface (< header, > library)"

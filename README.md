@@ -114,8 +114,8 @@ crates/rustprop-capi/ctest.sh          # compiles C and C++ against it and runs 
 
 | Platform | Targets |
 |---|---|
-| Linux x86-64 | `gnu` and `musl`; plus `x86-64-v2`, `-v3`, `-v4` instruction-set baselines |
-| Linux arm64 | `gnu` and `musl` |
+| Linux x86-64 | baseline, plus `x86-64-v2`, `-v3`, `-v4` instruction-set baselines |
+| Linux arm64 | `gnu`, built and tested on a native arm64 runner |
 | Linux armv7 | `gnueabihf` (32-bit, Raspberry Pi) — cross-compiled, see below |
 | macOS | arm64 (Apple silicon) and x86-64 |
 | Windows | x86-64 and arm64 (MSVC) |

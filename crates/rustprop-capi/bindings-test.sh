@@ -13,14 +13,27 @@
 # without a JDK should still be able to run this, and CI reports which ones
 # actually ran.
 #
-# Usage:  bindings-test.sh [FEATURES]      (default: all-backends)
+# Usage:  bindings-test.sh [FEATURES] [TARGET]
+#
+#   FEATURES  cargo feature list           (default: all-backends)
+#   TARGET    target triple to build for   (default: the host's own)
+#
+# TARGET matters in CI, where naming it explicitly keeps this, ctest.sh and
+# package.sh all pointing at one build directory instead of three.
 set -euo pipefail
 
 FEATURES="${1:-all-backends}"
+TARGET="${2:-}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BINDINGS="$ROOT/crates/rustprop-capi/examples/bindings"
 PROFILE="release-capi"
-OUT="$ROOT/target/$PROFILE"
+TARGET_ARG=""
+TARGET_DIR=""
+if [ -n "$TARGET" ]; then
+    TARGET_ARG="--target $TARGET"
+    TARGET_DIR="$TARGET/"
+fi
+OUT="$ROOT/target/${TARGET_DIR}$PROFILE"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -31,7 +44,7 @@ case "$(uname -s)" in
 esac
 
 echo "==> building rustprop-capi (--features $FEATURES)"
-cargo build -p rustprop-capi --features "$FEATURES" --profile "$PROFILE"
+cargo build -p rustprop-capi --features "$FEATURES" --profile "$PROFILE" $TARGET_ARG
 [ -f "$LIB" ] || { echo "missing $LIB" >&2; exit 1; }
 
 ran=0

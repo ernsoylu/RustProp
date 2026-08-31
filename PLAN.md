@@ -3258,6 +3258,109 @@ the file that would have told them costs one line.
 
 ---
 
+## 2026-08-31 — R11b: what the first release rehearsal found
+
+R11 shipped a twelve-entry `sdk` matrix with an honest disclaimer: the
+aarch64, musl, armv7 and Windows entries had never executed. This is the
+account of the first `workflow_dispatch` rehearsal (run `33398663847`), which
+is exactly why `RELEASE-CHECKLIST.md` §0a now requires one before every tag.
+Four of the twelve went red. None of the four was a wasted trip.
+
+### Green on first contact
+
+`aarch64-unknown-linux-gnu` on a native arm64 runner, `aarch64-apple-darwin`,
+`x86_64-apple-darwin`, all four x86-64 baselines, and the armv7 cross-build —
+golden suites and C/C++ smoke programs included. The arm64 result is the one
+worth noting: the goldens hold bit-for-bit on a completely different
+architecture's libm, which is not something the matrix could assume.
+
+### Windows: a hardcoded path, on both entries
+
+The MSVC step guessed
+`%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\...` with a
+Community fallback. Neither exists on the current runner images: "The system
+cannot find the path specified", twice, then "'cl' is not recognized".
+
+Fixed with `vswhere.exe`, which ships at a fixed location precisely so that
+nobody has to predict the edition or the year, plus a per-entry `msvc_arch`
+(`x64` / `arm64`) since one matrix cannot use one architecture argument.
+
+The lesson is small and general: a path containing a vendor's product edition
+is a guess, and a guess in CI is a guess that only fails when it matters.
+
+### musl: a real libm divergence, and the target dropped
+
+Both musl entries failed on the **golden suites**, not the build. `validity`
+reported seven parity failures, all `PR::Propane` at T = 1e30 K, all differing
+from the glibc-generated goldens by factors of exactly 2, 4 or 8 — e.g.
+`d2alpha0_ddelta2_consttau` −1.934e25 against an expected −4.836e24,
+`dalpha0_ddelta_consttau` 4.398e12 against 2.199e12. Every other suite passed
+on musl.
+
+So the divergence is narrow and lives in the extreme-value tail, where the
+exponent arithmetic in musl's `exp`/`pow` parts company with glibc's. It is
+almost certainly unreachable from any physically meaningful input.
+
+**"Almost certainly" is not a standard this project uses.** The two honest
+options were to platform-scope those assertions or to drop the target.
+Scoping means weakening a fidelity assertion, for a platform that cannot be
+run locally, on the evidence of a single CI run — and the assertions in
+question are exactly the ones Wave 3 added to close the `Ok(non-finite)`
+validity gap. Dropping the target costs container users an artifact and costs
+nobody any correctness.
+
+Dropped, therefore, and `release.yml` carries the reasoning where the entries
+used to be. Re-adding musl is real work and is listed as such: characterise
+where its libm diverges, decide whether those states are reachable, and scope
+deliberately if they are not.
+
+This is the same rule R11 wrote into `github-release`'s condition — if a
+target cannot ship, delete it from the matrix in a commit that says why —
+applied to its author within a day of writing it.
+
+### The flaky test that was not flaky
+
+`ci.yml` also went red, on `artifact_hardening`'s
+`header_counts_do_not_drive_allocation`. That test had failed twice locally
+during R11 and survived eight consecutive clean runs afterwards, so it was
+reported as transient. It was not transient; it was **measuring the wrong
+thing**.
+
+It sampled `VmSize` from `/proc/self/status` either side of the call under
+test and required the delta to stay under 64 MB. `VmSize` is process-wide, so
+the check attributed any concurrent growth to the call — and glibc maps a
+fresh **64 MB arena** the first time a new thread allocates. A test-harness
+thread warming up inside the measurement window is precisely a 64 MB jump
+against a 64 MB threshold. The CI failure reported "grew the address space by
+64 MB", which is the arena, exactly.
+
+Replaced with a pass-through `#[global_allocator]` that records the largest
+single allocation request. That measures what the test means — the defect was
+a multi-gigabyte `with_capacity` from a 24-byte input — and is immune to the
+noise by construction, because the noise is kilobytes. It is also portable,
+where the old check only ran on Linux.
+
+Added alongside it: `the_allocation_tracker_actually_observes_allocations`,
+which reserves 8 MiB and asserts the tracker saw it. A measurement that
+silently reports zero would make the real assertion vacuous while still
+passing, which is the failure mode worth spending a test on.
+
+### And one that was a stale directory
+
+`ci.yml`'s `capi` job failed at "package and consume" with "no library
+artifacts found in target/x86_64-unknown-linux-gnu/release-capi". The job
+built without `--target`, so cargo wrote to `target/release-capi` while
+`package.sh` looked under the triple. It passed locally only because an
+earlier explicit-target build had left that directory behind — stale state
+masking a real bug, which is the ordinary way local verification lies.
+
+The `capi` job now names the host triple in every step, so `ctest.sh`,
+`bindings-test.sh` and `package.sh` share one build directory and one build;
+`bindings-test.sh` grew the same optional TARGET argument `ctest.sh` already
+had. Re-verified after deleting both target directories first.
+
+---
+
 ## Status: all fifteen phases complete
 
 Every checkbox above is ticked and every phase gate has passed. What remains is

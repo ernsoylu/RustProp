@@ -9,6 +9,15 @@
 //! cheap and they run in CI, so a future edit to the reader cannot quietly
 //! reopen one.
 
+// A `#[global_allocator]` needs `unsafe impl`, which the workspace-wide
+// `deny(unsafe_code)` rejects. This is a test binary, shipped nowhere, and the
+// allocator below is a pass-through to `System` plus one atomic — see
+// `PeakTracking` for why measuring the allocator beats measuring the process.
+#![allow(unsafe_code)]
+
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use rustprop_core::params::Param;
 use rustprop_svdsbtl::artifact;
 use rustprop_svdsbtl::region::{AxisScale, AxisTransform, BoundaryCurve, Region, RegionAtlas};
@@ -26,17 +35,70 @@ fn header(n_props: u32, n_regions: u32) -> Vec<u8> {
     b
 }
 
-/// Resident set, in KiB. Linux-only; the assertion below is skipped elsewhere.
-#[cfg(target_os = "linux")]
-fn vm_size_kb() -> Option<u64> {
-    std::fs::read_to_string("/proc/self/status")
-        .ok()
-        .and_then(|s| {
-            s.lines()
-                .find(|l| l.starts_with("VmSize"))
-                .and_then(|l| l.split_whitespace().nth(1))
-                .and_then(|v| v.parse().ok())
-        })
+/// The largest single allocation any thread in this process has requested
+/// since it was last reset.
+static MAX_ALLOC: AtomicUsize = AtomicUsize::new(0);
+
+/// A pass-through allocator that remembers the biggest single request.
+///
+/// This replaced a `/proc/self/status` `VmSize` delta, which measured the
+/// wrong thing and was flaky because of it. `VmSize` is process-wide, so the
+/// old check attributed *any* concurrent growth to the call under test — and
+/// glibc maps a fresh **64 MB** arena the first time a new thread allocates,
+/// which is exactly the old 64 MB threshold. A harness thread warming up
+/// inside the measurement window failed the test, on CI and (twice,
+/// unreproducibly) locally.
+///
+/// The maximum single *request* is the right measurement and is immune to that
+/// noise by construction: the defect this guards against is a multi-gigabyte
+/// `with_capacity` from a 24-byte input, while the noise is kilobytes. No lock
+/// is needed and none is taken — `fetch_max` is lock-free and allocates
+/// nothing, so there is no re-entry into the allocator.
+struct PeakTracking;
+
+unsafe impl GlobalAlloc for PeakTracking {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        MAX_ALLOC.fetch_max(layout.size(), Ordering::Relaxed);
+        unsafe { System.alloc(layout) }
+    }
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        MAX_ALLOC.fetch_max(layout.size(), Ordering::Relaxed);
+        unsafe { System.alloc_zeroed(layout) }
+    }
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        MAX_ALLOC.fetch_max(new_size, Ordering::Relaxed);
+        unsafe { System.realloc(ptr, layout, new_size) }
+    }
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        unsafe { System.dealloc(ptr, layout) }
+    }
+}
+
+#[global_allocator]
+static ALLOCATOR: PeakTracking = PeakTracking;
+
+/// The measurement in `header_counts_do_not_drive_allocation` is only worth
+/// anything if the allocator hook actually observes allocations. A tracker
+/// that silently recorded zero would make that test pass no matter what the
+/// reader did — which is the failure mode that matters, because it is silent.
+///
+/// So: allocate a known size and check it is seen; then confirm the counter
+/// resets. If this test fails, the one below is not measuring anything.
+#[test]
+fn the_allocation_tracker_actually_observes_allocations() {
+    MAX_ALLOC.store(0, Ordering::Relaxed);
+    assert_eq!(MAX_ALLOC.load(Ordering::Relaxed), 0, "reset must clear it");
+
+    const BIG: usize = 8 << 20; // 8 MiB, far above any incidental allocation
+    let v: Vec<u8> = Vec::with_capacity(BIG);
+    let peak = MAX_ALLOC.load(Ordering::Relaxed);
+    assert!(
+        peak >= BIG,
+        "the tracker saw a peak of {peak} bytes for a {BIG}-byte reservation; \
+         the global allocator hook is not in effect, and every allocation \
+         assertion in this file is vacuous"
+    );
+    drop(v);
 }
 
 /// A count in the header must not size an allocation before the bytes behind
@@ -52,21 +114,19 @@ fn header_counts_do_not_drive_allocation() {
         let b = header(n_props, 0);
         assert_eq!(b.len(), 24);
 
-        #[cfg(target_os = "linux")]
-        let before = vm_size_kb();
-
+        MAX_ALLOC.store(0, Ordering::Relaxed);
         let r = artifact::load("x", &b);
+        let peak = MAX_ALLOC.load(Ordering::Relaxed);
 
-        #[cfg(target_os = "linux")]
-        if let (Some(before), Some(after)) = (before, vm_size_kb()) {
-            let grew_mb = after.saturating_sub(before) / 1024;
-            assert!(
-                grew_mb < 64,
-                "n_props = {n_props} grew the address space by {grew_mb} MB from a 24-byte \
-                 input; the count must be bounded against the remaining bytes before any \
-                 `with_capacity`"
-            );
-        }
+        // 1 MiB is generous for reading 24 bytes and enormous margin below the
+        // gigabytes the defect reserved. Unlike the old process-wide check,
+        // this is portable — every platform runs it, not just Linux.
+        assert!(
+            peak < 1 << 20,
+            "n_props = {n_props} asked the allocator for {peak} bytes from a 24-byte \
+             input; the count must be bounded against the remaining bytes before any \
+             `with_capacity`"
+        );
 
         // `SvdSurface` is not `Debug`, so match rather than `expect_err`.
         let msg = match r {
