@@ -13,6 +13,38 @@ green, what is open, and what is an accepted gap. This file says what to *do*.
 
 ---
 
+## 0a. Rehearse the release, on the branch, before tagging
+
+**Required. Not optional, and not a formality.**
+
+```bash
+gh workflow run release.yml --ref <your branch>
+gh run watch                                  # or: gh run list --workflow=release.yml
+```
+
+A dispatch run reaches `verify`, `sdk` and `rust-sources`. It does NOT reach
+`crates-io` or `github-release` — both are gated on `refs/tags/v` — so it
+builds and tests every artifact the release will contain, on every runner,
+and publishes nothing.
+
+Why this is a hard requirement:
+
+- The `sdk` matrix has **twelve** entries, and they execute *only* on a
+  dispatch or a tag. Nothing on a normal push touches them.
+- Several run on runner images this repository has never used —
+  `ubuntu-24.04-arm`, `macos-13`, `windows-11-arm`. A label that is
+  unavailable to this account fails the job instantly, and you want to learn
+  that here.
+- `github-release` requires **every** `sdk` entry to succeed. One broken
+  target means no release at all. On a dispatch that costs you a re-run; on a
+  tag it costs you a tag.
+
+If an entry fails for a reason that is about the runner rather than the code —
+an image that no longer exists, a tier-2 target that stopped building — the fix
+is to **delete that entry from the matrix in a commit that says why**. Do not
+relax `github-release`'s condition to route around it: that trades a loud
+failure for a release whose asset list quietly lost a platform.
+
 ## 0. Before anything: the rate limit that will bite
 
 **This is the one thing most likely to break the first release, and it is not
