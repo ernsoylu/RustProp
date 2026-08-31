@@ -59,8 +59,15 @@ Attached to every [release](https://github.com/ernsoylu/RustProp/releases):
 | `rustprop-wasm-<preset>.tar.gz` | WebAssembly, as `web` / `nodejs` / `bundler` |
 | `rustprop-<ver>-rust-sources.tar.gz` | Rust sources for offline and vendored builds |
 
-Targets: Linux x86-64 (gnu + musl), Linux arm64 (gnu + musl), Linux armv7,
-macOS arm64 and x86-64, Windows x86-64 and arm64.
+Targets: Linux x86-64 (four instruction-set baselines), Linux arm64, Linux
+armv7, macOS arm64 and x86-64, Windows x86-64 and arm64.
+
+> **No musl artifact, for now.** It was in the matrix and was removed: musl's
+> libm disagrees with glibc's in the `validity` golden suite — seven parity
+> failures on `PR::Propane` at T = 1e30 K, by factors of exactly 2, 4 and 8.
+> Every other suite passed, so the divergence is narrow and lives in the
+> extreme-value tail, but this project does not ship numbers it has not
+> checked. Re-adding musl means characterising where its libm diverges first.
 
 ### Which x86-64 artifact?
 
@@ -80,10 +87,6 @@ reach question. When in doubt, take the unsuffixed one.
 
 `BUILD-INFO.txt` inside each SDK records its target, its baseline, whether it
 was executed or only cross-built, and whether it offers shared linkage.
-
-> **musl packages are static-only.** Rust does not build a shared library for
-> a musl target, because musl defaults to static linking — which is the reason
-> to choose it. Link `librustprop.a`.
 
 ---
 
@@ -566,23 +569,32 @@ and a message on stderr for a failure — so it composes with shell tooling.
 
 ## 13. Containers and cloud
 
-For a container image, take the **musl** artifact: `librustprop.a` links into
-a fully static binary that runs on `scratch`, Alpine, distroless, anything.
+Take the `x86_64-unknown-linux-gnu` or `aarch64-unknown-linux-gnu` SDK and use
+a glibc-based image — `debian:stable-slim`, `ubuntu`, or a distroless glibc
+base. Link statically against `librustprop.a` so the image only needs libc:
 
 ```dockerfile
-FROM alpine AS build
-COPY rustprop-0.1.0-x86_64-unknown-linux-musl/ /opt/rustprop/
-RUN cc -static -DRUSTPROP_STATIC -I/opt/rustprop/include app.c \
+FROM debian:stable-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY rustprop-0.1.0-x86_64-unknown-linux-gnu/ /opt/rustprop/
+COPY app.c .
+RUN cc -DRUSTPROP_STATIC -I/opt/rustprop/include app.c \
        /opt/rustprop/lib/librustprop.a -lm -o /app
 
-FROM scratch
+FROM gcr.io/distroless/base-debian12
 COPY --from=build /app /app
 ENTRYPOINT ["/app"]
 ```
 
+There is **no musl artifact** and therefore no `scratch`-based fully static
+route today — see the note in §2 for why. If you need one, build it yourself
+from source and validate it against your own states; the target compiles
+cleanly, it is only the extreme-value goldens that disagree.
+
 For arm64 hosts (Graviton, Ampere, Apple silicon CI) take the
-`aarch64-unknown-linux-*` artifacts — they are built and tested on native
-arm64 runners, not cross-compiled.
+`aarch64-unknown-linux-gnu` artifact — it is built and tested on a native
+arm64 runner, not cross-compiled.
 
 There is no global state, no configuration file, no initialisation call and
 nothing to shut down, so a request handler can call rustprop directly from any
@@ -617,8 +629,9 @@ one.
 does not abort on one cell. Re-run that state through the scalar call to get
 the reason.
 
-**No `.so` in the package** — it is a musl artifact, which is static-only by
-design. `BUILD-INFO.txt` says so in its `linkage` line.
+**No `.so` in the package** — check `BUILD-INFO.txt`'s `linkage` line. Some
+targets are static-only (Rust does not emit a `cdylib` where the target
+defaults to `crt-static`); link `librustprop.a` there.
 
 **`ctypes` returns nonsense** — you did not set `argtypes`/`restype`. See §6.
 

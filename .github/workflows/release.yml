@@ -199,11 +199,16 @@ jobs:
   # the golden suites on a machine that can execute it, and none ships on the
   # assumption that "it should be fine".
   #
-  # NOT VERIFIED LOCALLY: the aarch64, musl, armv7 and Windows-arm64 entries
-  # were written on a Linux/x86-64 box and have never executed. A first-run
-  # failure on one of them is INFORMATION — read the failing step before
-  # assuming the YAML is wrong. The x86-64 entries, including all four
-  # microarchitecture baselines, were run locally before this landed.
+  # FIRST REHEARSAL, 2026-08-31 (run 33398663847). Everything here has now
+  # executed on a real runner at least once. What it found:
+  #   * aarch64-unknown-linux-gnu, aarch64-apple-darwin and all four x86-64
+  #     baselines: green, golden suites and C/C++ smoke programs included.
+  #   * Both Windows entries: red, because the step hardcoded a Visual Studio
+  #     path. Fixed with vswhere; see the MSVC step below.
+  #   * Both musl entries: red on the GOLDEN SUITES, a real libm divergence.
+  #     Removed — see the note where they used to be.
+  # This is what the rehearsal is for, and why RELEASE-CHECKLIST.md §0a makes
+  # it a required step before a tag.
   sdk:
     needs: verify
     strategy:
@@ -218,16 +223,29 @@ jobs:
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, cpu: x86-64-v2, run: native }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, cpu: x86-64-v3, run: native }
           - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, cpu: x86-64-v4, run: native }
-          # musl: one static library that runs on any Linux, glibc or not —
-          # the shape a container image or a scratch-based cloud deploy wants.
-          # STATIC ONLY, and deliberately: rustc drops the `cdylib` crate type
-          # for musl because the target defaults to `crt-static`, which is the
-          # very property that makes musl worth shipping. The package records
-          # its linkage in BUILD-INFO.txt so nobody hunts for a missing .so.
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, run: native, apt: musl-tools }
+          # NO musl ENTRY, and this is a finding rather than an oversight.
+          #
+          # x86_64-unknown-linux-musl and aarch64-unknown-linux-musl were both
+          # in this matrix and both went red on the first rehearsal — not on
+          # the build, on the GOLDEN SUITES. musl's libm disagrees with
+          # glibc's in `validity`, seven parity failures on PR::Propane at
+          # T = 1e30 K, by factors of exactly 2, 4 and 8 (e.g.
+          # d2alpha0_ddelta2_consttau -1.934e25 vs the expected -4.836e24).
+          # Every other suite passed, so the divergence is narrow and lives in
+          # the extreme-value tail — but "narrow" is not "characterised", and
+          # this project does not ship numbers it has not checked.
+          #
+          # The honest options were to platform-scope those assertions or to
+          # drop the target. Scoping them means weakening a fidelity assertion
+          # for a platform that cannot be run locally, on the evidence of one
+          # CI run; dropping the target costs container users an artifact and
+          # costs nobody any correctness. Dropped, therefore, and recorded in
+          # PLAN.md. Re-adding it is real work: characterise where musl's libm
+          # diverges, decide whether those states are reachable by any
+          # physically meaningful input, and scope the assertions deliberately
+          # if they are not.
           # --- Linux arm64, on a native arm64 runner ------------------------
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, run: native }
-          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, run: native, apt: musl-tools }
           # --- Linux armv7 (32-bit, hard-float): Raspberry Pi and friends ---
           # Cross-compiled: there is no 32-bit ARM runner. Note this target
           # has a 32-bit usize, which `ci.yml`'s i686 step already exercises
@@ -237,8 +255,8 @@ jobs:
           - { os: macos-latest, target: aarch64-apple-darwin, run: native }
           - { os: macos-13, target: x86_64-apple-darwin, run: native }
           # --- Windows ------------------------------------------------------
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, run: native }
-          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, run: native }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, run: native, msvc_arch: x64 }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, run: native, msvc_arch: arm64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -341,12 +359,25 @@ jobs:
       # because the compiler driver, the flags and the artifact names all
       # differ, and one script doing both would be harder to read than two
       # that each do one.
+      #
+      # Visual Studio is located with vswhere, not a hardcoded path. The first
+      # version of this step guessed
+      # `%ProgramFiles%\...\2022\Enterprise\...` with a Community fallback
+      # and failed on BOTH Windows runners with "The system cannot find the
+      # path specified" — the edition and the year in that path are not ours
+      # to predict, and they change with the runner image. vswhere ships at a
+      # fixed location precisely so nobody has to.
       - name: C and C++ against the built library (MSVC)
         if: steps.exec.outputs.run == 'native' && runner.os == 'Windows'
         shell: cmd
         run: |
-          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 || ^
-          call "%ProgramFiles%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          if not exist "%VSWHERE%" set "VSWHERE=%ProgramFiles%\Microsoft Visual Studio\Installer\vswhere.exe"
+          if not exist "%VSWHERE%" echo ::error::vswhere.exe not found & exit /b 1
+          for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -property installationPath`) do set "VSPATH=%%i"
+          if not defined VSPATH echo ::error::vswhere found no Visual Studio installation & exit /b 1
+          echo using Visual Studio at %VSPATH%
+          call "%VSPATH%\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.msvc_arch }} || exit /b 1
           set OUT=target\${{ matrix.target }}\release-capi
           cl /nologo /W3 /I crates\rustprop-capi\include crates\rustprop-capi\examples\smoke.c ^
              %OUT%\rustprop.dll.lib /Fe:smoke.exe || exit /b 1

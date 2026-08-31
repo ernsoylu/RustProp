@@ -22,11 +22,11 @@ BUILD-INFO.txt                         which target, which engines, which toolch
 The tree is relocatable — extract it anywhere. Neither the `.pc` nor the CMake
 config contains an absolute path.
 
-`BUILD-INFO.txt` names the linkage this particular package offers. The **musl**
-packages are static-only: Rust does not build a shared library for a musl
-target, because musl defaults to static linking — which is the reason to pick
-it. Use `rustprop::rustprop_static` (CMake) or link `lib/librustprop.a`
-directly there.
+`BUILD-INFO.txt` names the linkage this particular package offers. Some
+targets are **static-only** — Rust emits no `cdylib` where the target defaults
+to `crt-static`, which is true of every musl target. There is no shared
+library in those packages; use `rustprop::rustprop_static` (CMake) or link
+`lib/librustprop.a` directly.
 
 ## Three ways to build against it
 

@@ -61,11 +61,12 @@ done
     echo "did you build with --target $TARGET --profile $PROFILE ?" >&2
     exit 1
 }
-# Which linkages this package actually offers. musl targets are static-only:
-# rustc drops the `cdylib` crate type there because the target defaults to
-# `crt-static`, which is also the reason anyone picks musl — one binary with
-# nothing to load at run time. Say so rather than letting a consumer discover
-# a missing .so on their own.
+# Which linkages this package actually offers. Not every target has both:
+# rustc drops the `cdylib` crate type wherever the target defaults to
+# `crt-static`, which is true of every musl target. Say so in BUILD-INFO.txt
+# rather than letting a consumer discover a missing .so on their own. (No musl
+# target is in the release matrix today — see release.yml — but this stays
+# because the condition is a property of the target, not of that decision.)
 LINKAGE="static and shared"
 if [ ! -f "$DEST/lib/librustprop.so" ] && [ ! -f "$DEST/lib/librustprop.dylib" ] \
    && [ ! -f "$DEST/lib/rustprop.dll" ]; then

@@ -29,16 +29,27 @@ without giving up the modularity that motivated the project.
   Every entry point is safe to call concurrently from any number of threads,
   with no initialisation call and nothing to free.
 
-- **Prebuilt SDKs for twelve targets**, each with the shared and static
-  library, the header, pkg-config and CMake package files, worked examples and
-  the CLI: Linux x86-64 (gnu + musl), Linux arm64 (gnu + musl), Linux armv7,
+- **Prebuilt SDKs for ten targets**, each with the shared and static library,
+  the header, pkg-config and CMake package files, worked examples and the CLI:
+  Linux x86-64 (four instruction-set baselines), Linux arm64, Linux armv7,
   macOS arm64 and x86-64, Windows x86-64 and arm64.
+
+  No musl artifact. It was in the matrix and was removed after the first
+  release rehearsal: musl's libm disagrees with glibc's in the `validity`
+  golden suite — seven parity failures on `PR::Propane` at T = 1e30 K, by
+  factors of exactly 2, 4 and 8. Every other suite passed, so the divergence
+  is narrow and lives in the extreme-value tail, but this library does not
+  ship numbers it has not checked. Build from source if you need musl.
 
 - **Instruction-set variants for x86-64**: `x86-64-v2`, `-v3` and `-v4`
   alongside the portable baseline. These change only which processors the
   binary runs on. The numbers are identical — verified, not assumed: the full
   suite passes at all four baselines, and a 29,848-value sweep across every
   engine returns byte-identical results from each.
+
+- **`USAGE.md`** — how to call rustprop from Rust, C, C++, Python, Go, Java,
+  Fortran and JavaScript, which prebuilt artifact to take, containers, and
+  troubleshooting. The bindings it documents are working programs that CI runs.
 
 - **A `rust-sources` bundle** for air-gapped and vendored Rust builds,
   carrying both the published `.crate` files and the workspace source tree.
@@ -48,11 +59,21 @@ without giving up the modularity that motivated the project.
 
 ### Changed
 
-- The CLI is now built for all twelve targets instead of three, and ships both
+- The CLI is now built for all ten targets instead of three, and ships both
   standalone and inside each SDK.
 - The workspace publishes **thirteen** crates rather than twelve, which raises
   the crates.io new-crate count that `release.yml`'s preflight checks against.
   See `RELEASE-CHECKLIST.md` §0.
+
+### Fixed
+
+- `rustprop-wasm`'s doc comment quoted `0.5548` for
+  `props_si("D","T",400,"P",101325,"IF97::Water")`, which returns
+  `0.5549215811909716`.
+- `artifact_hardening`'s allocation check measured process-wide `VmSize` and
+  so failed whenever glibc mapped a 64 MB thread arena during the measurement.
+  It now records the largest single allocation request instead, which is what
+  it always meant and is immune to that noise.
 
 ### Unchanged
 
