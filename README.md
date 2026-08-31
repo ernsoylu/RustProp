@@ -116,8 +116,8 @@ crates/rustprop-capi/ctest.sh          # compiles C and C++ against it and runs 
 |---|---|
 | Linux x86-64 | baseline, plus `x86-64-v2`, `-v3`, `-v4` instruction-set baselines |
 | Linux arm64 | `gnu`, built and tested on a native arm64 runner |
-| Linux armv7 | `gnueabihf` (32-bit, Raspberry Pi) — cross-compiled, see below |
-| macOS | arm64 (Apple silicon) and x86-64 |
+| Linux armv7 | `gnueabihf` (32-bit, Raspberry Pi) — cross-built, see below |
+| macOS | arm64 (Apple silicon); x86-64 cross-built from arm64 |
 | Windows | x86-64 and arm64 (MSVC) |
 | WebAssembly | `web`, `nodejs` and `bundler` bundles, per feature preset |
 
@@ -128,8 +128,9 @@ suites pass identically at all four baselines, and the answers are bit-for-bit
 the same, so the choice is purely about which machines the binary will run on.
 
 `BUILD-INFO.txt` inside each SDK records its target, its baseline, and whether
-it was executed or only built (armv7 has no runner, so it is built and its
-symbols checked, and it says so).
+it was executed or only built. Two targets are built and symbol-checked but
+not run — armv7 and macOS x86-64, neither of which has a runner that can
+execute it — and each says so.
 
 Rust consumers use crates.io; a `rust-sources` bundle is attached to each
 release for air-gapped and vendored builds. There is deliberately no prebuilt

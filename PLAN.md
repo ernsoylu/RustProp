@@ -3361,6 +3361,40 @@ had. Re-verified after deleting both target directories first.
 
 ---
 
+## 2026-08-31 — R11c: the second rehearsal, and a runner that never came
+
+The rehearsal after R11b's fixes came back green on nine of ten `sdk` entries,
+including **both Windows entries** — so `windows-11-arm` is available to this
+repository, which R11 could only hope. The tenth never started.
+
+`macos-13` (Intel) sat **queued for over half an hour on two consecutive
+runs** without being scheduled. That image is being retired and its runners
+are scarce. A release gated on `github-release` requiring every matrix entry
+to succeed cannot depend on a runner class that may simply never arrive: the
+failure mode is not a red build, it is a release that hangs.
+
+Intel macOS is now **cross-built on the arm64 runner** (`macos-latest`,
+`--target x86_64-apple-darwin`). Apple's SDK is universal so the build is
+routine; what is lost is execution, because the arm64 runners carry no Rosetta
+and an x86-64 binary cannot run there. The entry is therefore `run: build` and
+its `BUILD-INFO.txt` says `BUILT ONLY`, exactly as armv7's does.
+
+That is a real reduction in what is claimed for that artifact, and it is the
+honest trade: Intel Mac users get a binary whose provenance is stated, rather
+than either nothing or a release that never completes. The alternative —
+dropping Intel macOS outright — was rejected because the population of Intel
+Macs is still large, and the golden suites already run on macOS arm64, so the
+platform's libm is not unexercised.
+
+Two entries are now build-only, so the `exported symbols (build-only targets)`
+step had to grow past Linux: it was `nm -D` and `runner.os == 'Linux'`.
+Mach-O has no `-D`, lists exports under `nm -gU`, and prefixes every symbol
+with an underscore. The step now tries both forms and strips the prefix, so a
+cross-built artifact is still checked against the header rather than shipped
+entirely unexamined.
+
+---
+
 ## Status: all fifteen phases complete
 
 Every checkbox above is ticked and every phase gate has passed. What remains is

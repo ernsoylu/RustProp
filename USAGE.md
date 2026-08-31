@@ -62,6 +62,13 @@ Attached to every [release](https://github.com/ernsoylu/RustProp/releases):
 Targets: Linux x86-64 (four instruction-set baselines), Linux arm64, Linux
 armv7, macOS arm64 and x86-64, Windows x86-64 and arm64.
 
+Two of those are **cross-built and not executed** — Linux armv7 and macOS
+x86-64 — because no runner is available to run them (GitHub's Intel macOS
+images are being retired, and its arm64 macOS runners carry no Rosetta).
+Their `BUILD-INFO.txt` says `BUILT ONLY` in as many words. Every other target
+ran the full golden suite and the C/C++ smoke programs on its own hardware
+before shipping.
+
 > **No musl artifact, for now.** It was in the matrix and was removed: musl's
 > libm disagrees with glibc's in the `validity` golden suite — seven parity
 > failures on `PR::Propane` at T = 1e30 K, by factors of exactly 2, 4 and 8.
