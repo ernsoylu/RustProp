@@ -9,6 +9,7 @@
 //! upstream two-phase split. Golden coverage stays away from the dome.
 
 use crate::alpha::{DerivsMemo, HelmholtzDerivs};
+use crate::derivs::DerivEos;
 use crate::mixture::MixtureModel;
 use crate::solvers::{self, Resid1D, brent, householder4};
 use rustprop_core::params::Phase;
@@ -77,6 +78,51 @@ impl Resid1D for MixSolverTpResid<'_> {
         self.model.gas_constant() * self.t / (self.rhor * self.rhor)
             * (6.0 * d.d20 + 6.0 * self.delta * d.d30 + self.delta * self.delta * d.d40)
             / self.p
+    }
+}
+
+/// A mixture at one composition, as the generic (T, rho) machinery
+/// ([`crate::derivs::StateDerivs`]) and the [`DerivEos`] formula family see
+/// it: upstream's `HelmholtzEOSMixtureBackend` runs the same `calc_Z`,
+/// `calc_PIP`, residual, ideal-gas and virial code for both, over the
+/// mixture's reducing state and derivative matrices.
+pub struct MixtureAt<'a> {
+    model: &'a MixtureModel,
+    x: &'a [f64],
+    tr: f64,
+    rhor: f64,
+}
+
+impl<'a> MixtureAt<'a> {
+    pub fn new(model: &'a MixtureModel, x: &'a [f64]) -> Self {
+        MixtureAt {
+            model,
+            x,
+            tr: model.reducing.tr(x),
+            rhor: model.reducing.rhormolar(x),
+        }
+    }
+}
+
+impl DerivEos for MixtureAt<'_> {
+    fn alphar_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        self.model.alphar_all(self.x, tau, delta)
+    }
+    fn alpha0_all(&self, tau: f64, delta: f64) -> HelmholtzDerivs {
+        self.model
+            .alpha0_all(self.x, tau, delta, self.tr, self.rhor)
+    }
+    fn t_reducing(&self) -> f64 {
+        self.tr
+    }
+    fn rhomolar_reducing(&self) -> f64 {
+        self.rhor
+    }
+    fn gas_constant(&self) -> f64 {
+        self.model.gas_constant()
+    }
+    fn molar_mass(&self) -> f64 {
+        self.model.molar_mass(self.x)
     }
 }
 

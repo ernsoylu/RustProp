@@ -143,31 +143,21 @@ const PLATFORM_SENSITIVE: &[State] = &[
     },
 ];
 
-/// True when `rec` sits on an allowlisted state AND this is not the platform
-/// the fixture was generated on. Always false on Linux/x86-64, where every
-/// record keeps asserting exactly as it did before.
+/// True when `rec` sits on an allowlisted state. Since 2026-10-19 this holds
+/// on every platform: a newer glibc on Linux/x86-64 lands the SRK::Propane
+/// T=1e30 root two ulps away from the wheel's (4.547473508864641e-13 against
+/// 9.094947017729282e-13), so "the platform the fixture came from" is the
+/// libm build, not the OS/arch pair — and that is not something a test can
+/// detect.
 fn platform_sensitive(rec: &GoldenRecord) -> bool {
-    !cfg!(all(target_os = "linux", target_arch = "x86_64"))
-        && PLATFORM_SENSITIVE.iter().any(|s| {
-            s.backend == rec.backend
-                && s.fluid == rec.fluid
-                && s.name1 == rec.name1
-                && s.val1 == rec.val1
-                && s.name2 == rec.name2
-                && s.val2 == rec.val2
-        })
-}
-
-/// How many records the allowlist removes on THIS platform: none on
-/// Linux/x86-64, the enumerated count anywhere else. Every caller asserts its
-/// number, so a skip set that grows — a new knife edge, or a stale entry —
-/// turns the suite red instead of quietly shrinking its coverage.
-fn expected_skips(off_linux: usize) -> usize {
-    if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-        0
-    } else {
-        off_linux
-    }
+    PLATFORM_SENSITIVE.iter().any(|s| {
+        s.backend == rec.backend
+            && s.fluid == rec.fluid
+            && s.name1 == rec.name1
+            && s.val1 == rec.val1
+            && s.name2 == rec.name2
+            && s.val2 == rec.val2
+    })
 }
 
 #[test]
@@ -225,8 +215,7 @@ fn validity_refusal_parity_matches_upstream() {
         records.len()
     );
     assert_eq!(
-        skipped,
-        expected_skips(132),
+        skipped, 132,
         "the platform-sensitive skip set is exactly the four enumerated states"
     );
     assert!(
@@ -279,8 +268,7 @@ fn alpha0_messages_name_the_same_derivative() {
     println!("platform-sensitive alpha0-gated refusals skipped: {skipped}");
     assert_eq!(checked + skipped, 264, "alpha0-gated refusals pinned");
     assert_eq!(
-        skipped,
-        expected_skips(48),
+        skipped, 48,
         "the platform-sensitive skip set is exactly the four enumerated states"
     );
     assert!(
@@ -327,8 +315,7 @@ fn boundary_gate_refusals_carry_an_empty_message() {
     }
     println!("platform-sensitive empty-message refusals skipped: {skipped}");
     assert_eq!(
-        skipped,
-        expected_skips(6),
+        skipped, 6,
         "the platform-sensitive skip set is exactly the four enumerated states"
     );
 }

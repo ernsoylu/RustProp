@@ -374,6 +374,46 @@ fn mixture_propssi_matches_oracle() {
 }
 
 #[test]
+fn mixture_outputs_match_oracle() {
+    // `HelmholtzEOSMixtureBackend`'s single-state family for mixtures (Z,
+    // PIP, Prandtl, Cp0, Helmholtz, residual/ideal-gas parts, virials, the
+    // alphar/alpha0 strings, Tau/Delta, the expansion/compressibility
+    // coefficients, Phase) over gas, compressed-liquid and QT two-phase
+    // states. 1e-8 is the solver tier; the Jacobian-ratio outputs ride the
+    // acceptance suite's 1e-7 derivative tier.
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_outputs.jsonl");
+    let recs = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(recs.len(), 1567);
+    let mut failures = Vec::new();
+    for rec in &recs {
+        let fluid = format!("HEOS::{}", rec.fluid);
+        match rustprop::props_si(&rec.out, &rec.name1, rec.val1, &rec.name2, rec.val2, &fluid) {
+            Ok(actual) => {
+                let rtol = match rec.out.as_str() {
+                    "PIP"
+                    | "isothermal_compressibility"
+                    | "isobaric_expansion_coefficient"
+                    | "isentropic_expansion_coefficient" => 1e-7,
+                    _ => 1e-8,
+                };
+                if let Err(e) = rustprop_golden_tests::check(rec, actual, rtol) {
+                    failures.push(e);
+                }
+            }
+            Err(e) => failures.push(format!("{}: error {e:?}", rec.id())),
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture output records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
 fn mixture_propssi_error_conditions() {
     use rustprop::props_si;
     use rustprop_core::Error;

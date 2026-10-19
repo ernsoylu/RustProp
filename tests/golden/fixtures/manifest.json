@@ -4,7 +4,7 @@
   "coolprop_gitrevision": "ae81610e7d23efc57f9d051c8e70a4d66e87537f",
   "upstream_tag": "v8.0.0",
   "oracle_sha256": "05d85591871524e83bb23170e22ee149e1167fb3ef5deaf81b9d248283089be5",
-  "python": "3.12.3",
+  "python": "3.12.12",
   "platform": "Linux-x86_64",
   "files": [
     "acceptance_svdsbtl.jsonl",
@@ -106,6 +106,7 @@
     "incompressible.jsonl",
     "melting.jsonl",
     "mixture_helmholtz.jsonl",
+    "mixture_outputs.jsonl",
     "mixture_predefined.jsonl",
     "mixture_propssi.jsonl",
     "mixture_pt.jsonl",

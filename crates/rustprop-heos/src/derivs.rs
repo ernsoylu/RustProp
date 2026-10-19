@@ -38,6 +38,126 @@ pub trait DerivEos {
     fn rhomolar_reducing(&self) -> f64;
     fn gas_constant(&self) -> f64;
     fn molar_mass(&self) -> f64;
+
+    // The single-state formula family below is upstream
+    // `HelmholtzEOSMixtureBackend`'s, which serves pure fluids and mixtures
+    // alike (a pure fluid is its one-component mixture): every formula reads
+    // only the derivative matrices, the reducing state and R.
+
+    /// `(tau, delta)` at `(t, rhomolar)`, also the keyed `Tau`/`Delta`
+    /// outputs — upstream serves them literally as `_reducing.T/_T` and
+    /// `_rhomolar/_reducing.rhomolar` (bulk density in the dome).
+    fn tau_delta(&self, t: f64, rhomolar: f64) -> (f64, f64) {
+        (self.t_reducing() / t, rhomolar / self.rhomolar_reducing())
+    }
+
+    /// Both derivative matrices at the bulk state, for the keyed
+    /// alphar/alpha0 output strings.
+    fn alpha_all(&self, t: f64, rhomolar: f64) -> (HelmholtzDerivs, HelmholtzDerivs) {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        (self.alphar_all(tau, delta), self.alpha0_all(tau, delta))
+    }
+
+    /// Compressibility factor [-] (upstream `calc_compressibility_factor`,
+    /// `HelmholtzEOSMixtureBackend.h`): `Z = 1 + delta*dalphar_dDelta` — NOT
+    /// `p/(rho*R*T)`, which differs in the dome where upstream still serves
+    /// the raw formula at the bulk density.
+    fn compressibility_factor(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        1.0 + delta * self.alphar_all(tau, delta).d10
+    }
+
+    /// Ideal-gas molar isobaric heat capacity [J/mol/K] (upstream
+    /// `calc_cpmolar_idealgas`).
+    fn cp0molar(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        self.gas_constant() * (1.0 - tau.powi(2) * self.alpha0_all(tau, delta).d02)
+    }
+
+    /// Molar Helmholtz energy [J/mol] for a homogeneous phase (upstream
+    /// `calc_helmholtzmolar`, homogeneous branch).
+    fn helmholtzmolar(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        let ideal = self.alpha0_all(tau, delta);
+        self.gas_constant() * t * (ideal.d00 + residual.d00)
+    }
+
+    /// Residual molar enthalpy [J/mol] (upstream inline
+    /// `calc_hmolar_residual` — raw at the bulk density, dome included).
+    fn hmolar_residual(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        self.gas_constant() * t * (tau * residual.d01 + delta * residual.d10)
+    }
+
+    /// Residual molar entropy [J/mol/K] (upstream inline
+    /// `calc_smolar_residual` — raw at the bulk density, dome included).
+    fn smolar_residual(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        self.gas_constant() * (tau * residual.d01 - residual.d00)
+    }
+
+    /// Ideal-gas molar enthalpy [J/mol] (upstream `calc_hmolar_idealgas`
+    /// wrapper chain, `AbstractState.cpp`): `R*T*(1 + tau*dalpha0_dtau)`.
+    fn hmolar_idealgas(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        self.gas_constant() * t * (1.0 + tau * self.alpha0_all(tau, delta).d01)
+    }
+
+    /// Ideal-gas molar entropy [J/mol/K]: `R*(tau*dalpha0_dtau - alpha0)`.
+    /// The alpha0 VALUE carries the log-delta term, so this is
+    /// delta-dependent and evaluates at the bulk density like everything
+    /// else.
+    fn smolar_idealgas(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let ideal = self.alpha0_all(tau, delta);
+        self.gas_constant() * (tau * ideal.d01 - ideal.d00)
+    }
+
+    /// Ideal-gas molar internal energy [J/mol]: `R*T*tau*dalpha0_dtau`.
+    fn umolar_idealgas(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        self.gas_constant() * t * tau * self.alpha0_all(tau, delta).d01
+    }
+
+    /// Residual molar Gibbs energy [J/mol] (upstream inline
+    /// `calc_gibbsmolar_residual`): `R*T*(alphar + delta*dalphar_ddelta)`,
+    /// raw at the bulk density, dome included.
+    fn gmolar_residual(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, delta) = self.tau_delta(t, rhomolar);
+        let residual = self.alphar_all(tau, delta);
+        self.gas_constant() * t * (residual.d00 + delta * residual.d10)
+    }
+
+    /// Second virial coefficient [m^3/mol] (upstream `calc_Bvirial`,
+    /// `HelmholtzEOSMixtureBackend.cpp`): `dalphar_ddelta` at the CURRENT
+    /// tau and `delta = 1e-12`, over the reducing density.
+    fn bvirial(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d10 / self.rhomolar_reducing()
+    }
+
+    /// Third virial coefficient [m^6/mol^2] (upstream `calc_Cvirial`).
+    fn cvirial(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d20 / (self.rhomolar_reducing() * self.rhomolar_reducing())
+    }
+
+    /// `dBvirial/dT` (upstream `calc_dBvirial_dT`): the mixed derivative at
+    /// `delta = 1e-12` chained through `dtau/dT = -Tr/T^2`.
+    fn dbvirial_dt(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d11 / self.rhomolar_reducing() * (-self.t_reducing() / (t * t))
+    }
+
+    /// `dCvirial/dT` (upstream `calc_dCvirial_dT`).
+    fn dcvirial_dt(&self, t: f64, rhomolar: f64) -> f64 {
+        let (tau, _) = self.tau_delta(t, rhomolar);
+        self.alphar_all(tau, 1e-12).d21 / (self.rhomolar_reducing() * self.rhomolar_reducing())
+            * (-self.t_reducing() / (t * t))
+    }
 }
 
 impl DerivEos for HelmholtzEos {

@@ -3393,6 +3393,49 @@ with an underscore. The step now tries both forms and strips the prefix, so a
 cross-built artifact is still checked against the header rather than shipped
 entirely unexamined.
 
+### 2026-10-19 — the mixture keyed outputs, and a libm knife edge on Linux
+
+**What was missing.** An output-by-output comparison against the wheel over
+three mixtures (R454B.mix, the ternary R407C.mix, Methane[0.9]&Ethane[0.1]) at
+gas, compressed-liquid and two-phase states found 33 keyed outputs the wheel
+serves for mixtures and the port refused with "not ported for mixtures": Z,
+Phase, Prandtl, Cp0, Helmholtz, the residual and ideal-gas H/S/G/U, the four
+virial quantities, the alphar/alpha0 strings, Tau/Delta, PIP and the three
+expansion/compressibility coefficients. Every other output already matched.
+
+**Why they are one change.** Upstream computes all of them in
+`HelmholtzEOSMixtureBackend`, the class that serves pure fluids too — a pure
+fluid is its one-component mixture — from the derivative matrices, the
+reducing state and R. The port had them as `HelmholtzEos` inherent methods,
+i.e. pure-only. They moved, expression for expression, into default methods
+on `DerivEos` (the trait `StateDerivs` already consumed), and `MixtureAt`
+implements `DerivEos` for a mixture at one composition. The pure route calls
+the same arithmetic it always did; the golden suites in both profiles are the
+evidence. Two-phase behaviour follows upstream exactly: Helmholtz levers over
+each phase's own composition and density like Gibbs, Phase is
+`iphase_twophase`, everything else is raw at the bulk state.
+`mixture_outputs.jsonl` (1,567 records, deterministic generator, no random
+stream) pins it at 1e-8, with the four Jacobian-ratio outputs at the
+acceptance suite's 1e-7.
+
+**Still refused, deliberately.** The critical point of a mixture
+(`Tcrit`/`pcrit`/`rhocrit`): upstream's `calc_all_critical_points` traces the
+critical curve with the third-order composition derivatives this port defers
+with the phase envelope, and answers only when it finds exactly one point —
+27 of the 147 predefined blends (R407C among them), and binaries such as
+R32[0.5]&R125[0.5]. Mixture `HS` and the liquid-side mixture `(D,H)` refusals
+stand too: on those inputs the wheel itself crashes the process.
+
+**The validity knife edge.** On a machine with a newer glibc the SRK::Propane
+T=1e30 state landed two ulps away from the wheel (Dmolar 4.547e-13 against
+9.095e-13) on Linux/x86-64 — the platform the skip list had assumed was the
+fixture's own. The list already explained why: the density there is the
+rounding residue of a cancellation whose last bits are `sinh`/`asinh`'s. That
+reasoning is about the libm build, not the OS, so the four enumerated states
+now skip everywhere, with their counts still asserted. Upstream CI's
+`ubuntu-latest` moves to Ubuntu 26 from this date; without this the next
+scheduled run would have gone red for the same reason.
+
 ---
 
 ## Status: all fifteen phases complete

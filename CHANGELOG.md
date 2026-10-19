@@ -6,6 +6,50 @@ are not "Added" and "Fixed" but **Divergences from upstream** and **Not
 ported** — a difference from CoolProp is the only kind of surprise this library
 can hand you.
 
+## [0.2.0] — 2026-10-19
+
+### Added — every mixture keyed output upstream serves
+
+Mixtures (`A[x]&B[y]` strings and the predefined `<Name>.mix` blends) now
+answer the 33 keyed outputs that 0.1.x refused with "not ported for
+mixtures": `Z`, `Phase`, `Prandtl`, `Cp0molar`/`Cp0mass`, `Helmholtzmolar`/
+`Helmholtzmass`, the residual `Hmolar`/`Smolar`/`Gmolar`, the ideal-gas
+`H`/`S`/`U` in molar and mass bases, `Bvirial`/`Cvirial` and their
+temperature derivatives, `alphar`, `alpha0` and the five `dalpha*` strings,
+`Tau`, `Delta`, `PIP`, and the isothermal-compressibility, isobaric- and
+isentropic-expansion coefficients. They match the CoolProp 8.0.0 wheel to
+1e-8 (1e-7 for the four Jacobian-ratio outputs) on gas, compressed-liquid and
+two-phase states, pinned by the new `mixture_outputs.jsonl` (1,567 records).
+
+With this, every output the wheel answers for a mixture at a gas, liquid or
+two-phase state, the port answers identically — measured over binaries, a
+ternary, the nine predefined low-GWP refrigerant blends and the classic
+R4xx blends.
+
+### Changed
+
+- The single-state formula family (`compressibility_factor`, `cp0molar`,
+  `helmholtzmolar`, the residual and ideal-gas parts, the virials,
+  `tau_delta`, `alpha_all`) moved from `HelmholtzEos` inherent methods to
+  default methods on `rustprop_heos::derivs::DerivEos`, which
+  `HelmholtzEos`, `CubicEos` and the new `mixture_flash::MixtureAt`
+  implement. Same expressions, same results; callers need `DerivEos` in
+  scope.
+
+### Not ported
+
+- **Mixture critical points.** `Tcrit`/`pcrit`/`rhocrit` for a mixture
+  still refuse with upstream's "No outputs were able to be calculated".
+  Upstream answers for 27 of its 147 predefined blends (where its
+  critical-curve tracer finds exactly one point); that tracer needs the
+  third-order composition derivatives deferred with the phase envelope.
+
+### Test infrastructure
+
+- The four libm-knife-edge validity states (cubic Propane at T = 1e20 and
+  1e30 K) are skipped on every platform, not only off Linux: a newer glibc on
+  Linux/x86-64 lands them two ulps from the wheel too.
+
 ## [0.1.1] — 2026-08-31
 
 ### Added — a native SDK for C, C++ and desktop/cloud Rust

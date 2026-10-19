@@ -25,7 +25,7 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | 41,629 in 123 committed fixtures, read by 35 suites — every fixture is now consumed by a test (Wave-3 R9) |
+| Oracle records | 43,196 in 124 committed fixtures, read by 35 suites — every fixture is now consumed by a test (Wave-3 R9) |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `rustprop-capi` (C/C++ SDK), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
@@ -505,6 +505,11 @@ Not gaps — decisions, each with its reasoning in the Decisions log.
   re-testing rustprop's HEOS.
 - **Mixture phase-envelope machinery** and mixture `HS_flash`. Both are
   PropsSI-dead upstream.
+- **Mixture critical points** (`calc_all_critical_points`, behind `Tcrit` /
+  `pcrit` / `rhocrit` for a mixture). Upstream traces the critical curve with
+  the third-order composition derivatives below and answers only when it
+  finds exactly one point — 27 of 147 predefined blends. The port refuses with
+  upstream's own "No outputs were able to be calculated" for every mixture.
 - **Third-order / PSI derivative machinery** for mixtures, deferred with the
   phase envelope.
 - **Ammonia's Tillner-Roth alternate EOS.** The document carries two EOS

@@ -35,7 +35,7 @@ use rustprop_core::params::{InputPair, generate_update_pair};
 #[cfg(feature = "heos")]
 use rustprop_core::fluid::FluidData;
 #[cfg(feature = "heos")]
-use rustprop_heos::derivs::StateDerivs;
+use rustprop_heos::derivs::{DerivEos, StateDerivs};
 #[cfg(feature = "heos")]
 use rustprop_heos::flash_pt::PtFlash;
 #[cfg(feature = "heos")]
@@ -747,8 +747,8 @@ fn keyed_output(
         Param::DBvirialDT => flash.eos.dbvirial_dt(state.t(), state.rhomolar()),
         Param::DCvirialDT => flash.eos.dcvirial_dt(state.t(), state.rhomolar()),
         // Served literally as `_reducing.T/_T` and `_rhomolar/_reducing.rho`.
-        Param::Tau => flash.eos.tau_delta_keyed(state.t(), state.rhomolar()).0,
-        Param::Delta => flash.eos.tau_delta_keyed(state.t(), state.rhomolar()).1,
+        Param::Tau => flash.eos.tau_delta(state.t(), state.rhomolar()).0,
+        Param::Delta => flash.eos.tau_delta(state.t(), state.rhomolar()).1,
         // `calc_Qmass` (AbstractState.cpp): exact Q == 0/1 passes Q through;
         // otherwise the mass-basis lever `mv/(mv+ml)` is COMPUTED, not
         // simplified — for a pure fluid the phase molar masses are equal and
@@ -1779,6 +1779,8 @@ fn heos_mixture_entry(
 
 #[cfg(feature = "heos-mixtures")]
 use rustprop_heos::mixture::MixtureModel;
+#[cfg(feature = "heos-mixtures")]
+use rustprop_heos::mixture_flash::MixtureAt;
 
 /// Without the `heos-mixtures` feature, mixture strings stay a loud error
 /// (the pair/departure tables are deliberately not linked in).
@@ -2269,11 +2271,114 @@ fn mixture_keyed_output(
             }
             summer
         }
+        // `calc_phase` returns `_phase`; every mixture flash that splits
+        // sets `iphase_twophase`.
+        Param::Phase => f64::from(match state {
+            MixState::Single(s) => s.phase.index(),
+            MixState::Two(_) => rustprop_core::params::Phase::Twophase.index(),
+        }),
+        // `AbstractState::Prandtl` = cpmass*viscosity/conductivity, each the
+        // mixture arm above.
+        Param::Prandtl => {
+            mixture_keyed_output(model, components, z, state, Param::Cpmass)?
+                * mixture_keyed_output(model, components, z, state, Param::Viscosity)?
+                / mixture_keyed_output(model, components, z, state, Param::Conductivity)?
+        }
+        // `calc_helmholtzmolar` levers in the dome over each phase's own
+        // composition and density, exactly like Gibbs.
+        Param::Helmholtzmolar | Param::Helmholtzmass => {
+            let a = match state {
+                MixState::Single(s) => MixtureAt::new(model, z).helmholtzmolar(t, s.rhomolar),
+                MixState::Two(s) => {
+                    s.q * MixtureAt::new(model, &s.y_vap).helmholtzmolar(t, s.rhomolar_vap)
+                        + (1.0 - s.q)
+                            * MixtureAt::new(model, &s.x_liq).helmholtzmolar(t, s.rhomolar_liq)
+                }
+            };
+            if out == Param::Helmholtzmass {
+                a / mm
+            } else {
+                a
+            }
+        }
+        // The rest is `HelmholtzEOSMixtureBackend`'s single-state family —
+        // the pure route's formulas over the mixture's reducing state and
+        // derivative matrices, raw at the bulk state, dome included.
         other => {
-            return Err(Error::NotImplemented(format!(
-                "output parameter {} is not ported for mixtures",
-                other.short_name()
-            )));
+            let bulk = MixtureAt::new(model, z);
+            let derivs = || StateDerivs::new(&bulk, t, rhomolar);
+            match other {
+                Param::Z => bulk.compressibility_factor(t, rhomolar),
+                Param::Cp0molar => bulk.cp0molar(t, rhomolar),
+                Param::Cp0mass => bulk.cp0molar(t, rhomolar) / mm,
+                Param::HmolarResidual => bulk.hmolar_residual(t, rhomolar),
+                Param::SmolarResidual => bulk.smolar_residual(t, rhomolar),
+                Param::GmolarResidual => bulk.gmolar_residual(t, rhomolar),
+                Param::HmolarIdealgas => bulk.hmolar_idealgas(t, rhomolar),
+                Param::HmassIdealgas => bulk.hmolar_idealgas(t, rhomolar) / mm,
+                Param::SmolarIdealgas => bulk.smolar_idealgas(t, rhomolar),
+                Param::SmassIdealgas => bulk.smolar_idealgas(t, rhomolar) / mm,
+                Param::UmolarIdealgas => bulk.umolar_idealgas(t, rhomolar),
+                Param::UmassIdealgas => bulk.umolar_idealgas(t, rhomolar) / mm,
+                Param::Bvirial => bulk.bvirial(t, rhomolar),
+                Param::Cvirial => bulk.cvirial(t, rhomolar),
+                Param::DBvirialDT => bulk.dbvirial_dt(t, rhomolar),
+                Param::DCvirialDT => bulk.dcvirial_dt(t, rhomolar),
+                Param::Tau => bulk.tau_delta(t, rhomolar).0,
+                Param::Delta => bulk.tau_delta(t, rhomolar).1,
+                Param::Alphar
+                | Param::Alpha0
+                | Param::DalpharDdeltaConsttau
+                | Param::DalpharDtauConstdelta
+                | Param::Dalpha0DdeltaConsttau
+                | Param::Dalpha0DtauConstdelta
+                | Param::D2alpha0Ddelta2Consttau => {
+                    let (ar, a0) = bulk.alpha_all(t, rhomolar);
+                    match other {
+                        Param::Alphar => ar.d00,
+                        Param::Alpha0 => a0.d00,
+                        Param::DalpharDdeltaConsttau => ar.d10,
+                        Param::DalpharDtauConstdelta => ar.d01,
+                        Param::Dalpha0DdeltaConsttau => a0.d10,
+                        Param::Dalpha0DtauConstdelta => a0.d01,
+                        _ => a0.d20,
+                    }
+                }
+                Param::PIP => {
+                    let d = derivs();
+                    2.0 - rhomolar
+                        * (d.second_partial_deriv(
+                            Param::P,
+                            Param::Dmolar,
+                            Param::T,
+                            Param::T,
+                            Param::Dmolar,
+                        )? / d.first_partial_deriv(Param::P, Param::T, Param::Dmolar)?
+                            - d.second_partial_deriv(
+                                Param::P,
+                                Param::Dmolar,
+                                Param::T,
+                                Param::Dmolar,
+                                Param::T,
+                            )? / d.first_partial_deriv(Param::P, Param::Dmolar, Param::T)?)
+                }
+                Param::IsothermalCompressibility => {
+                    derivs().first_partial_deriv(Param::Dmolar, Param::P, Param::T)? / rhomolar
+                }
+                Param::IsobaricExpansionCoefficient => {
+                    -derivs().first_partial_deriv(Param::Dmolar, Param::T, Param::P)? / rhomolar
+                }
+                Param::IsentropicExpansionCoefficient => {
+                    rhomolar / p
+                        * derivs().first_partial_deriv(Param::P, Param::Dmolar, Param::Smolar)?
+                }
+                other => {
+                    return Err(Error::NotImplemented(format!(
+                        "output parameter {} is not ported for mixtures",
+                        other.short_name()
+                    )));
+                }
+            }
         }
     })
 }

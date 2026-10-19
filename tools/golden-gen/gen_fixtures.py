@@ -895,6 +895,48 @@ def gen_mixture_propssi():
     return rows
 
 
+def gen_mixture_outputs():
+    """The mixture keyed outputs served by `HelmholtzEOSMixtureBackend`'s
+    single-state family (Z, PIP, Prandtl, Cp0, Helmholtz, residual and
+    ideal-gas parts, virials, alphar/alpha0 strings, Tau/Delta, the three
+    expansion/compressibility coefficients, Phase) — the outputs upstream
+    computes for mixtures exactly as for pure fluids. Gas, compressed-liquid
+    and two-phase (QT) states over binary pairs and predefined blends,
+    including the nine predefined low-GWP refrigerant blends. Deterministic:
+    no random stream."""
+    rows, skipped = [], 0
+    outs = ["Z", "Phase", "Prandtl", "Cp0molar", "Cp0mass", "alphar", "alpha0",
+            "Delta", "Tau", "Helmholtzmolar", "Helmholtzmass", "PIP",
+            "Hmolar_residual", "Smolar_residual", "Gmolar_residual",
+            "Hmolar_idealgas", "Hmass_idealgas", "Smolar_idealgas",
+            "Smass_idealgas", "Umolar_idealgas", "Umass_idealgas",
+            "Bvirial", "Cvirial", "dBvirial_dT", "dCvirial_dT",
+            "dalphar_dtau_constdelta", "dalphar_ddelta_consttau",
+            "dalpha0_dtau_constdelta", "dalpha0_ddelta_consttau",
+            "d2alpha0_ddelta2_consttau", "isothermal_compressibility",
+            "isobaric_expansion_coefficient", "isentropic_expansion_coefficient"]
+    fluids = ["Methane[0.7]&Ethane[0.30000000000000004]",
+              "R32[0.3]&R125[0.7]", "Nitrogen[0.79]&Oxygen[0.20999999999999996]",
+              "R410A.mix", "R407C.mix", "R404A.mix", "Air.mix",
+              "R448A.mix", "R449A.mix", "R452A.mix", "R452B.mix", "R454A.mix",
+              "R454B.mix", "R454C.mix", "R455A.mix", "R513A.mix"]
+    for fluid in fluids:
+        spec = f"HEOS::{fluid}"
+        try:
+            tr = PropsSI("T_reducing", "", 0, "", 0, spec)
+        except Exception:
+            skipped += 1
+            continue
+        states = [("T", 1.3 * tr, "P", 1e5), ("T", 0.6 * tr, "P", 5e6),
+                  ("Q", 0.4, "T", 0.7 * tr)]
+        for n1, v1, n2, v2 in states:
+            for out in outs:
+                r = try_record(out, n1, v1, n2, v2, "HEOS", fluid)
+                rows.append(r) if r else (skipped := skipped + 1)
+    print(f"mixture outputs: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_mixture_predefined():
     """Predefined mixtures ("<Name>.mix" registry): trivials + PT states for
     binary/ternary/10-component blends, QT/PQ for the refrigerant binaries,
@@ -3246,6 +3288,7 @@ def main():
     write_jsonl("mixture_vle.jsonl", gen_mixture_vle())
     write_jsonl("mixture_propssi.jsonl", gen_mixture_propssi())
     write_jsonl("mixture_predefined.jsonl", gen_mixture_predefined())
+    write_jsonl("mixture_outputs.jsonl", gen_mixture_outputs())
     write_jsonl("mixture_pt_twophase.jsonl", gen_mixture_pt_twophase())
     write_jsonl("mixture_sweep.jsonl", gen_mixture_sweep())
     write_jsonl("pcsaft_terms.jsonl", gen_pcsaft_terms())
