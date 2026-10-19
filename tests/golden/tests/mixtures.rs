@@ -622,8 +622,13 @@ fn mixture_propssi_error_conditions() {
         }
         other => panic!("wrong variant {other:?}"),
     }
-    // Critical-family trivials fail with PropsSI's wrapper message
-    match err(props_si("Tcrit", "", 0.0, "", 0.0, mix)) {
+    // A critical search that does not find exactly one point fails with
+    // PropsSI's wrapper message. R454B's two points (351 K, and 202 K at
+    // negative pressure) are far apart; Methane[0.6]&Ethane[0.4], which this
+    // used to ask, is a knife edge — the wheel's trace registers its one
+    // physical point twice, from two near-zero M1* sign tests, and macOS and
+    // Windows libm land on the single-detection side.
+    match err(props_si("Tcrit", "", 0.0, "", 0.0, "HEOS::R454B.mix")) {
         Error::Value(m) => assert_eq!(m, "No outputs were able to be calculated"),
         other => panic!("wrong variant {other:?}"),
     }
