@@ -141,8 +141,8 @@ C ABI.
 ## Project status
 
 All fifteen phases of `PLAN.md` are complete — every engine ported and
-golden-verified against the CoolProp 8.0.0 oracle wheel (43,196 committed
-oracle records in 124 fixtures), CI green:
+golden-verified against the CoolProp 8.0.0 oracle wheel (43,733 committed
+oracle records in 125 fixtures), CI green:
 
 - **IF97**: 356 records at rtol 1e-11; all IAPWS published check tables pass.
 - **HEOS**: all 130 superancillary pure fluids plus the 6 pseudo-pure blends,

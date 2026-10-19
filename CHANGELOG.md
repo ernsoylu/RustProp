@@ -36,15 +36,35 @@ R4xx blends.
   implement. Same expressions, same results; callers need `DerivEos` in
   scope.
 
-### Not ported
+### Added — mixture critical points
 
-- **Mixture critical points.** `Tcrit`/`pcrit`/`rhocrit` for a mixture
-  still refuse with upstream's "No outputs were able to be calculated".
-  Upstream answers for 27 of its 147 predefined blends (where its
-  critical-curve tracer finds exactly one point); that tracer needs the
-  third-order composition derivatives deferred with the phase envelope.
+`Tcrit`, `pcrit`, `rhomolar_critical` and `rhomass_critical` now answer for
+mixtures, through a port of upstream's `calc_all_critical_points`: the
+criticality-contour tracer that walks `L1* = 0` and solves `L1* = M1* = 0`
+wherever `M1*` changes sign, built on the third-order composition
+derivatives of the GERG reducing functions and the `MixtureDerivatives` tree
+(`rustprop_heos::mixture_critical`). As upstream, an answer comes only when
+the tracer finds exactly one critical point; otherwise the call refuses with
+"No outputs were able to be calculated".
+
+`L1*`/`M1*` match the wheel's `criticality_contour_values()` bit for bit on
+binaries and to ~1e-14 on ternaries; the critical point agrees with the wheel
+for 146 of its 147 predefined blends (answer and refusal alike), pinned by
+`mixture_critical.jsonl`.
+
+### Divergences from upstream
+
+- **HighN2.mix critical point** — the wheel answers, the port refuses. After
+  its first critical point the `L1* = 0` contour folds; `L1*(theta)` has no
+  root near the tracer's last angle, so the Newton step wanders, and where it
+  stops depends on the derivative's last bits. Pinned with heal detection.
 
 ### Test infrastructure
+
+- `mixture_critical.jsonl` replays in two parts: blends of up to six
+  components on every run, the natural gases (7–21 components, minutes per
+  blend in a debug build) in the weekly `sweep` job via
+  `mixture_critical_points_heavy_match_oracle`.
 
 - The four libm-knife-edge validity states (cubic Propane at T = 1e20 and
   1e30 K) are skipped on every platform, not only off Linux: a newer glibc on

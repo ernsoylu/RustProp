@@ -376,6 +376,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo test -p rustprop-golden-tests --test heos_all_smoke -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test mixtures mixture_sweep -- --ignored --nocapture
+      - run: cargo test --release -p rustprop-golden-tests --test mixtures mixture_critical_points_heavy -- --ignored --nocapture
       - run: cargo test --release -p rustprop-golden-tests --test tabular_state tabular_pairs -- --ignored --nocapture
       # The final acceptance suite: a seeded randomized sweep across every
       # engine (PLAN.md 15.3), extended 2026-08 with mixtures/blends, wide

@@ -937,6 +937,99 @@ def gen_mixture_outputs():
     return rows
 
 
+def _critical_points_of(fluid):
+    """`calc_all_critical_points` for one PropsSI fluid string: a list of
+    {T, p, rhomolar}, or the oracle's error message."""
+    import CoolProp
+    try:
+        if "[" in fluid:
+            # "A[x]&B[y]" is PropsSI syntax; AbstractState takes the names and
+            # the fractions separately.
+            parts = [p.rstrip("]").split("[") for p in fluid.split("&")]
+            AS = CoolProp.AbstractState("HEOS", "&".join(n for n, _ in parts))
+            AS.set_mole_fractions([float(x) for _, x in parts])
+        else:
+            AS = CoolProp.AbstractState("HEOS", fluid)
+        return [{"T": c.T, "p": c.p, "rhomolar": c.rhomolar}
+                for c in AS.all_critical_points()]
+    except Exception as e:
+        return str(e)
+
+
+def gen_mixture_critical():
+    """Mixture critical points (`calc_all_critical_points`).
+
+    Two kinds of record. `L1star`/`M1star` at fixed (T, Dmolar): the wheel's
+    `criticality_contour_values()` — the determinants the critical point
+    zeroes — so the L*/M* derivative tree is pinned independently of the
+    tracer. Then `Tcrit`/`pcrit`/`rhomolar_critical` through PropsSI for every
+    predefined blend and a few explicit mixtures: a value where the wheel's
+    tracer finds exactly one point, an error-parity record where it refuses.
+    Deterministic: no random stream."""
+    import CoolProp
+    rows, skipped = [], 0
+    contour_mixes = [
+        (["Methane", "Ethane"], [0.6, 0.4]),
+        (["R32", "R125"], [0.3, 0.7]),
+        (["Nitrogen", "Oxygen"], [0.79, 0.21]),
+        (["CarbonDioxide", "Water"], [0.3, 0.7]),
+        (["R32", "R125", "R134a"], [0.3, 0.3, 0.4]),
+        (["Nitrogen", "Oxygen", "Argon"], [0.78, 0.21, 0.01]),
+        (["Methane", "Ethane", "Propane", "n-Butane"], [0.7, 0.15, 0.1, 0.05]),
+    ]
+    for comps, z in contour_mixes:
+        fluid = "&".join(f"{c}[{x!r}]" for c, x in zip(comps, z))
+        AS = CoolProp.AbstractState("HEOS", "&".join(comps))
+        AS.set_mole_fractions(z)
+        tr, rr = AS.T_reducing(), AS.rhomolar_reducing()
+        for tau, delta in [(0.7, 0.3), (0.9, 0.5), (1.0, 1.0), (1.1, 1.2),
+                           (0.7, 2.0), (1.3, 2.5)]:
+            T, rho = tr / tau, delta * rr
+            try:
+                AS.specify_phase(CoolProp.iphase_gas)
+                AS.update(CoolProp.DmolarT_INPUTS, rho, T)
+                L1, M1 = AS.criticality_contour_values()
+            except Exception:
+                skipped += 1
+                continue
+            for out, val in (("L1star", L1), ("M1star", M1)):
+                rows.append({"backend": "HEOS", "fluid": fluid, "out": out,
+                             "name1": "T", "val1": T, "name2": "Dmolar",
+                             "val2": rho, "expected": val})
+    fluids = sorted({m for m in
+                     CoolProp.CoolProp.get_global_param_string(
+                         "predefined_mixtures").split(",")
+                     if m.endswith(".mix")})
+    fluids += ["R32[0.5]&R125[0.5]", "R32[0.3]&R125[0.3]&R134a[0.4]",
+               "Methane[0.5]&Ethane[0.5]",
+               "Methane[0.3]&Ethane[0.3]&Propane[0.4]"]
+    # One critical search per mixture, in parallel: `calc_T_critical`,
+    # `calc_p_critical` and `calc_rhomolar_critical` each rerun the same
+    # `calc_all_critical_points` and read field T, p or rhomolar of its single
+    # point, so reading all three from one search is the same answer at a
+    # third of the cost — which matters, because the wheel's own search on the
+    # 10-component natural gases takes tens of minutes. `pool.map` keeps the
+    # input order, so the file stays deterministic.
+    import multiprocessing
+    with multiprocessing.get_context("fork").Pool(8) as pool:
+        results = []
+        for fluid, r in zip(fluids, pool.imap(_critical_points_of, fluids)):
+            results.append(r)
+            print(f"  critical {len(results)}/{len(fluids)} {fluid}", flush=True)
+    for fluid, pts in zip(fluids, results):
+        for out, key in (("Tcrit", "T"), ("pcrit", "p"), ("rhomolar_critical", "rhomolar")):
+            base = {"backend": "HEOS", "fluid": fluid, "out": out,
+                    "name1": "", "val1": 0, "name2": "", "val2": 0}
+            if isinstance(pts, list) and len(pts) == 1:
+                rows.append({**base, "expected": pts[0][key]})
+            else:
+                msg = (pts if isinstance(pts, str) else
+                       f"critical point finding routine found {len(pts)} critical points")
+                rows.append({**base, "expected": 0.0, "error": msg})
+    print(f"mixture critical: {len(rows)} records, {skipped} skipped")
+    return rows
+
+
 def gen_mixture_predefined():
     """Predefined mixtures ("<Name>.mix" registry): trivials + PT states for
     binary/ternary/10-component blends, QT/PQ for the refrigerant binaries,
@@ -3289,6 +3382,7 @@ def main():
     write_jsonl("mixture_propssi.jsonl", gen_mixture_propssi())
     write_jsonl("mixture_predefined.jsonl", gen_mixture_predefined())
     write_jsonl("mixture_outputs.jsonl", gen_mixture_outputs())
+    write_jsonl("mixture_critical.jsonl", gen_mixture_critical())
     write_jsonl("mixture_pt_twophase.jsonl", gen_mixture_pt_twophase())
     write_jsonl("mixture_sweep.jsonl", gen_mixture_sweep())
     write_jsonl("pcsaft_terms.jsonl", gen_pcsaft_terms())

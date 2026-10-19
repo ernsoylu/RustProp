@@ -25,7 +25,7 @@ phase gate has passed, and CI is green. What exists:
 |---|---|
 | Engines ported | HEOS (pure + mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | 43,196 in 124 committed fixtures, read by 35 suites — every fixture is now consumed by a test (Wave-3 R9) |
+| Oracle records | 43,733 in 125 committed fixtures, read by 35 suites — every fixture is now consumed by a test (Wave-3 R9) |
 | Deliverables | library crates, `rustprop-cli`, `rustprop-wasm` (wasm-bindgen), `rustprop-capi` (C/C++ SDK), `release.yml`, CI |
 | Smallest useful bundle | 128 KB (IF97) — see `WASM-SIZES.md` |
 
@@ -403,8 +403,8 @@ so it can neither widen nor silently heal:
   MethylLinoleate row: one state in 157,374 where the wheel answers and the
   port refuses.
 - **Unported by design** (the list below): the SVDSBTL builder and its critical
-  patch, mixture phase-envelope machinery and mixture `HS_flash`, third-order /
-  PSI mixture derivatives, Ammonia's Tillner-Roth alternate EOS, the REFPROP
+  patch, mixture phase-envelope machinery and mixture `HS_flash`, the PSI
+  mixture derivatives beyond the critical point, Ammonia's Tillner-Roth alternate EOS, the REFPROP
   backend.
 - **The tabular msgpack+zlib disk cache**, which costs ~100 s per process for a
   LogPH build. WASM has no home directory; this is the one gap a consumer
@@ -433,6 +433,7 @@ heal. Do not "fix" one without checking the assertion that pins it.
 | R507A gas-classified caloric (P,X) states at p = 0.995·max_sat_p error loudly where the wheel converges | PLAN.md 2026-08-17 R6 entry | Both implementations fire the same gas stability retry from 1e-6 at the Tmin probe (TVanc−0.01, 0.24 K below Tcrit); the retry trajectory is chaotic through the vdW loop and only bitwise alphar arithmetic would reproduce the wheel's lucky convergence (EOS sums agree at 1e-13). A needle: 0.9925·pmax and 0.9975·pmax both agree at ≤2e-9 |
 | Pseudo-pure PY-flash refusal MESSAGES are the port's own bracket diagnostic, not upstream's "unable to solve 1phase PY flash with Tmin=…, Tmax=… due to error: …" wrapper | `pseudo_pure_error_parity_matches_upstream` (refusal-vs-answer asserted for all 11 error records; oracle text carried in each record's `error` field) | The wrapper is `HSU_P_flash`'s catch around the single-phase solve and what it quotes is the INNER diagnostic. R8 closed the bisection stand-in (the inner solve is upstream's own TOMS748 now), but the no-bracket derivative path and the 2-D Newton fallback a refusal falls through to are still unported, so the text a refusal carries is still the port's bracket diagnostic. `post_update` and `solver_rho_Tp` refusals in the same suite ARE verbatim |
 | Upstream's `post_update` validity gate is ported for the HEOS pure/pseudo-pure arm only, not for `mixture_update` | `props_api.rs::post_update` | No reachable NaN mixture state has been observed, and the 10f divergence pins would need re-validating; a gate without evidence is an invented guard |
+| HighN2.mix critical point: the wheel answers (T = 195.3136 K), the port refuses | `mixture_critical_points_match_oracle` in `tests/golden/tests/mixtures.rs`, pinned with heal detection | Both find the same first critical point; then the `L1* = 0` contour folds and `L1*(theta)` has no root near the tracer's last angle. The Newton step wanders (the oracle's own values with finite-difference steps of 1e-4, 1e-6 and 1e-8 land at theta 1.24, 1.37 and 1.46), so the landing is decided by derivative last bits. The port lands on a distant root where M1* has flipped sign and its second critical-point solve diverges to a negative density. 146 of 147 predefined blends agree |
 | `post_update`'s refusal TEXT at `PropsSI("Hmass","T",0,"Smass",101325,"Water")`: rustprop "rhomolar is not a valid number", the wheel "rhomolar is less than zero" | `post_update_refusal_text_divergence_pinned` in `tests/golden/tests/validity.rs` | Both arms are carried, in upstream's order, and refusal-vs-answer agrees; the two trip DIFFERENT arms because the port's `(Smass,T)` flash leaves `rhomolar` NaN where upstream's leaves it negative. Matching the text would mean reproducing a divergent iteration's garbage bit for bit, on a path where neither implementation has an answer |
 | At inputs far outside the fluid's range, refusal-vs-answer agrees but the alpha0 message's `tau`/`delta` can differ (9 rows in the R11 scan, all sub-triple `(P,Q)` or negative-`T` `(Q,T)`) | `tests/golden/tests/validity.rs` asserts the 216 records where the states agree; the 9 are described in the 2026-08-18 Decisions entry | Same cause as the row above: the `nTau`/`nDelta` always match — it is the garbage state underneath that differs |
 | SVDSBTL evaluator agrees to a few ulp, not bitwise (700 of 745 records bitwise, worst 1.8e-15) | `tests/golden/tests/svdsbtl.rs` | GCC compiles the reference build with `-ffp-contract=fast`. Fusing the obvious candidate makes agreement *worse*, so the contraction sits elsewhere; chasing it would match a compiler flag, not port an algorithm |
@@ -505,12 +506,9 @@ Not gaps — decisions, each with its reasoning in the Decisions log.
   re-testing rustprop's HEOS.
 - **Mixture phase-envelope machinery** and mixture `HS_flash`. Both are
   PropsSI-dead upstream.
-- **Mixture critical points** (`calc_all_critical_points`, behind `Tcrit` /
-  `pcrit` / `rhocrit` for a mixture). Upstream traces the critical curve with
-  the third-order composition derivatives below and answers only when it
-  finds exactly one point — 27 of 147 predefined blends. The port refuses with
-  upstream's own "No outputs were able to be calculated" for every mixture.
-- **Third-order / PSI derivative machinery** for mixtures, deferred with the
+- **PSI derivative machinery beyond the critical point** for mixtures (the
+  third-order composition derivatives themselves landed with the critical
+  points on 2026-10-19), deferred with the
   phase envelope.
 - **Ammonia's Tillner-Roth alternate EOS.** The document carries two EOS
   blocks; upstream evaluates `EOSVector[0]` (Gao-2020) only.

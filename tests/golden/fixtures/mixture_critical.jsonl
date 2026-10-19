@@ -1,0 +1,537 @@
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "L1star", "name1": "T", "val1": 341.543119495743, "name2": "Dmolar", "val2": 2559.9998337075813, "expected": 2.9501900150268088}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "M1star", "name1": "T", "val1": 341.543119495743, "name2": "Dmolar", "val2": 2559.9998337075813, "expected": -15.969524850434805}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "L1star", "name1": "T", "val1": 265.64464849668894, "name2": "Dmolar", "val2": 4266.666389512636, "expected": 0.9805568060043394}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "M1star", "name1": "T", "val1": 265.64464849668894, "name2": "Dmolar", "val2": 4266.666389512636, "expected": -10.055109127956797}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "L1star", "name1": "T", "val1": 239.08018364702008, "name2": "Dmolar", "val2": 8533.332779025272, "expected": -0.4176647873037919}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "M1star", "name1": "T", "val1": 239.08018364702008, "name2": "Dmolar", "val2": 8533.332779025272, "expected": 2.9415392008939816}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "L1star", "name1": "T", "val1": 217.34562149729095, "name2": "Dmolar", "val2": 10239.999334830325, "expected": -23101.344599576358}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "M1star", "name1": "T", "val1": 217.34562149729095, "name2": "Dmolar", "val2": 10239.999334830325, "expected": 26969649.469620213}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "L1star", "name1": "T", "val1": 341.543119495743, "name2": "Dmolar", "val2": 17066.665558050543, "expected": 21.351939449528977}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "M1star", "name1": "T", "val1": 341.543119495743, "name2": "Dmolar", "val2": 17066.665558050543, "expected": 118.53497819454799}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "L1star", "name1": "T", "val1": 183.9078335746308, "name2": "Dmolar", "val2": 21333.33194756318, "expected": 47.709996325588975}
+{"backend": "HEOS", "fluid": "Methane[0.6]&Ethane[0.4]", "out": "M1star", "name1": "T", "val1": 183.9078335746308, "name2": "Dmolar", "val2": 21333.33194756318, "expected": 1037.1185630970429}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "L1star", "name1": "T", "val1": 498.3958571428571, "name2": "Dmolar", "val2": 1648.1532213077662, "expected": 3.7879964147711505}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "M1star", "name1": "T", "val1": 498.3958571428571, "name2": "Dmolar", "val2": 1648.1532213077662, "expected": -20.924361839298253}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "L1star", "name1": "T", "val1": 387.64122222222215, "name2": "Dmolar", "val2": 2746.9220355129437, "expected": 1.8020276427231452}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "M1star", "name1": "T", "val1": 387.64122222222215, "name2": "Dmolar", "val2": 2746.9220355129437, "expected": -15.123747931335444}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "L1star", "name1": "T", "val1": 348.8770999999999, "name2": "Dmolar", "val2": 5493.844071025887, "expected": 0.2157462459321744}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "M1star", "name1": "T", "val1": 348.8770999999999, "name2": "Dmolar", "val2": 5493.844071025887, "expected": -0.48890623325814353}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "L1star", "name1": "T", "val1": 317.1609999999999, "name2": "Dmolar", "val2": 6592.612885231065, "expected": -0.43278543476970943}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "M1star", "name1": "T", "val1": 317.1609999999999, "name2": "Dmolar", "val2": 6592.612885231065, "expected": -17.790348214750846}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "L1star", "name1": "T", "val1": 498.3958571428571, "name2": "Dmolar", "val2": 10987.688142051775, "expected": 28.917111009884604}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "M1star", "name1": "T", "val1": 498.3958571428571, "name2": "Dmolar", "val2": 10987.688142051775, "expected": 617.5556940116295}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "L1star", "name1": "T", "val1": 268.36699999999996, "name2": "Dmolar", "val2": 13734.610177564718, "expected": 57.12594933804067}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.7]", "out": "M1star", "name1": "T", "val1": 268.36699999999996, "name2": "Dmolar", "val2": 13734.610177564718, "expected": 2861.3573840485365}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "L1star", "name1": "T", "val1": 188.2367699580595, "name2": "Dmolar", "val2": 3493.0167249586316, "expected": 4.559866615167479}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "M1star", "name1": "T", "val1": 188.2367699580595, "name2": "Dmolar", "val2": 3493.0167249586316, "expected": -26.216891324608326}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "L1star", "name1": "T", "val1": 146.40637663404627, "name2": "Dmolar", "val2": 5821.69454159772, "expected": 2.1136918144534294}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "M1star", "name1": "T", "val1": 146.40637663404627, "name2": "Dmolar", "val2": 5821.69454159772, "expected": -12.322026050267723}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "L1star", "name1": "T", "val1": 131.76573897064165, "name2": "Dmolar", "val2": 11643.38908319544, "expected": -0.060148320610116934}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "M1star", "name1": "T", "val1": 131.76573897064165, "name2": "Dmolar", "val2": 11643.38908319544, "expected": 0.09952936521264902}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "L1star", "name1": "T", "val1": 119.78703542785604, "name2": "Dmolar", "val2": 13972.066899834526, "expected": -240995.9093670058}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "M1star", "name1": "T", "val1": 119.78703542785604, "name2": "Dmolar", "val2": 13972.066899834526, "expected": 1942972849.028693}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "L1star", "name1": "T", "val1": 188.2367699580595, "name2": "Dmolar", "val2": 23286.77816639088, "expected": 33.63137782409314}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "M1star", "name1": "T", "val1": 188.2367699580595, "name2": "Dmolar", "val2": 23286.77816639088, "expected": -695.4106919769431}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "L1star", "name1": "T", "val1": 101.35826074664742, "name2": "Dmolar", "val2": 29108.4727079886, "expected": 84.51761507273325}
+{"backend": "HEOS", "fluid": "Nitrogen[0.79]&Oxygen[0.21]", "out": "M1star", "name1": "T", "val1": 101.35826074664742, "name2": "Dmolar", "val2": 29108.4727079886, "expected": -4303.617820434801}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "L1star", "name1": "T", "val1": 715.1701477725875, "name2": "Dmolar", "val2": 4709.168110266907, "expected": 3.2033267312651406}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "M1star", "name1": "T", "val1": 715.1701477725875, "name2": "Dmolar", "val2": 4709.168110266907, "expected": -22.440217097325526}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "L1star", "name1": "T", "val1": 556.243448267568, "name2": "Dmolar", "val2": 7848.613517111513, "expected": 0.13910966776971787}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "M1star", "name1": "T", "val1": 556.243448267568, "name2": "Dmolar", "val2": 7848.613517111513, "expected": -12.513766960230477}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "L1star", "name1": "T", "val1": 500.6191034408112, "name2": "Dmolar", "val2": 15697.227034223026, "expected": -21.879025593423627}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "M1star", "name1": "T", "val1": 500.6191034408112, "name2": "Dmolar", "val2": 15697.227034223026, "expected": 2158602458418949.8}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "L1star", "name1": "T", "val1": 455.1082758552829, "name2": "Dmolar", "val2": 18836.67244106763, "expected": -92203040.5201789}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "M1star", "name1": "T", "val1": 455.1082758552829, "name2": "Dmolar", "val2": 18836.67244106763, "expected": -10489238462100.027}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "L1star", "name1": "T", "val1": 715.1701477725875, "name2": "Dmolar", "val2": 31394.45406844605, "expected": 7.332092450798439}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "M1star", "name1": "T", "val1": 715.1701477725875, "name2": "Dmolar", "val2": 31394.45406844605, "expected": 147.562826379263}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "L1star", "name1": "T", "val1": 385.09161803139324, "name2": "Dmolar", "val2": 39243.06758555757, "expected": -32.892507357188784}
+{"backend": "HEOS", "fluid": "CarbonDioxide[0.3]&Water[0.7]", "out": "M1star", "name1": "T", "val1": 385.09161803139324, "name2": "Dmolar", "val2": 39243.06758555757, "expected": 5072.179261914814}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "L1star", "name1": "T", "val1": 514.7186685714286, "name2": "Dmolar", "val2": 1675.066245591461, "expected": 21.73550399626158}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "M1star", "name1": "T", "val1": 514.7186685714286, "name2": "Dmolar", "val2": 1675.066245591461, "expected": -694.4540999458478}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "L1star", "name1": "T", "val1": 400.3367422222222, "name2": "Dmolar", "val2": 2791.7770759857685, "expected": 9.851884574689796}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "M1star", "name1": "T", "val1": 400.3367422222222, "name2": "Dmolar", "val2": 2791.7770759857685, "expected": -437.15697705546705}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "L1star", "name1": "T", "val1": 360.303068, "name2": "Dmolar", "val2": 5583.554151971537, "expected": 0.5193395493013478}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "M1star", "name1": "T", "val1": 360.303068, "name2": "Dmolar", "val2": 5583.554151971537, "expected": -11.771183191168367}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "L1star", "name1": "T", "val1": 327.5482436363636, "name2": "Dmolar", "val2": 6700.264982365844, "expected": 1.543660295770488}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "M1star", "name1": "T", "val1": 327.5482436363636, "name2": "Dmolar", "val2": 6700.264982365844, "expected": -118.07287395753411}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "L1star", "name1": "T", "val1": 514.7186685714286, "name2": "Dmolar", "val2": 11167.108303943074, "expected": 157.83416029768648}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "M1star", "name1": "T", "val1": 514.7186685714286, "name2": "Dmolar", "val2": 11167.108303943074, "expected": 9300.623805454852}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "L1star", "name1": "T", "val1": 277.15620615384614, "name2": "Dmolar", "val2": 13958.885379928843, "expected": 279.88125877486954}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "M1star", "name1": "T", "val1": 277.15620615384614, "name2": "Dmolar", "val2": 13958.885379928843, "expected": 45276.20049098286}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "L1star", "name1": "T", "val1": 188.54012481119653, "name2": "Dmolar", "val2": 3499.4363189284127, "expected": 461.6875189374595}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "M1star", "name1": "T", "val1": 188.54012481119653, "name2": "Dmolar", "val2": 3499.4363189284127, "expected": -216596.16849335286}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "L1star", "name1": "T", "val1": 146.64231929759728, "name2": "Dmolar", "val2": 5832.393864880688, "expected": 213.9228246117823}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "M1star", "name1": "T", "val1": 146.64231929759728, "name2": "Dmolar", "val2": 5832.393864880688, "expected": -50431.417415130716}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "L1star", "name1": "T", "val1": 131.97808736783756, "name2": "Dmolar", "val2": 11664.787729761376, "expected": -6.158113628330869}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "M1star", "name1": "T", "val1": 131.97808736783756, "name2": "Dmolar", "val2": 11664.787729761376, "expected": 55.62131636257831}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "L1star", "name1": "T", "val1": 119.98007942530687, "name2": "Dmolar", "val2": 13997.74527571365, "expected": -24945483.54792951}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "M1star", "name1": "T", "val1": 119.98007942530687, "name2": "Dmolar", "val2": 13997.74527571365, "expected": -545705075729611.25}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "L1star", "name1": "T", "val1": 188.54012481119653, "name2": "Dmolar", "val2": 23329.57545952275, "expected": 3404.493832937486}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "M1star", "name1": "T", "val1": 188.54012481119653, "name2": "Dmolar", "val2": 23329.57545952275, "expected": -11313291.75679022}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "L1star", "name1": "T", "val1": 101.52160566756736, "name2": "Dmolar", "val2": 29161.96932440344, "expected": 8545.058681096238}
+{"backend": "HEOS", "fluid": "Nitrogen[0.78]&Oxygen[0.21]&Argon[0.01]", "out": "M1star", "name1": "T", "val1": 101.52160566756736, "name2": "Dmolar", "val2": 29161.96932440344, "expected": -71361417.52655394}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "L1star", "name1": "T", "val1": 346.78504058562453, "name2": "Dmolar", "val2": 2434.581731429381, "expected": 1206.3360042981087}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "M1star", "name1": "T", "val1": 346.78504058562453, "name2": "Dmolar", "val2": 2434.581731429381, "expected": -2346891.1561139245}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "L1star", "name1": "T", "val1": 269.7216982332635, "name2": "Dmolar", "val2": 4057.636219048968, "expected": 144.59191733278027}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "M1star", "name1": "T", "val1": 269.7216982332635, "name2": "Dmolar", "val2": 4057.636219048968, "expected": -588285.4736675023}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "L1star", "name1": "T", "val1": 242.74952840993717, "name2": "Dmolar", "val2": 8115.272438097936, "expected": -533.3241771876161}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "M1star", "name1": "T", "val1": 242.74952840993717, "name2": "Dmolar", "val2": 8115.272438097936, "expected": 585879.2112721191}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "L1star", "name1": "T", "val1": 220.68138946357922, "name2": "Dmolar", "val2": 9738.326925717523, "expected": -1330476.0934855768}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "M1star", "name1": "T", "val1": 220.68138946357922, "name2": "Dmolar", "val2": 9738.326925717523, "expected": -1375071577785.126}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "L1star", "name1": "T", "val1": 346.78504058562453, "name2": "Dmolar", "val2": 16230.544876195872, "expected": 8599.71273996961}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "M1star", "name1": "T", "val1": 346.78504058562453, "name2": "Dmolar", "val2": 16230.544876195872, "expected": -54539563.240764044}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "L1star", "name1": "T", "val1": 186.73040646918244, "name2": "Dmolar", "val2": 20288.18109524484, "expected": 16882.499896596524}
+{"backend": "HEOS", "fluid": "Methane[0.7]&Ethane[0.15]&Propane[0.1]&n-Butane[0.05]", "out": "M1star", "name1": "T", "val1": 186.73040646918244, "name2": "Dmolar", "val2": 20288.18109524484, "expected": -235226382.734567}
+{"backend": "HEOS", "fluid": "Air.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "Air.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "Air.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "Amarillo.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "Amarillo.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "Amarillo.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "Ekofisk.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Ekofisk.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Ekofisk.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "GulfCoast.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "GulfCoast.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "GulfCoast.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "GulfCoastGas(NIST1).mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "GulfCoastGas(NIST1).mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "GulfCoastGas(NIST1).mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "HighCO2.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "HighCO2.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "HighCO2.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "HighN2.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 195.31361626796448}
+{"backend": "HEOS", "fluid": "HighN2.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5971757.517997963}
+{"backend": "HEOS", "fluid": "HighN2.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 11454.727123305984}
+{"backend": "HEOS", "fluid": "NaturalGasSample.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "NaturalGasSample.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "NaturalGasSample.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R401A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R401C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R402A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R402A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R402A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R402B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R402B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R402B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R403A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [74-98-6,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R403A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [74-98-6,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R403A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [74-98-6,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R403B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [74-98-6,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R403B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [74-98-6,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R403B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [74-98-6,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R404A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R404A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R404A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R405A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-25-3,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R405A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-25-3,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R405A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-25-3,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R406A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-28-5,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R406A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-28-5,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R406A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-28-5,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R407A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 355.3968669716282}
+{"backend": "HEOS", "fluid": "R407A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4513894.305323166}
+{"backend": "HEOS", "fluid": "R407A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5521.806048758212}
+{"backend": "HEOS", "fluid": "R407B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 347.90444642596833}
+{"backend": "HEOS", "fluid": "R407B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4111206.1550178262}
+{"backend": "HEOS", "fluid": "R407B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5146.3328194351825}
+{"backend": "HEOS", "fluid": "R407C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 359.2878752319564}
+{"backend": "HEOS", "fluid": "R407C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4639304.5051649455}
+{"backend": "HEOS", "fluid": "R407C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5615.011465968136}
+{"backend": "HEOS", "fluid": "R407D.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R407D.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R407D.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R407E.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407E.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407E.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407F.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R407F.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R407F.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R407G.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407G.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407G.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407H.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407H.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407H.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407I.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407I.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R407I.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 5 critical points"}
+{"backend": "HEOS", "fluid": "R408A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R408A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R408A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R409A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R409A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R409A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R409B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R409B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R409B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R410A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R410A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R410A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R410B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R410B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R410B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R411A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 372.69751153348926}
+{"backend": "HEOS", "fluid": "R411A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4972013.804890723}
+{"backend": "HEOS", "fluid": "R411A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5947.670119586434}
+{"backend": "HEOS", "fluid": "R411B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 369.33096782529395}
+{"backend": "HEOS", "fluid": "R411B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4960117.722428154}
+{"backend": "HEOS", "fluid": "R411B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 6001.29874734435}
+{"backend": "HEOS", "fluid": "R412A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-68-3,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R412A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-68-3,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R412A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-68-3,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R413A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-28-5,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R413A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-28-5,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R413A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-28-5,76-19-7] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R414A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R414A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R414A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R414B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R414B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R414B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [2837-89-0,75-45-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R415A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 375.4523915220871}
+{"backend": "HEOS", "fluid": "R415A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4965023.0836934}
+{"backend": "HEOS", "fluid": "R415A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5905.118300703098}
+{"backend": "HEOS", "fluid": "R415B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 384.4093584835681}
+{"backend": "HEOS", "fluid": "R415B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4646607.369205757}
+{"backend": "HEOS", "fluid": "R415B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5640.310892461769}
+{"backend": "HEOS", "fluid": "R416A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [106-97-8,2837-89-0] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R416A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [106-97-8,2837-89-0] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R416A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [106-97-8,2837-89-0] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R417A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R417C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R418A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 369.2509285379763}
+{"backend": "HEOS", "fluid": "R418A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4965361.36813357}
+{"backend": "HEOS", "fluid": "R418A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 6019.263298471234}
+{"backend": "HEOS", "fluid": "R419A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R419A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R419A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R419B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R419B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R419B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R420A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 377.6376505508107}
+{"backend": "HEOS", "fluid": "R420A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4081233.905486884}
+{"backend": "HEOS", "fluid": "R420A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4936.355250251814}
+{"backend": "HEOS", "fluid": "R421A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 355.91699080217904}
+{"backend": "HEOS", "fluid": "R421A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3918474.083466923}
+{"backend": "HEOS", "fluid": "R421A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4923.7548886177965}
+{"backend": "HEOS", "fluid": "R421B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 345.5322413977777}
+{"backend": "HEOS", "fluid": "R421B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3746368.806728403}
+{"backend": "HEOS", "fluid": "R421B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4849.064906036307}
+{"backend": "HEOS", "fluid": "R422A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422D.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422D.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422D.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422E.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422E.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R422E.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R423A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R423A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R423A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R424A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R424A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R424A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R425A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R425A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R425A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R426A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R426A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R426A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [354-33-6,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R427A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R427A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R427A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R427C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R427C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R427C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R428A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R428A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R428A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R429A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-10-6,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R429A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-10-6,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R429A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-10-6,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R430A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R430A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R430A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R431A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R431A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R431A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R432A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R432A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R432A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R433A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 367.2920252319773}
+{"backend": "HEOS", "fluid": "R433A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4342705.973196592}
+{"backend": "HEOS", "fluid": "R433A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5106.781399071618}
+{"backend": "HEOS", "fluid": "R433B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 369.4176208613574}
+{"backend": "HEOS", "fluid": "R433B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4267627.206499222}
+{"backend": "HEOS", "fluid": "R433B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5014.73838130332}
+{"backend": "HEOS", "fluid": "R433C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 367.6820006072305}
+{"backend": "HEOS", "fluid": "R433C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4328363.8618451245}
+{"backend": "HEOS", "fluid": "R433C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5086.7792787607}
+{"backend": "HEOS", "fluid": "R434A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R434A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R434A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R435A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-10-6,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R435A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-10-6,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R435A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [115-10-6,75-37-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R436A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R436C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R437A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [109-66-0,354-33-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R437A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [109-66-0,354-33-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R437A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [109-66-0,354-33-6] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R438A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-10-5,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R438A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-10-5,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R438A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-10-5,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R439A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R439A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R439A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R440A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 385.80486795910053}
+{"backend": "HEOS", "fluid": "R440A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4515325.54292571}
+{"backend": "HEOS", "fluid": "R440A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5565.1056117145745}
+{"backend": "HEOS", "fluid": "R441A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 391.6173099714377}
+{"backend": "HEOS", "fluid": "R441A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4492842.092115356}
+{"backend": "HEOS", "fluid": "R441A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4596.681531651021}
+{"backend": "HEOS", "fluid": "R442A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R442A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R442A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R443A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R443A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R443A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R444A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R444A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R444A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R444B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R444B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R444B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R445A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R445A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R445A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R446A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [106-97-8,29118-24-9] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R446A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [106-97-8,29118-24-9] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R446A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [106-97-8,29118-24-9] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R447A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R447A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R447A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R447B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R447B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R447B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R448A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R448A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R448A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R448B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R448B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R448B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R449A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R449A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R449A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R449B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R449B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R449B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R449C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R449C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R449C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R450A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 378.5292473271478}
+{"backend": "HEOS", "fluid": "R450A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3897103.1538338293}
+{"backend": "HEOS", "fluid": "R450A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4602.030662484674}
+{"backend": "HEOS", "fluid": "R451A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R451A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R451A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R451B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R451B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R451B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R452A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R452A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R452A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R452B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R452B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R452B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R452C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Inputs in Brent [0.660031,2.455227] do not bracket the root.  Function values are [11.235620,5.840213]"}
+{"backend": "HEOS", "fluid": "R452C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Inputs in Brent [0.660031,2.455227] do not bracket the root.  Function values are [11.235620,5.840213]"}
+{"backend": "HEOS", "fluid": "R452C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Inputs in Brent [0.660031,2.455227] do not bracket the root.  Function values are [11.235620,5.840213]"}
+{"backend": "HEOS", "fluid": "R453A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-10-5,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R453A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-10-5,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R453A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [75-10-5,78-78-4] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R454A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R454A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R454A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R454B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R454B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R454B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R454C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 360.7933602886933}
+{"backend": "HEOS", "fluid": "R454C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4370459.600637634}
+{"backend": "HEOS", "fluid": "R454C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5051.973921440798}
+{"backend": "HEOS", "fluid": "R455A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R455A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R455A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R456A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R456A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R456A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R457A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 364.59152496712335}
+{"backend": "HEOS", "fluid": "R457A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4352049.406145594}
+{"backend": "HEOS", "fluid": "R457A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5103.4812815451105}
+{"backend": "HEOS", "fluid": "R457B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 359.6295125005047}
+{"backend": "HEOS", "fluid": "R457B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4800449.192048443}
+{"backend": "HEOS", "fluid": "R457B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5777.774541404424}
+{"backend": "HEOS", "fluid": "R457C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 368.1744805379183}
+{"backend": "HEOS", "fluid": "R457C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3972211.824891112}
+{"backend": "HEOS", "fluid": "R457C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4728.891726281801}
+{"backend": "HEOS", "fluid": "R458A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [431-89-0,690-39-1] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R458A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [431-89-0,690-39-1] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R458A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [431-89-0,690-39-1] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R459A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R459A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R459A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R459B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R459B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R459B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R460A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R460A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R460A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R460B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 6 critical points"}
+{"backend": "HEOS", "fluid": "R460B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 6 critical points"}
+{"backend": "HEOS", "fluid": "R460B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 6 critical points"}
+{"backend": "HEOS", "fluid": "R460C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R460C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R460C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R461A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [420-46-2,431-89-0] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R461A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [420-46-2,431-89-0] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R461A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "Could not match the binary pair [420-46-2,431-89-0] - for now this is an error."}
+{"backend": "HEOS", "fluid": "R462A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R462A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R462A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R463A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R463A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R463A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R464A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R464A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R464A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R465A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 355.25951655535033}
+{"backend": "HEOS", "fluid": "R465A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4359236.754756889}
+{"backend": "HEOS", "fluid": "R465A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5082.508450678381}
+{"backend": "HEOS", "fluid": "R466A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R466A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R466A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R467A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R467A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R467A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R468A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468C.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468C.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R468C.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R469A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R469A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R469A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R470A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 6 critical points"}
+{"backend": "HEOS", "fluid": "R470A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 6 critical points"}
+{"backend": "HEOS", "fluid": "R470A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 6 critical points"}
+{"backend": "HEOS", "fluid": "R470B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R470B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R470B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "R471A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 385.2927833583515}
+{"backend": "HEOS", "fluid": "R471A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3532369.0079387818}
+{"backend": "HEOS", "fluid": "R471A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3982.017259129226}
+{"backend": "HEOS", "fluid": "R472A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R472A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R472A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R472B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R472B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R472B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R473A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R473A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R473A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "key [R1132a] was not found in string_to_index_map in JSONFluidLibrary"}
+{"backend": "HEOS", "fluid": "R474A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R474A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R474A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R475A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 370.5825339136997}
+{"backend": "HEOS", "fluid": "R475A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3697749.607363923}
+{"backend": "HEOS", "fluid": "R475A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4450.548292737675}
+{"backend": "HEOS", "fluid": "R476A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 383.59090028350846}
+{"backend": "HEOS", "fluid": "R476A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 3664434.3216550313}
+{"backend": "HEOS", "fluid": "R476A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4152.320994038067}
+{"backend": "HEOS", "fluid": "R500.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 374.63316541501393}
+{"backend": "HEOS", "fluid": "R500.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4157853.6023674677}
+{"backend": "HEOS", "fluid": "R500.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4989.321771823026}
+{"backend": "HEOS", "fluid": "R501.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R501.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R501.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R502.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R502.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R502.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R503.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R503.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R503.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R504.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R504.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R504.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R507A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R507A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R507A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R508A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R508A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R508A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R508B.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R508B.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R508B.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R509A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R509A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R509A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R510A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R510A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R510A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R511A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R511A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R511A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R512A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R512A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R512A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R513A.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R513A.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "R513A.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 2 critical points"}
+{"backend": "HEOS", "fluid": "TypicalNaturalGas.mix", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "TypicalNaturalGas.mix", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "TypicalNaturalGas.mix", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 4 critical points"}
+{"backend": "HEOS", "fluid": "R32[0.5]&R125[0.5]", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 342.4290288525166}
+{"backend": "HEOS", "fluid": "R32[0.5]&R125[0.5]", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4515912.089439861}
+{"backend": "HEOS", "fluid": "R32[0.5]&R125[0.5]", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5821.974162844011}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 356.6848271214859}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 4452031.430211142}
+{"backend": "HEOS", "fluid": "R32[0.3]&R125[0.3]&R134a[0.4]", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 5437.141725655592}
+{"backend": "HEOS", "fluid": "Methane[0.5]&Ethane[0.5]", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Methane[0.5]&Ethane[0.5]", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Methane[0.5]&Ethane[0.5]", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Methane[0.3]&Ethane[0.3]&Propane[0.4]", "out": "Tcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Methane[0.3]&Ethane[0.3]&Propane[0.4]", "out": "pcrit", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}
+{"backend": "HEOS", "fluid": "Methane[0.3]&Ethane[0.3]&Propane[0.4]", "out": "rhomolar_critical", "name1": "", "val1": 0, "name2": "", "val2": 0, "expected": 0.0, "error": "critical point finding routine found 3 critical points"}

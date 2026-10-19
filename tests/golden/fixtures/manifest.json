@@ -105,6 +105,7 @@
     "if97_water.jsonl",
     "incompressible.jsonl",
     "melting.jsonl",
+    "mixture_critical.jsonl",
     "mixture_helmholtz.jsonl",
     "mixture_outputs.jsonl",
     "mixture_predefined.jsonl",

@@ -1926,11 +1926,20 @@ fn mixture_trivial_output(
         Param::TTriple => weighted(&|c| c.eos.sat_min_liquid.t),
         Param::PMax => weighted(&|c| c.eos.p_max),
         Param::PTriple => weighted(&|c| c.eos.sat_min_liquid.p),
-        Param::TCritical
-        | Param::PCritical
-        | Param::RhomolarCritical
-        | Param::RhomassCritical
-        | Param::AcentricFactor => {
+        // `calc_T_critical` and friends: the critical-contour tracer, and an
+        // answer only when it finds exactly one point. PropsSI reports any
+        // failure as its generic message.
+        Param::TCritical | Param::PCritical | Param::RhomolarCritical | Param::RhomassCritical => {
+            let crit = rustprop_heos::mixture_critical::critical_point(model, z)
+                .map_err(|_| Error::Value("No outputs were able to be calculated".into()))?;
+            match out {
+                Param::TCritical => crit.t,
+                Param::PCritical => crit.p,
+                Param::RhomolarCritical => crit.rhomolar,
+                _ => crit.rhomolar * model.molar_mass(z),
+            }
+        }
+        Param::AcentricFactor => {
             return Err(Error::Value("No outputs were able to be calculated".into()));
         }
         other => {

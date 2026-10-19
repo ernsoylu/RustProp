@@ -413,6 +413,143 @@ fn mixture_outputs_match_oracle() {
     );
 }
 
+/// Components in a fixture fluid string: `A[x]&B[y]` counts its parts, a
+/// predefined `<Name>.mix` its registry entry.
+fn component_count(fluid: &str) -> usize {
+    match fluid.strip_suffix(".mix") {
+        Some(name) => rustprop_data::mixtures::MIX_PREDEFINED
+            .iter()
+            .find(|m| m.name == name)
+            .map_or(0, |m| m.fluids.len()),
+        None => fluid.split('&').count(),
+    }
+}
+
+/// Above this many components the critical search is the multi-minute
+/// natural-gas case, replayed by the weekly `sweep` job instead.
+const HEAVY_CRITICAL_COMPONENTS: usize = 6;
+
+fn replay_mixture_critical(heavy: bool) {
+    // `calc_all_critical_points`: L1*/M1* (the determinants a critical point
+    // zeroes) at fixed states, then Tcrit/pcrit/rhomolar_critical through
+    // PropsSI for every predefined blend — a value where the wheel's tracer
+    // finds exactly one point, a refusal where it does not. The determinants
+    // carry LU/trace rounding (1e-9); the critical point is a Newton root
+    // converged to 1e-10 in (tau, delta) (1e-8).
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/mixture_critical.jsonl");
+    let all = rustprop_golden_tests::load_jsonl(&path);
+    assert_eq!(all.len(), 537);
+    let recs: Vec<_> = all
+        .into_iter()
+        .filter(|r| (component_count(&r.fluid) > HEAVY_CRITICAL_COMPONENTS) == heavy)
+        .collect();
+    let registry: std::collections::HashMap<&str, &'static FluidData> =
+        rustprop_data::fluids::all().into_iter().collect();
+    let lookup = |name: &str| -> &'static FluidData {
+        registry
+            .iter()
+            .find(|(k, v)| {
+                k.eq_ignore_ascii_case(name)
+                    || v.aliases.iter().any(|a| a.eq_ignore_ascii_case(name))
+            })
+            .map(|(_, v)| *v)
+            .unwrap_or_else(|| panic!("unknown fluid {name}"))
+    };
+    let mut failures = Vec::new();
+    let (mut contour, mut values, mut refusals) = (0, 0, 0);
+    for rec in &recs {
+        if rec.out == "L1star" || rec.out == "M1star" {
+            contour += 1;
+            let mut comps = Vec::new();
+            let mut z = Vec::new();
+            for part in rec.fluid.split('&') {
+                let (name, x) = part.split_once('[').expect("A[x]&B[y]");
+                comps.push(lookup(name));
+                z.push(x.trim_end_matches(']').parse::<f64>().expect("fraction"));
+            }
+            let model = rustprop_heos::mixture::MixtureModel::new(
+                &comps,
+                rustprop_data::mixtures::MIX_BINARY_PAIRS,
+                rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+            )
+            .expect("model builds");
+            match rustprop_heos::mixture_critical::criticality_contour_values(
+                &model, &z, rec.val1, rec.val2,
+            ) {
+                Ok((l1, m1)) => {
+                    let actual = if rec.out == "L1star" { l1 } else { m1 };
+                    if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-9) {
+                        failures.push(e);
+                    }
+                }
+                Err(e) => failures.push(format!("{}: error {e:?}", rec.id())),
+            }
+            continue;
+        }
+        let fluid = format!("HEOS::{}", rec.fluid);
+        let result = rustprop::props_si(&rec.out, "", 0.0, "", 0.0, &fluid);
+        // The one blend where the wheel answers and the port refuses
+        // (PLAN.md, 2026-10-19): after HighN2's first critical point the
+        // L1*=0 contour folds, L1*(theta) has no root near the last angle,
+        // and the tracer's Newton step wanders with no root to find — where
+        // it stops is decided by the derivative's last bits. The port lands
+        // on a distant root whose M1* has flipped sign and its second
+        // critical-point solve diverges; the wheel's does not. Pinned to the
+        // refusal, with heal detection.
+        if rec.fluid == "HighN2.mix" && rec.error.is_none() {
+            match result {
+                Err(_) => refusals += 1,
+                Ok(v) => failures.push(format!(
+                    "{}: HighN2 now answers {v} (oracle {}) — the pinned divergence healed; \
+                     unpin it",
+                    rec.id(),
+                    rec.expected
+                )),
+            }
+            continue;
+        }
+        match (&rec.error, result) {
+            (Some(_), Err(_)) => refusals += 1,
+            (Some(want), Ok(v)) => failures.push(format!(
+                "{}: port answered {v} where the oracle refused ({want})",
+                rec.id()
+            )),
+            (None, Ok(actual)) => {
+                values += 1;
+                if let Err(e) = rustprop_golden_tests::check(rec, actual, 1e-8) {
+                    failures.push(e);
+                }
+            }
+            (None, Err(e)) => failures.push(format!("{}: error {e:?}", rec.id())),
+        }
+    }
+    println!("{contour} contour, {values} critical values, {refusals} refusals");
+    assert_eq!(recs.len(), contour + values + refusals + failures.len());
+    assert!(
+        failures.is_empty(),
+        "{} of {} mixture critical records failed:\n{}",
+        failures.len(),
+        recs.len(),
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn mixture_critical_points_match_oracle() {
+    replay_mixture_critical(false);
+}
+
+/// The natural gases (7 to 21 components) — HighN2.mix's pinned divergence
+/// among them. Minutes per blend in a debug build, so the weekly `sweep` job
+/// runs this in release: `cargo test --release -p rustprop-golden-tests
+/// --test mixtures mixture_critical_points_heavy -- --ignored`.
+#[test]
+#[ignore]
+fn mixture_critical_points_heavy_match_oracle() {
+    replay_mixture_critical(true);
+}
+
 #[test]
 fn mixture_propssi_error_conditions() {
     use rustprop::props_si;

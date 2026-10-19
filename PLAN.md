@@ -3436,6 +3436,60 @@ now skip everywhere, with their counts still asserted. Upstream CI's
 `ubuntu-latest` moves to Ubuntu 26 from this date; without this the next
 scheduled run would have gone red for the same reason.
 
+### 2026-10-19, later — mixture critical points after all
+
+The entry above deferred mixture critical points with the third-order
+composition derivatives. They are ported now, on the owner's request,
+in `rustprop_heos::mixture_critical`: `calc_all_critical_points` (Halley onto
+the `L1* = 0` contour at `delta = 0.5`, the `L0CurveTracer` walk with its Brent
+and Newton angle solves, and the 2-D Newton on `L1* = M1* = 0`), `L*`, `M*`,
+their tau/delta derivatives, and every `MixtureDerivatives` function those
+reach — 87 of them, `XN_INDEPENDENT` only, since that is the only flag the
+critical-point code passes. The GERG reducing function gained its third
+composition derivatives and the PSI family. The residual composition
+derivatives collapse for this model family: a first x-derivative is the
+component's own term plus `sum_k x_k F_ik alphar_ik`, a second is
+`F_ij alphar_ij` for i != j, and every third is zero, exactly as upstream's
+`CorrespondingStatesTerm`/`ExcessTerm` return.
+
+Choices worth recording:
+
+- **Composition-only quantities are computed once.** The composition never
+  changes during a search, so Tr, rho_r and the whole PSI family are cached at
+  construction instead of being re-derived in every inner loop, as upstream
+  does. Same expressions; a 10-component blend still takes ~15 s per output,
+  which is upstream's own cost order (the wheel's searches on the same
+  blends ran past a 15-minute timeout).
+- **The tracer reads its solver's last state, not the returned angle.**
+  Upstream computes `M1*` and `p` from the backend members the last `call()`
+  left behind; the port keeps the same members for the same reason.
+- **The stability verdict is not computed.** Upstream fills
+  `CriticalState::stable` by a TPD test, but `calc_T_critical` and friends
+  never read it; running it could only add refusals upstream does not have.
+- **Arithmetic.** Eigen's dynamic `determinant()` (partial-pivot LU),
+  `trace(A*B)` and the 2-D step's `colPivHouseholderQr` are written out
+  directly. `L1*`/`M1*` still match the wheel bit for bit on binaries and to
+  ~1e-14 on ternaries; the critical point is a Newton root at 1e-10.
+
+Evidence: `mixture_critical.jsonl` carries `L1*`/`M1*` at fixed states for
+seven mixtures (binaries through a 4-component natural-gas cut), and Tcrit /
+pcrit / rhomolar_critical for all 147 predefined blends plus four explicit
+mixtures — value or error-parity records. 146 of 147 blends agree.
+
+**HighN2.mix is the one divergence, and it is a knife edge.** Port and wheel
+find the same first critical point (195.3136 K, 11 454.7 mol/m3). Two steps
+later the `L1* = 0` contour folds: along the tracer's circle `L1*(theta)`
+dips to a positive minimum (~7.6e10) next to the last angle and only crosses
+zero again near theta = 0.58. The Newton step therefore starts beside a
+minimum with no root to find, and wanders — the wheel's own `L1*` values with
+finite-difference derivatives at steps 1e-4, 1e-6 and 1e-8 land at theta 1.24,
+1.37 and 1.46. The port lands on the distant root, where `M1*` has flipped
+sign; its second critical-point solve diverges to a negative density and the
+whole call refuses. The wheel evidently stops somewhere `M1*` keeps its sign.
+Reproducing that would mean matching the derivative's last bits through an
+ill-posed iteration — the same ruling as the SVDSBTL and MethylLinoleate
+rows — so it is pinned to the refusal, with heal detection.
+
 ---
 
 ## Status: all fifteen phases complete

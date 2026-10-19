@@ -53,7 +53,7 @@ driven by an external consumer (see below).
 |---|---|
 | Engines | HEOS (pure, pseudo-pure, mixtures), IF97, cubics (SRK/PR), incompressible, PC-SAFT, tabular (TTSE/bicubic), SVDSBTL, humid air, transport, surface tension |
 | Fluids | 136 HEOS (130 pure + 6 pseudo-pure), 154 predefined mixtures, 116 cubic, 126 incompressible, 180 PC-SAFT |
-| Oracle records | 43,196 in 124 committed fixtures, read by 35 suites (`cat tests/golden/fixtures/*.jsonl \| wc -l`) |
+| Oracle records | 43,733 in 125 committed fixtures, read by 35 suites (`cat tests/golden/fixtures/*.jsonl \| wc -l`) |
 | Deliverables | engine crates, `rustprop-cli`, `rustprop-wasm`, `rustprop-capi` (C/C++ SDK), `release.yml`, CI |
 | Bundle sizes | measured in `WASM-SIZES.md` — 128 KB (IF97) to 4.2 MB (all-backends) |
 

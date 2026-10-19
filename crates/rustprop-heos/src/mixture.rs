@@ -482,6 +482,164 @@ impl Gerg2008Reducing {
         }
         self.d2rhormolardxidxj(x, j, i, flag) - self.drhormolardxi__constxj(x, j, flag) - summer
     }
+
+    // --- third order and the PSI family (critical-point machinery) ---
+    //
+    // Independent fractions only: `calc_all_critical_points` is the sole
+    // consumer and upstream calls it with XN_INDEPENDENT throughout.
+
+    fn d3fyijdxi2dxj(x: &[f64], i: usize, j: usize, beta_y: f64) -> f64 {
+        let (x_i, x_j, b2) = (x[i], x[j], beta_y * beta_y);
+        let den = beta_y.powi(8) * x_i.powi(4)
+            + 4.0 * beta_y.powi(6) * x_i.powi(3) * x_j
+            + 6.0 * beta_y.powi(4) * (x_i * x_j).powi(2)
+            + 4.0 * b2 * x_i * x_j.powi(3)
+            + x_j.powi(4);
+        -6.0 * b2 * x_i * x_j * x_j * (b2 - 1.0) / den
+    }
+    fn d3fyijdxidxj2(x: &[f64], i: usize, j: usize, beta_y: f64) -> f64 {
+        let (x_i, x_j, b2) = (x[i], x[j], beta_y * beta_y);
+        let den = beta_y.powi(8) * x_i.powi(4)
+            + 4.0 * beta_y.powi(6) * x_i.powi(3) * x_j
+            + 6.0 * beta_y.powi(4) * (x_i * x_j).powi(2)
+            + 4.0 * b2 * x_i * x_j.powi(3)
+            + x_j.powi(4);
+        6.0 * b2 * x_i * x_i * x_j * (b2 - 1.0) / den
+    }
+    fn d3fyikdxi3__constxk(x: &[f64], i: usize, k: usize, beta_y: f64) -> f64 {
+        let (x_i, x_k, b2) = (x[i], x[k], beta_y * beta_y);
+        let den = beta_y.powi(8) * x_i.powi(4)
+            + 4.0 * beta_y.powi(6) * x_i.powi(3) * x_k
+            + 6.0 * beta_y.powi(4) * (x_i * x_k).powi(2)
+            + 4.0 * b2 * x_i * x_k.powi(3)
+            + x_k.powi(4);
+        6.0 * b2 * x_k * x_k * x_k * (b2 - 1.0) / den
+    }
+    fn d3fykidxi3__constxk(x: &[f64], k: usize, i: usize, beta_y: f64) -> f64 {
+        let (x_i, x_k, b2) = (x[i], x[k], beta_y * beta_y);
+        6.0 * b2 * x_k * x_k * x_k * (1.0 - b2) / (b2 * x_k + x_i).powi(4)
+    }
+
+    /// Upstream `d3Yrdxidxjdxk`, XN_INDEPENDENT branch.
+    #[allow(clippy::too_many_arguments)]
+    fn d3yrdxidxjdxk(
+        &self,
+        x: &[f64],
+        i: usize,
+        j: usize,
+        k: usize,
+        beta: &[f64],
+        gamma: &[f64],
+        y_c_ij: &[f64],
+    ) -> f64 {
+        let n = self.n;
+        if i != j && j != k && k != i {
+            0.0
+        } else if k == i && i != j {
+            self.c_y_ij(i, j, beta, gamma, y_c_ij) * Self::d3fyijdxi2dxj(x, i, j, beta[i * n + j])
+        } else if k == j && i != j {
+            self.c_y_ij(i, j, beta, gamma, y_c_ij) * Self::d3fyijdxidxj2(x, i, j, beta[i * n + j])
+        } else if i == j && i != k {
+            self.c_y_ij(i, k, beta, gamma, y_c_ij) * Self::d3fyijdxi2dxj(x, i, k, beta[i * n + k])
+        } else {
+            let mut d = 0.0;
+            for m in 0..i {
+                d += self.c_y_ij(m, i, beta, gamma, y_c_ij)
+                    * Self::d3fykidxi3__constxk(x, m, i, beta[m * n + i]);
+            }
+            for m in (i + 1)..n {
+                d += self.c_y_ij(i, m, beta, gamma, y_c_ij)
+                    * Self::d3fyikdxi3__constxk(x, i, m, beta[i * n + m]);
+            }
+            d
+        }
+    }
+
+    pub fn d3trdxidxjdxk(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        self.d3yrdxidxjdxk(x, i, j, k, &self.beta_t, &self.gamma_t, &self.t_c)
+    }
+    pub fn d3vrmolardxidxjdxk(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        self.d3yrdxidxjdxk(x, i, j, k, &self.beta_v, &self.gamma_v, &self.v_c)
+    }
+    pub fn d3rhormolardxidxjdxk(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        let f = XnFlag::Independent;
+        let rhor = self.rhormolar(x);
+        let line1 = -rhor.powi(2) * self.d3vrmolardxidxjdxk(x, i, j, k);
+        let line2 = 2.0
+            * rhor.powi(3)
+            * (self.dvrmolardxi__constxj(x, k, f) * self.d2vrmolardxidxj(x, i, j, f)
+                + self.dvrmolardxi__constxj(x, j, f) * self.d2vrmolardxidxj(x, i, k, f)
+                + self.dvrmolardxi__constxj(x, i, f) * self.d2vrmolardxidxj(x, j, k, f));
+        let line3 = -6.0
+            * rhor.powi(4)
+            * self.dvrmolardxi__constxj(x, i, f)
+            * self.dvrmolardxi__constxj(x, j, f)
+            * self.dvrmolardxi__constxj(x, k, f);
+        line1 + line2 + line3
+    }
+
+    pub fn d2_ndtrdni_dxj_dxk__constxi(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        let mut s = 0.0;
+        for m in 0..self.n {
+            s += x[m] * self.d3trdxidxjdxk(x, j, k, m);
+        }
+        self.d3trdxidxjdxk(x, i, j, k) - 2.0 * self.d2trdxidxj(x, j, k, XnFlag::Independent) - s
+    }
+    pub fn d2_ndrhorbardni_dxj_dxk__constxi(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        let mut s = 0.0;
+        for m in 0..self.n {
+            s += x[m] * self.d3rhormolardxidxjdxk(x, j, k, m);
+        }
+        self.d3rhormolardxidxjdxk(x, i, j, k)
+            - 2.0 * self.d2rhormolardxidxj(x, j, k, XnFlag::Independent)
+            - s
+    }
+
+    pub fn psi_rho(&self, x: &[f64], i: usize) -> f64 {
+        1.0 - 1.0 / self.rhormolar(x) * self.ndrhorbardni__constnj(x, i, XnFlag::Independent)
+    }
+    pub fn d_psi_rho_dxj(&self, x: &[f64], i: usize, j: usize) -> f64 {
+        let f = XnFlag::Independent;
+        -1.0 / self.rhormolar(x)
+            * (self.d_ndrhorbardni_dxj__constxi(x, i, j, f)
+                - self.drhormolardxi__constxj(x, j, f) * (1.0 - self.psi_rho(x, i)))
+    }
+    pub fn d2_psi_rho_dxj_dxk(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        let f = XnFlag::Independent;
+        let rhor = self.rhormolar(x);
+        let line1 = self.d2_ndrhorbardni_dxj_dxk__constxi(x, i, j, k);
+        let line2 = -1.0 / rhor
+            * self.drhormolardxi__constxj(x, k, f)
+            * self.d_ndrhorbardni_dxj__constxi(x, i, j, f);
+        let line3 = self.drhormolardxi__constxj(x, j, f) * self.d_psi_rho_dxj(x, i, k);
+        let line4 = -(self.d2rhormolardxidxj(x, j, k, f)
+            - 1.0 / rhor
+                * self.drhormolardxi__constxj(x, k, f)
+                * self.drhormolardxi__constxj(x, j, f))
+            * (1.0 - self.psi_rho(x, i));
+        -1.0 / rhor * (line1 + line2 + line3 + line4)
+    }
+    pub fn psi_t(&self, x: &[f64], i: usize) -> f64 {
+        1.0 / self.tr(x) * self.ndtrdni__constnj(x, i, XnFlag::Independent)
+    }
+    pub fn d_psi_t_dxj(&self, x: &[f64], i: usize, j: usize) -> f64 {
+        let f = XnFlag::Independent;
+        1.0 / self.tr(x)
+            * (self.d_ndtrdni_dxj__constxi(x, i, j, f)
+                - self.dtrdxi__constxj(x, j, f) * self.psi_t(x, i))
+    }
+    pub fn d2_psi_t_dxj_dxk(&self, x: &[f64], i: usize, j: usize, k: usize) -> f64 {
+        let f = XnFlag::Independent;
+        let tr = self.tr(x);
+        let line1 = self.d2_ndtrdni_dxj_dxk__constxi(x, i, j, k);
+        let line2 =
+            -1.0 / tr * self.dtrdxi__constxj(x, k, f) * self.d_ndtrdni_dxj__constxi(x, i, j, f);
+        let line3 = -self.dtrdxi__constxj(x, j, f) * self.d_psi_t_dxj(x, i, k);
+        let line4 = -(self.d2trdxidxj(x, j, k, f)
+            - 1.0 / tr * self.dtrdxi__constxj(x, k, f) * self.dtrdxi__constxj(x, j, f))
+            * self.psi_t(x, i);
+        1.0 / tr * (line1 + line2 + line3 + line4)
+    }
 }
 
 // ---------------------------------------------------------------------------
