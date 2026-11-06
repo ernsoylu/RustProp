@@ -109,6 +109,7 @@ Default features are empty. Pick engines explicitly:
 |---|---|
 | `heos` | Multiparameter Helmholtz EOS — **also add fluids**, see below |
 | `heos-mixtures` | HEOS mixtures (binary-pair + departure data) |
+| `heos-mixture-engine` | HEOS mixtures without the tables — install them at run time, below |
 | `if97` | IAPWS-IF97 water/steam, self-contained |
 | `cubics` | SRK / Peng-Robinson, 116 fluids included |
 | `incompressible` | Brines and secondary fluids, 126 included |
@@ -141,6 +142,37 @@ fn main() -> rustprop::Result<()> {
     Ok(())
 }
 ```
+
+### Fluids loaded at run time
+
+A build can also serve fluids it does not link. Pack them once, natively,
+with a build that links them (`rustprop-core` has no dependencies):
+
+```rust
+let bytes = rustprop_core::pack::encode_fluid(&rustprop_data::fluids::oxygen::OXYGEN);
+let tables = rustprop_core::pack::encode_mixtures(&rustprop_core::pack::MixtureTables {
+    binary_pairs: rustprop_data::mixtures::MIX_BINARY_PAIRS,
+    departure_fns: rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+    predefined: rustprop_data::mixtures::MIX_PREDEFINED,
+});
+```
+
+then hand the bytes to the build that serves them, before the first call that
+needs them:
+
+```rust
+rustprop::props_api::install_fluid(&bytes)?;            // returns "Oxygen"
+rustprop::props_api::install_mixture_tables(&tables)?;  // `heos-mixture-engine`
+let d = rustprop::props_si("D", "T", 300.0, "P", 101325.0, "Oxygen")?;
+```
+
+A decoded fluid is the linked data bit for bit, so it answers identically.
+It registers the same keys a linked one does (name, CAS, aliases). A fluid
+already registered is kept, and its bytes are not decoded again. Each record
+starts with a magic that names its kind and format version, and decoding
+refuses anything else, including a truncated record or trailing bytes. A
+mixture needs its component fluids installed too. An ECS transport model
+needs its reference fluid installed (`reference_fluid` in the data).
 
 Errors are `rustprop::Error`, one variant per CoolProp exception type — this
 port reproduces upstream's *refusals* as faithfully as its numbers.

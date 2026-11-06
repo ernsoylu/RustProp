@@ -27,7 +27,11 @@ default = []
 heos = ["dep:rustprop-heos", "dep:rustprop-data"]
 # Mixture support (binary-pair + departure-function tables are a separate
 # data block; apps that only need pure fluids should not carry them).
-heos-mixtures = ["heos", "rustprop-data/mixture-data"]
+# The mixture engine without its tables, for a host that installs them at run
+# time (`props_api::install_mixture_tables`); `mixture-data` links them.
+heos-mixture-engine = ["heos"]
+mixture-data = ["heos-mixture-engine", "rustprop-data/mixture-data"]
+heos-mixtures = ["heos-mixture-engine", "mixture-data"]
 cubics = ["dep:rustprop-cubics", "dep:rustprop-data", "rustprop-data/cubic-fluids"]
 if97 = ["dep:rustprop-if97"]
 incompressible = ["dep:rustprop-incompressible", "dep:rustprop-data", "rustprop-data/incompressible-fluids"]

@@ -3490,6 +3490,54 @@ Reproducing that would mean matching the derivative's last bits through an
 ill-posed iteration — the same ruling as the SVDSBTL and MethylLinoleate
 rows — so it is pinned to the refusal, with heal detection.
 
+### 2026-11-06 — runtime fluids: a packed format and an extensible registry
+
+Driven by frees-wasm's lazy fluid chunks (its NEXT_STEPS phase E). Its
+browser module links 28 fluids and `mixture-data`. It measured that leaving
+everything past four core fluids out of the first download saves 2.5 s of
+the 15 s to first solve on a slow mobile link. For that, rustprop has to
+serve a fluid it did not link.
+
+- **Format in `rustprop-core`, not written by `rustprop-datagen`.** The
+  task first named datagen as the writer. Datagen does not use the core
+  types: it turns JSON into Rust source through its own serde mirrors.
+  Teaching it a binary output would add a second JSON-to-data path, and with
+  it a second source of truth. Instead, `pack::encode_*` encodes the linked
+  statics themselves, and the generated code stays the only source. Any
+  native tool that links the fluids can write the files. frees does that at
+  its build.
+- **Exactness by construction, not by a comparison walker.** No fluid type
+  has `PartialEq` or `Debug`, and adding derives to every core type for a
+  test would widen the public API. One macro writes `put` and `take` from
+  one field list in one order, and `put` destructures without `..`, so
+  leaving a field out is a compile error. Under that, the round trip
+  `encode(decode(b)) == b` is a field-for-field, bit-for-bit equality,
+  NaN and infinities included. Three enums with tuple variants
+  (`ViscosityModel`, `ConductivityModel`, `TransportModel<T>`) are written by
+  hand, with the same exhaustive matches.
+- **Decoded data is leaked.** Every engine takes `&'static` data, and the
+  facade's `PtFlash` and mixture-model caches are keyed by the data's
+  address. So a fluid is decoded once and lives for the process.
+  `install_fluid` reads the name first (`pack::fluid_name`). A fluid already
+  registered under that name, linked or installed, is kept, and the bytes
+  are not decoded.
+- **Registry semantics are upstream's.** `resolve_fluid` was a `OnceLock`
+  map. It is now a `RwLock` map, seeded the same way, that installs extend
+  with the same keys (CAS, name, alias, `upper(alias)`), later claims
+  replacing earlier ones. That is upstream's `add_fluids_as_JSON`.
+- **Mixture tables are all or nothing.** They come linked (`mixture-data`)
+  or from one install. Without them `predefined_mixture` answers "no such
+  blend", exactly as a build without blends did, and the mixture model
+  refuses with `NotAvailable`. The new feature `heos-mixture-engine` gates
+  the code. `heos-mixtures` keeps its meaning (engine plus tables), so no
+  consumer's build changes.
+- **Tested in two places.** This workspace turns `mixture-data` on in every
+  test build. So CI has its own step that lints the engine-only
+  configuration and runs `mixture_engine_only.rs` in it: no blends, and
+  `NotAvailable` before tables are installed. Installing tables from bytes
+  is exercised end to end only by frees-wasm, which installs both the tables
+  and the blend components.
+
 ---
 
 ## Status: all fifteen phases complete
