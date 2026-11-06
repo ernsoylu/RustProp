@@ -11,6 +11,7 @@
 pub mod cformat;
 pub mod error;
 pub mod fluid;
+pub mod pack;
 pub mod params;
 
 pub use error::{Error, Result};

@@ -6,6 +6,26 @@ are not "Added" and "Fixed" but **Divergences from upstream** and **Not
 ported** — a difference from CoolProp is the only kind of surprise this library
 can hand you.
 
+## [0.3.0] — 2026-11-06
+
+### Added — fluids and mixture tables loaded at run time
+
+- `rustprop_core::pack`: a compact binary form of `FluidData` and of the
+  three mixture tables (`encode_fluid`/`decode_fluid`/`fluid_name`,
+  `encode_mixtures`/`decode_mixtures`). Decoding gives the linked data bit
+  for bit. `tests/golden/tests/pack.rs` proves it for all 136 fluids and the
+  888/28/154 mixture records, checks that decoded fluids compute bitwise the
+  same states, and checks that every truncation and corruption is refused.
+- `props_api::install_fluid(bytes)`: adds a packed fluid to the fluid
+  registry, under the keys a linked fluid has. `props_api::resolve_fluid`
+  now reads a registry that installs can extend.
+- `props_api::install_mixture_tables(bytes)`, and the `heos-mixture-engine`
+  feature: the mixture engine without `mixture-data`, for a host that fetches
+  the tables. `heos-mixtures` means what it did (engine plus tables), now
+  spelled `heos-mixture-engine` + `mixture-data`.
+
+Nothing about a linked build's answers changes.
+
 ## [0.2.0] — 2026-10-19
 
 ### Added — every mixture keyed output upstream serves

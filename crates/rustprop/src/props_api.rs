@@ -185,28 +185,69 @@ fn heos_route(_: &str, _: &str, _: f64, _: &str, _: f64, _: &str) -> Result<f64>
 
 /// Resolve a fluid key exactly as upstream registers them: CAS, name, alias,
 /// `upper(alias)`; later fluids replace earlier claims of the same key.
+/// Fluids added by [`install_fluid`] register the same keys after the linked
+/// ones, as upstream's `add_fluids_as_JSON` does.
 #[cfg(feature = "heos")]
 pub fn resolve_fluid(key: &str) -> Result<&'static FluidData> {
-    use std::collections::HashMap;
-    use std::sync::OnceLock;
-    static MAP: OnceLock<HashMap<String, &'static FluidData>> = OnceLock::new();
-    let map = MAP.get_or_init(|| {
-        let mut m: HashMap<String, &'static FluidData> = HashMap::new();
-        for (_name, data) in rustprop_data::fluids::all() {
-            m.insert(data.cas.to_string(), data);
-            m.insert(data.name.to_string(), data);
-            for alias in data.aliases {
-                m.insert((*alias).to_string(), data);
-                m.insert(alias.to_uppercase(), data);
-            }
-        }
-        m
-    });
+    let map = fluid_map().read().expect("fluid registry poisoned");
     map.get(key).copied().ok_or_else(|| {
         Error::Value(format!(
             "key [{key}] was not found in string_to_index_map in JSONFluidLibrary"
         ))
     })
+}
+
+#[cfg(feature = "heos")]
+type FluidMap = std::collections::HashMap<String, &'static FluidData>;
+
+#[cfg(feature = "heos")]
+fn fluid_map() -> &'static std::sync::RwLock<FluidMap> {
+    use std::sync::{OnceLock, RwLock};
+    static MAP: OnceLock<RwLock<FluidMap>> = OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut m = FluidMap::new();
+        for (_name, data) in rustprop_data::fluids::all() {
+            register(&mut m, data);
+        }
+        RwLock::new(m)
+    })
+}
+
+#[cfg(feature = "heos")]
+fn register(m: &mut FluidMap, data: &'static FluidData) {
+    m.insert(data.cas.to_string(), data);
+    m.insert(data.name.to_string(), data);
+    for alias in data.aliases {
+        m.insert((*alias).to_string(), data);
+        m.insert(alias.to_uppercase(), data);
+    }
+}
+
+/// Adds one fluid packed by [`rustprop_core::pack::encode_fluid`] to the
+/// registry, so a build can serve fluids it does not link. Returns the
+/// fluid's name. A fluid already registered under that name (linked, or
+/// installed before) is kept and the bytes are not decoded: the engine's
+/// caches are keyed by the data's address, so each fluid is decoded once.
+#[cfg(feature = "heos")]
+pub fn install_fluid(bytes: &[u8]) -> Result<&'static str> {
+    let name = rustprop_core::pack::fluid_name(bytes)?;
+    if let Some(known) = installed(name) {
+        return Ok(known);
+    }
+    let data = rustprop_core::pack::decode_fluid(bytes)?;
+    let mut map = fluid_map().write().expect("fluid registry poisoned");
+    if let Some(known) = map.get(name).filter(|d| d.name == name) {
+        return Ok(known.name);
+    }
+    register(&mut map, data);
+    Ok(data.name)
+}
+
+/// The registered fluid whose canonical name is `name`, if any.
+#[cfg(feature = "heos")]
+fn installed(name: &str) -> Option<&'static str> {
+    let map = fluid_map().read().expect("fluid registry poisoned");
+    map.get(name).filter(|d| d.name == name).map(|d| d.name)
 }
 
 // ---------------------------------------------------------------------------
@@ -227,7 +268,7 @@ fn heos_route(
     // Upstream's HelmholtzEOSBackend constructor checks the predefined
     // mixture library BEFORE the pure-fluid library (keys are "<Name>.mix"
     // and its uppercase form, exact match).
-    #[cfg(feature = "heos-mixtures")]
+    #[cfg(feature = "heos-mixture-engine")]
     if let Some(pm) = predefined_mixture(fluid) {
         return heos_mixture_route(
             output,
@@ -1709,7 +1750,7 @@ fn incomp_route(
 /// entry `Name[frac]`; fractions outside [0,1] and unparseable fractions
 /// throw verbatim; components at or below `10 * DBL_EPSILON` are silently
 /// dropped (unless the string names a single fluid).
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn extract_mole_fractions(fluid_string: &str) -> Result<(Vec<&str>, Vec<f64>)> {
     let mut names = Vec::new();
     let mut fractions = Vec::new();
@@ -1748,7 +1789,7 @@ fn extract_mole_fractions(fluid_string: &str) -> Result<(Vec<&str>, Vec<f64>)> {
 
 /// Entry point for HEOS fluid strings containing `&` or `[...]`: parse the
 /// composition, collapse to the pure route when a single component remains.
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn heos_mixture_entry(
     output: &str,
     name1: &str,
@@ -1777,14 +1818,14 @@ fn heos_mixture_entry(
     heos_mixture_route(output, name1, prop1, name2, prop2, &names, &fractions)
 }
 
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 use rustprop_heos::mixture::MixtureModel;
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 use rustprop_heos::mixture_flash::MixtureAt;
 
 /// Without the `heos-mixtures` feature, mixture strings stay a loud error
 /// (the pair/departure tables are deliberately not linked in).
-#[cfg(not(feature = "heos-mixtures"))]
+#[cfg(not(feature = "heos-mixture-engine"))]
 fn heos_mixture_entry(
     _output: &str,
     _name1: &str,
@@ -1798,18 +1839,63 @@ fn heos_mixture_entry(
     ))
 }
 
+/// The mixture tables: linked (`mixture-data`), else installed by
+/// [`install_mixture_tables`], else none.
+#[cfg(feature = "heos-mixture-engine")]
+fn mixture_tables() -> Option<&'static rustprop_core::pack::MixtureTables> {
+    #[cfg(feature = "mixture-data")]
+    {
+        use std::sync::OnceLock;
+        static LINKED: OnceLock<rustprop_core::pack::MixtureTables> = OnceLock::new();
+        Some(LINKED.get_or_init(|| rustprop_core::pack::MixtureTables {
+            binary_pairs: rustprop_data::mixtures::MIX_BINARY_PAIRS,
+            departure_fns: rustprop_data::mixtures::MIX_DEPARTURE_FNS,
+            predefined: rustprop_data::mixtures::MIX_PREDEFINED,
+        }))
+    }
+    #[cfg(not(feature = "mixture-data"))]
+    INSTALLED_MIXTURES.get().copied()
+}
+
+#[cfg(all(feature = "heos-mixture-engine", not(feature = "mixture-data")))]
+static INSTALLED_MIXTURES: std::sync::OnceLock<&'static rustprop_core::pack::MixtureTables> =
+    std::sync::OnceLock::new();
+
+/// Installs the mixture tables packed by
+/// [`rustprop_core::pack::encode_mixtures`], for a build with the mixture
+/// engine but without `mixture-data`. Tables already present (linked, or
+/// installed before) are kept and the bytes are not decoded.
+#[cfg(feature = "heos-mixture-engine")]
+pub fn install_mixture_tables(bytes: &[u8]) -> Result<()> {
+    if mixture_tables().is_some() {
+        return Ok(());
+    }
+    #[cfg(not(feature = "mixture-data"))]
+    {
+        let tables = rustprop_core::pack::decode_mixtures(bytes)?;
+        let _ = INSTALLED_MIXTURES.set(tables);
+    }
+    #[cfg(feature = "mixture-data")]
+    let _ = bytes;
+    Ok(())
+}
+
 /// Upstream `is_predefined_mixture`: the library registers each blend as
 /// `"<name>.mix"` plus the all-uppercase form (emplace: first key wins).
-#[cfg(feature = "heos-mixtures")]
+/// Without mixture tables there are no predefined mixtures.
+#[cfg(feature = "heos-mixture-engine")]
 fn predefined_mixture(name: &str) -> Option<&'static rustprop_core::fluid::PredefinedMixture> {
     use std::collections::HashMap;
     use std::sync::OnceLock;
     static MAP: OnceLock<HashMap<String, &'static rustprop_core::fluid::PredefinedMixture>> =
         OnceLock::new();
+    // Tables appear once and never change, so the map is built the first
+    // time they are there.
+    let tables = mixture_tables()?;
     let map = MAP.get_or_init(|| {
         let mut m: HashMap<String, &'static rustprop_core::fluid::PredefinedMixture> =
             HashMap::new();
-        for pm in rustprop_data::mixtures::MIX_PREDEFINED {
+        for pm in tables.predefined {
             let key = format!("{}.mix", pm.name);
             m.entry(key.to_uppercase()).or_insert(pm);
             m.entry(key).or_insert(pm);
@@ -1820,11 +1906,17 @@ fn predefined_mixture(name: &str) -> Option<&'static rustprop_core::fluid::Prede
 }
 
 /// One cached `MixtureModel` per component set (composition-independent).
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn mixture_model(components: &[&'static FluidData]) -> Result<&'static MixtureModel> {
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
     static MODELS: OnceLock<Mutex<HashMap<Vec<usize>, &'static MixtureModel>>> = OnceLock::new();
+    let tables = mixture_tables().ok_or_else(|| {
+        Error::NotAvailable(
+            "the mixture tables are not installed (link `mixture-data` or call install_mixture_tables)"
+                .into(),
+        )
+    })?;
     let m = MODELS.get_or_init(|| Mutex::new(HashMap::new()));
     let key: Vec<usize> = components
         .iter()
@@ -1834,24 +1926,20 @@ fn mixture_model(components: &[&'static FluidData]) -> Result<&'static MixtureMo
     if let Some(model) = guard.get(&key) {
         return Ok(model);
     }
-    let model = MixtureModel::new(
-        components,
-        rustprop_data::mixtures::MIX_BINARY_PAIRS,
-        rustprop_data::mixtures::MIX_DEPARTURE_FNS,
-    )?;
+    let model = MixtureModel::new(components, tables.binary_pairs, tables.departure_fns)?;
     let leaked: &'static MixtureModel = Box::leak(Box::new(model));
     guard.insert(key, leaked);
     Ok(leaked)
 }
 
 /// The state a mixture flash publishes (single- or two-phase).
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 enum MixState {
     Single(rustprop_heos::mixture_flash::MixtureState),
     Two(rustprop_heos::mixture_vle::MixtureTwoPhase),
 }
 
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn heos_mixture_route(
     output: &str,
     name1: &str,
@@ -1906,7 +1994,7 @@ fn heos_mixture_route(
 /// reducing-state values, R and M; the critical/acentric family fails with
 /// PropsSI's outer wrapper message (the underlying exceptions are
 /// mixture-unsupported upstream).
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn mixture_trivial_output(
     model: &MixtureModel,
     components: &[&'static FluidData],
@@ -1955,7 +2043,7 @@ fn mixture_trivial_output(
 /// ported; DP/DQ throw upstream's NotImplemented verbatim; the sweep-based
 /// pairs (DmolarT, HmolarP, ...) need the 10f stability machinery and defer
 /// loudly (upstream computes them — documented deviation until 10f).
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn mixture_update(
     model: &'static MixtureModel,
     z: &[f64],
@@ -2094,7 +2182,7 @@ fn mixture_update(
 
 /// Converts a sweep-flash publish into the props MixState (two-phase results
 /// carry per-phase compositions for the lever-rule caloric outputs).
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn mix_sweep_state(
     model: &'static MixtureModel,
     result: rustprop_core::Result<rustprop_heos::mixture_stability::PtFlashResult>,
@@ -2129,7 +2217,7 @@ fn mix_sweep_state(
     }
 }
 
-#[cfg(feature = "heos-mixtures")]
+#[cfg(feature = "heos-mixture-engine")]
 fn mixture_keyed_output(
     model: &MixtureModel,
     components: &[&'static FluidData],

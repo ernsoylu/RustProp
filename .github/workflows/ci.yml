@@ -36,6 +36,13 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
+      # The mixture engine without its tables (`install_mixture_tables`):
+      # the workspace build above links `mixture-data`, so this
+      # configuration is compiled and run only here.
+      - name: mixture engine without linked tables
+        run: |
+          cargo clippy -p rustprop --all-targets --features heos-mixture-engine,rustprop-data/water -- -D warnings
+          cargo test -p rustprop --features heos-mixture-engine,rustprop-data/water --test mixture_engine_only
       # Generated fluid data can never drift from the generator + pinned JSON
       - name: datagen determinism
         run: |
